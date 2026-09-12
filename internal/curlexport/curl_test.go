@@ -37,8 +37,9 @@ func TestAuthFlags(t *testing.T) {
 		"bearer t":                            "Authorization:",
 		"aws region=eu-west-2 service=s3":     "--aws-sigv4 'aws:amz:eu-west-2:s3'",
 		"aws":                                 `--aws-sigv4 "aws:amz:$AWS_REGION:execute-api"`,
+		"aws service=s3":                      `printf '%s' "-H x-amz-security-token:$AWS_SESSION_TOKEN"`,
 		"exec gcloud auth print-access-token": "$('gcloud' 'auth' 'print-access-token')",
-		"oauth2 tokenUrl=https://idp/t clientId=c": `-H "Authorization: `,
+		"oauth2 tokenUrl=https://idp/t clientId=c": "$TOKEN",
 	}
 	for spec, want := range cases {
 		if got := Command(mk(spec)); !strings.Contains(got, want) {

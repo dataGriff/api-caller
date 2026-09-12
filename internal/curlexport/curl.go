@@ -51,16 +51,16 @@ func authFlags(s *auth.Spec) []string {
 			return []string{
 				`--aws-sigv4 "aws:amz:$AWS_REGION:` + escapeDouble(service) + `"`,
 				`--user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"`,
-				`-H "x-amz-security-token: $AWS_SESSION_TOKEN"`,
+				`$( [ -n "$AWS_SESSION_TOKEN" ] && printf '%s' "-H x-amz-security-token:$AWS_SESSION_TOKEN" )`,
 			}
 		}
 		return []string{
 			"--aws-sigv4 " + quote("aws:amz:"+region+":"+service),
 			`--user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"`,
-			`-H "x-amz-security-token: $AWS_SESSION_TOKEN"`,
+			`$( [ -n "$AWS_SESSION_TOKEN" ] && printf '%s' "-H x-amz-security-token:$AWS_SESSION_TOKEN" )`,
 		}
 	case "oauth2":
-		return []string{`-H "Authorization: ******"`}
+		return []string{`-H "Authorization: Bearer $TOKEN"`}
 	case "exec":
 		header := s.Options["header"]
 		if header == "" {
