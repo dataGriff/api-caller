@@ -1,0 +1,27 @@
+@expand = profile
+
+### Fetch a user
+# @name get-user
+# @description Fetch a single user by id
+# @assert status == 200
+# @assert body.$.args.id == {{userId}}
+# @assert header.content-type contains json
+# @capture requestedId = body.$.args.id
+GET {{baseUrl}}/get
+    ?id={{userId}}
+    &expand={{expand}}
+Accept: application/json
+
+### Create a user
+# @name create-user
+# @assert status == 200
+# @assert body.$.json.name == {{user}}
+POST {{baseUrl}}/post
+Content-Type: application/json
+
+{"name": "{{user}}", "email": "{{user}}@example.com", "created": "{{$isoTimestamp}}"}
+
+### A request that will fail its assertion
+# @name not-found
+# @assert status == 200
+GET {{baseUrl}}/status/404
