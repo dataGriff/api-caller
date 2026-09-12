@@ -40,6 +40,7 @@ type Options struct {
 	Timeout   time.Duration     // default per-request timeout
 	Insecure  bool              // skip TLS verification
 	KeepGoing bool              // in a flow, continue after a failure
+	Redact    bool              // mask every request value and capture in output (for CI logs)
 }
 
 // Runner executes requests for one project.
@@ -104,17 +105,80 @@ type Resolved struct {
 	Body     string            `json:"-"`
 	Auth     string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
 	AuthSpec *auth.Spec        `json:"-"`              // rendered spec (contains secrets)
-	missing  []string
+	// SecretHeaders names headers whose value came from a secret source
+	// (private env file, .env, session or a capture).
+	SecretHeaders map[string]bool `json:"-"`
+	missing       []string
 }
 
-// MarshalJSON renders headers as an object and the body as a string.
+// MarshalJSON renders headers as an object (sensitive values masked) and the
+// body as a string. Result.MarshalJSON applies --redact on top.
 func (r Resolved) MarshalJSON() ([]byte, error) {
+	return r.marshal(false)
+}
+
+func (r Resolved) marshal(redact bool) ([]byte, error) {
 	type alias Resolved
 	return json.Marshal(struct {
 		alias
 		Headers map[string]string `json:"headers"`
 		Body    string            `json:"body,omitempty"`
-	}{alias(r), headerMap(r.Headers), r.Body})
+	}{alias(r.view(redact)), headerMap(r.DisplayHeaders(redact)), r.DisplayBody(redact)})
+}
+
+// Masked is what a hidden value is replaced with in output.
+const Masked = "***"
+
+// sensitiveHeaders are masked in every output regardless of where their
+// value came from.
+var sensitiveHeaders = map[string]bool{
+	"authorization": true, "proxy-authorization": true, "cookie": true,
+	"x-api-key": true, "x-auth-token": true, "api-key": true, "x-amz-security-token": true,
+}
+
+// DisplayHeaders returns the request headers with sensitive values masked;
+// with redact set every value is masked.
+func (r Resolved) DisplayHeaders(redact bool) []httpfile.Header {
+	out := make([]httpfile.Header, len(r.Headers))
+	for i, h := range r.Headers {
+		out[i] = h
+		if redact || sensitiveHeaders[strings.ToLower(h.Name)] || r.SecretHeaders[h.Name] {
+			out[i].Value = Masked
+		}
+	}
+	return out
+}
+
+// DisplayBody returns the body, or the mask when redacting.
+func (r Resolved) DisplayBody(redact bool) string {
+	if redact && r.Body != "" {
+		return Masked
+	}
+	return r.Body
+}
+
+// DisplayURL returns the URL with query values masked when redacting.
+func (r Resolved) DisplayURL(redact bool) string {
+	if !redact {
+		return r.URL
+	}
+	base, query, ok := strings.Cut(r.URL, "?")
+	if !ok {
+		return r.URL
+	}
+	parts := strings.Split(query, "&")
+	for i, p := range parts {
+		if k, _, has := strings.Cut(p, "="); has {
+			parts[i] = k + "=" + Masked
+		}
+	}
+	return base + "?" + strings.Join(parts, "&")
+}
+
+func (r Resolved) view(redact bool) Resolved {
+	out := r
+	out.URL = r.DisplayURL(redact)
+	return out
 }
 
 func headerMap(hs []httpfile.Header) map[string]string {
@@ -143,21 +207,37 @@ type Result struct {
 	Captures map[string]string `json:"captures,omitempty"`
 	Asserts  []assert.Result   `json:"asserts,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
+	Redact   bool              `json:"-"` // set from Options.Redact
 	raw      *selector.Response
 }
 
-// MarshalJSON redacts resolved request and capture values from machine output.
+// MarshalJSON masks sensitive request headers always, and everything
+// (headers, body, query values, captures) when Redact is set.
 func (r Result) MarshalJSON() ([]byte, error) {
 	type alias Result
-	out := alias(r)
-	out.Request = redactResolved(out.Request)
-	if len(out.Captures) > 0 {
-		out.Captures = map[string]string{}
-		for k := range r.Captures {
-			out.Captures[k] = "***"
-		}
+	out := struct {
+		alias
+		Request  json.RawMessage   `json:"request"`
+		Captures map[string]string `json:"captures,omitempty"`
+	}{alias: alias(r), Captures: r.DisplayCaptures()}
+	req, err := r.Request.marshal(r.Redact)
+	if err != nil {
+		return nil, err
 	}
+	out.Request = req
 	return json.Marshal(out)
+}
+
+// DisplayCaptures returns captures, masked when redacting.
+func (r Result) DisplayCaptures() map[string]string {
+	if !r.Redact || len(r.Captures) == 0 {
+		return r.Captures
+	}
+	out := map[string]string{}
+	for k := range r.Captures {
+		out[k] = Masked
+	}
+	return out
 }
 
 // Raw returns the underlying response for renderers.
@@ -180,12 +260,18 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	if res.URL, err = render(strings.TrimSpace(req.URL)); err != nil {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
+	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
 		if err != nil {
 			return nil, usagef("%s:%d: header %s: %v", req.File.Path, req.Line, h.Name, err)
 		}
 		res.Headers = append(res.Headers, httpfile.Header{Name: h.Name, Value: v})
+		for _, e := range template.Exprs(h.Value) {
+			if _, _, secret, _ := r.resolveExprMeta(req, e, 0); secret {
+				res.SecretHeaders[h.Name] = true
+			}
+		}
 	}
 	body := req.Body
 	if req.BodyFile != "" {
@@ -317,7 +403,7 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 	if len(resolved.missing) > 0 {
 		return nil, r.MissingError(req, resolved.missing)
 	}
-	result := &Result{Request: *resolved, OK: true}
+	result := &Result{Request: *resolved, OK: true, Redact: r.Opts.Redact}
 	preparedAsserts := make([]struct {
 		expr     assert.Expr
 		expected string
@@ -653,20 +739,6 @@ func dedupe(in []string) []string {
 			seen[s] = true
 			out = append(out, s)
 		}
-	}
-	return out
-}
-
-func redactResolved(in Resolved) Resolved {
-	out := in
-	if out.URL != "" {
-		out.URL = "***"
-	}
-	for i := range out.Headers {
-		out.Headers[i].Value = "***"
-	}
-	if out.Body != "" {
-		out.Body = "***"
 	}
 	return out
 }

@@ -20,6 +20,7 @@ given, or when `--json` is used.
 | `--no-session` | Do not read or write `.apic/session.json`. |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. |
+| `--redact` | Mask every request header value, the body, query-string values and captured values in `run` output. Use it in CI logs that are stored. Sensitive headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) are masked even without it. |
 
 ## Exit codes
 
@@ -104,7 +105,8 @@ apic run get-user --body-only | jq .email
 }
 ```
 
-- `request.auth` names the auth type applied, when any; credentials themselves are never included.
+- `request.auth` names the auth type applied, when any; credentials apic adds are never included.
+- `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string.
 - `response.headers` keys are lower-case; multiple values are joined with `, `.
 - `errors` (omitted when empty) lists failed captures and other problems.

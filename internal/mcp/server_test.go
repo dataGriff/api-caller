@@ -87,7 +87,7 @@ Authorization: Bearer {{token}}
 		t.Fatalf("want missing-variable hint, got %v", e)
 	}
 	login := call("run_request", map[string]any{"name": "login"})
-	if login["ok"] != true || login["captures"].(map[string]any)["token"] != "***" {
+	if login["ok"] != true || login["captures"].(map[string]any)["token"] != "t-1" {
 		t.Fatalf("login: %v", login)
 	}
 	me := call("run_request", map[string]any{"name": "me"})

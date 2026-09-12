@@ -42,7 +42,10 @@ The `--json` shape is stable:
 
 `response.body` is parsed JSON when the body is JSON, otherwise a string.
 `request.auth` names the auth type applied (`aws`, `oauth2`, …) without
-exposing credentials; see [auth.md](auth.md).
+exposing credentials, and sensitive request headers are shown as `***`;
+see [auth.md](auth.md). URL, body and captures are real values so an agent
+can chain them. When the output is going into a stored log rather than to
+an agent, add `--redact`.
 
 ## 2. MCP (Claude Code, Cursor, Windsurf, any MCP client)
 

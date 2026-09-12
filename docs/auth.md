@@ -69,24 +69,32 @@ exists so it can be a project default. `basic` base64-encodes
 # @auth aws profile=prod
 ```
 
-Requests are signed with AWS Signature Version 4. Credentials and the
-region come from the AWS SDK's default chain, in this order:
+Requests are signed with AWS Signature Version 4 (header authentication).
+apic does not embed the AWS SDK; it implements the signature itself, checked
+against the official AWS test vectors, and finds credentials the same way
+the AWS CLI does:
 
-1. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and optional `AWS_SESSION_TOKEN`
-2. the shared config and credentials files (`~/.aws/config`, `~/.aws/credentials`), using `AWS_PROFILE` or `profile=`
-3. SSO sessions (`aws sso login`), assumed roles, web identity tokens
-4. ECS task and EC2 instance metadata
+1. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and optional `AWS_SESSION_TOKEN` in the environment (skipped when `profile=` is given explicitly)
+2. static keys for the profile in `~/.aws/credentials` or `~/.aws/config` (`AWS_SHARED_CREDENTIALS_FILE` and `AWS_CONFIG_FILE` are honoured)
+3. `aws configure export-credentials --profile <name>` when the AWS CLI v2 is installed, which resolves SSO sessions, assumed roles, `credential_process` and everything else the CLI supports
 
-So whatever already works for the AWS CLI works for apic with no extra
-configuration. `region=` overrides `AWS_REGION` and the profile's region;
-if none is set the request fails with a clear message. `service=` defaults
-to `execute-api` (API Gateway); use `s3`, `lambda`, `es`, `aoss`,
-`appsync` and so on for other services.
+The profile is `profile=`, else `AWS_PROFILE`, else `default`. The region
+is `region=`, else `AWS_REGION`, else `AWS_DEFAULT_REGION`, else the
+profile's `region`; with none of those the request fails with a clear
+message. `service=` defaults to `execute-api` (API Gateway); use `s3`,
+`lambda`, `es`, `aoss`, `appsync` and so on for other services.
+
+So on a developer machine with `aws sso login` done, or in CI with keys in
+the environment, `# @auth aws` works with no apic-specific setup. What is
+not covered without the CLI is instance-metadata and ECS task credentials;
+install the CLI there or export keys into the environment.
 
 The signature covers the method, path, query, the body hash and the headers
 present when the request is signed, and the body is sent with
 `X-Amz-Content-Sha256`. Signing happens after every `{{variable}}` is
-substituted, so a signed request can still use captured values.
+substituted, so a signed request can still use captured values. If the CLI
+reports an expired SSO session, its message (for example "run aws sso
+login") is passed through.
 
 ## oauth2
 
@@ -178,6 +186,19 @@ apic does not know about.
 
 `describe_request` and `apic describe --json` include `auth` (the spec
 template) and `auth_source` (`request` or `apic.yaml`). Cached tokens
-never appear in `list_environments`, `env` or `describe` output. An agent
-never needs to handle credentials itself: with `aws`, `oauth2` or `exec`
+never appear in `list_environments`, `env` or `describe` output, and the
+credentials apic adds (the `Authorization` header, signatures, tokens) are
+never part of `run` output: they are set on the wire only. An agent never
+needs to handle credentials itself: with `aws`, `oauth2` or `exec`
 configured, `run_request` just works.
+
+## What appears in output
+
+Headers you write yourself are shown in `run -v` and `--json`, except that
+`Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`,
+`X-Auth-Token`, `Api-Key`, `X-Amz-Security-Token` and any header whose
+value came from a secret source (the private env file, `.env`, the session
+or a capture) are shown as `***`. URL, body and captured values are shown
+in full so scripts can use them. Pass `--redact` to mask every header
+value, the body, query-string values and captures, which is the right
+setting for CI logs that are stored.

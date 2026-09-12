@@ -22,7 +22,8 @@ terminal and agents need:
 - **Environments** from `http-client.env.json` (the JetBrains / kulala / httpyac convention) plus `.env`, shell and `--var`.
 - **Captured variables that persist.** `# @capture token = body.$.access_token` in `login` means the next `apic run get-user`, in a new shell or a new agent call, has `{{token}}`.
 - **Assertions** with `# @assert status == 200`, and files that run as ordered flows with a pass/fail summary and exit code.
-- **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials; `# @auth oauth2` fetches, caches and refreshes client-credentials tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out. Set a project default once in `apic.yaml`.
+- **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out. Set a project default once in `apic.yaml`.
+- **Safe to log.** Sensitive headers are masked in output; `--redact` masks everything for stored CI logs.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
 - **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import openapi.yaml` scaffolds files from a spec.
@@ -102,7 +103,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 
 | Command | What it does |
 |---|---|
-| `apic run <id \| file.http \| file.http#id>...` | Send a request, or a file in order as a flow. `--json`, `--body-only`, `-v` headers, `--var k=v`, `--env`, `--keep-going`, `--no-session`. |
+| `apic run <id \| file.http \| file.http#id>...` | Send a request, or a file in order as a flow. `--json`, `--body-only`, `-v` headers, `--var k=v`, `--env`, `--keep-going`, `--no-session`, `--redact`. |
 | `apic list` | Every request: id, method, URL template, file:line, description. |
 | `apic describe <id>` | Variables the request needs and where each comes from, captures, asserts, and whether it is ready. |
 | `apic env` | Environments found and the variables in effect (secrets masked). |

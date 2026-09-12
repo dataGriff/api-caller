@@ -30,6 +30,7 @@ type globals struct {
 	timeout  time.Duration
 	noSess   bool
 	insecure bool
+	redact   bool
 }
 
 // App holds the command tree and IO streams (swappable for tests).
@@ -70,6 +71,7 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	pf.DurationVar(&a.g.timeout, "timeout", 0, "request timeout (default 30s or apic.yaml)")
 	pf.BoolVar(&a.g.noSess, "no-session", false, "do not read or write captured values in .apic/session.json")
 	pf.BoolVar(&a.g.insecure, "insecure", false, "skip TLS certificate verification")
+	pf.BoolVar(&a.g.redact, "redact", false, "mask all request headers, bodies, query values and captures in output (for CI logs)")
 	root.SetOut(a.Stdout)
 	root.SetErr(a.Stderr)
 
@@ -136,7 +138,7 @@ func (a *App) newRunner() (*runner.Runner, error) {
 		vars[k] = v
 	}
 	runner.Version = Version
-	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure})
+	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact})
 }
 
 func (a *App) versionCmd() *cobra.Command {

@@ -394,30 +394,83 @@ GET ` + srv.URL + `
 	}
 }
 
-func TestResultJSONRedactsRequestAndCaptures(t *testing.T) {
+func TestResultJSONMasksSensitiveHeadersAndRedacts(t *testing.T) {
 	res := Result{
 		OK: true,
 		Request: Resolved{
 			Method: "GET",
-			URL:    "https://example.com?token=secret",
+			URL:    "https://example.com/users?token=secret&id=1",
 			Headers: []httpfile.Header{
-				{Name: "Authorization", Value: "******"},
+				{Name: "Authorization", Value: "Bearer secret-token"},
+				{Name: "X-Tenant", Value: "from-private-file"},
+				{Name: "Accept", Value: "application/json"},
 			},
-			Body: "secret-body",
+			SecretHeaders: map[string]bool{"X-Tenant": true},
+			Body:          "plain-body",
 		},
-		Captures: map[string]string{"token": "secret"},
+		Captures: map[string]string{"token": "captured"},
 	}
 	data, err := json.Marshal(res)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(data)
-	for _, bad := range []string{"secret-body", "******", "token=secret"} {
+	for _, bad := range []string{"secret-token", "from-private-file"} {
 		if strings.Contains(s, bad) {
-			t.Fatalf("json should redact %q: %s", bad, s)
+			t.Fatalf("json should mask %q: %s", bad, s)
 		}
 	}
-	if !strings.Contains(s, `"url":"***"`) || !strings.Contains(s, `"token":"***"`) {
-		t.Fatalf("json should contain redactions: %s", s)
+	var decoded struct {
+		Request struct {
+			URL     string            `json:"url"`
+			Headers map[string]string `json:"headers"`
+			Body    string            `json:"body"`
+		} `json:"request"`
+		Captures map[string]string `json:"captures"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Request.URL != "https://example.com/users?token=secret&id=1" || decoded.Request.Headers["Accept"] != "application/json" ||
+		decoded.Request.Body != "plain-body" || decoded.Captures["token"] != "captured" {
+		t.Fatalf("json should keep url, plain headers, body and captures: %s", s)
+	}
+
+	res.Redact = true
+	data, _ = json.Marshal(res)
+	s = string(data)
+	for _, bad := range []string{"secret", "plain-body", "captured", "application/json", "id=1"} {
+		if strings.Contains(s, bad) {
+			t.Fatalf("--redact should mask %q: %s", bad, s)
+		}
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Request.URL != "https://example.com/users?token=***&id=***" || decoded.Captures["token"] != "***" {
+		t.Fatalf("redacted json: %s", s)
+	}
+}
+
+func TestResolveMarksSecretHeaders(t *testing.T) {
+	dir := writeProject(t, map[string]string{
+		"api.http":                     "### a\n# @name a\nGET http://x/\nX-Tenant: {{tenant}}\nX-Plain: {{plain}}\nAuthorization: Bearer {{token}}\n",
+		"http-client.env.json":         `{"dev": {"plain": "p"}}`,
+		"http-client.private.env.json": `{"dev": {"tenant": "t", "token": "s"}}`,
+	})
+	r := newRunner(t, dir, Options{Env: "dev", NoSession: true})
+	res, err := r.Resolve(r.Project.Requests()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SecretHeaders["X-Tenant"] || res.SecretHeaders["X-Plain"] {
+		t.Fatalf("secret headers: %v", res.SecretHeaders)
+	}
+	shown := map[string]string{}
+	for _, h := range res.DisplayHeaders(false) {
+		shown[h.Name] = h.Value
+	}
+	if shown["X-Tenant"] != Masked || shown["Authorization"] != Masked || shown["X-Plain"] != "p" {
+		t.Fatalf("display headers: %v", shown)
 	}
 }

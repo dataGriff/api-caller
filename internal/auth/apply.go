@@ -11,11 +11,6 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/smithy-go/logging"
 )
 
 // Cache stores tokens between invocations (backed by the apic session).
@@ -67,42 +62,16 @@ func Apply(ctx context.Context, s *Spec, req *http.Request, body []byte, env *En
 }
 
 func applyAWS(ctx context.Context, s *Spec, req *http.Request, body []byte, env *Env) error {
-	opts := []func(*config.LoadOptions) error{config.WithLogger(logging.Nop{})}
-	if p := s.Options["profile"]; p != "" {
-		opts = append(opts, config.WithSharedConfigProfile(p))
-	}
-	if r := s.Options["region"]; r != "" {
-		opts = append(opts, config.WithRegion(r))
-	}
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	settings, err := resolveAWS(ctx, s)
 	if err != nil {
-		return fmt.Errorf("aws: load config: %w", err)
-	}
-	creds, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return fmt.Errorf("aws: no credentials found (set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, or log in with `aws sso login`): %w", err)
-	}
-	region := cfg.Region
-	if region == "" {
-		return fmt.Errorf("aws: no region: add region=.. to @auth aws, set AWS_REGION, or configure it in your profile")
+		return err
 	}
 	service := s.Options["service"]
 	if service == "" {
 		service = "execute-api"
 	}
-	sum := sha256.Sum256(body)
-	hash := hex.EncodeToString(sum[:])
-	req.Header.Set("X-Amz-Content-Sha256", hash)
-	signer := v4.NewSigner()
-	return signer.SignHTTP(ctx, creds, req, hash, service, region, env.now().UTC())
-}
-
-// SignAWS is exported for tests: it signs req with explicit credentials.
-func SignAWS(ctx context.Context, req *http.Request, body []byte, creds aws.Credentials, service, region string, at time.Time) error {
-	sum := sha256.Sum256(body)
-	hash := hex.EncodeToString(sum[:])
-	req.Header.Set("X-Amz-Content-Sha256", hash)
-	return v4.NewSigner().SignHTTP(ctx, creds, req, hash, service, region, at.UTC())
+	SignSigV4(req, body, settings.Creds, service, settings.Region, env.now())
+	return nil
 }
 
 func applyExec(ctx context.Context, s *Spec, req *http.Request, env *Env) error {

@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
 func TestParse(t *testing.T) {
@@ -65,11 +66,36 @@ func TestBearerAndBasic(t *testing.T) {
 	}
 }
 
-func TestAWSSignature(t *testing.T) {
+// Vectors from the AWS SigV4 test suite (aws-sig-v4-test-suite, 2015-08-30).
+func TestSigV4TestVectors(t *testing.T) {
+	creds := AWSCredentials{AccessKeyID: "AKIDEXAMPLE", SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY"}
+	at := time.Date(2015, 8, 30, 12, 36, 0, 0, time.UTC)
+	cases := []struct{ name, method, url, want string }{
+		{"get-vanilla", "GET", "https://example.amazonaws.com/", "5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31"},
+		{"get-vanilla-query-order-key-case", "GET", "https://example.amazonaws.com/?Param2=value2&Param1=value1", "b97d918cfa904a5beff61c982a1b6f458b799221646efd99d3219ec94cdf2500"},
+		{"get-vanilla-empty-query-key", "GET", "https://example.amazonaws.com/?Param1=value1", "a67d582fa61cc504c4bae71f336f98b97f1ea3c7a6bfe1b6e45aec72011b9aeb"},
+	}
+	for _, c := range cases {
+		req, _ := http.NewRequest(c.method, c.url, nil)
+		// The suite signs only host and x-amz-date; our signer also adds
+		// x-amz-content-sha256, so strip it to compare against the vectors.
+		signNoContentHash(req, creds, "service", "us-east-1", at)
+		got := req.Header.Get("Authorization")
+		if !strings.HasSuffix(got, "Signature="+c.want) {
+			t.Errorf("%s: %s", c.name, got)
+		}
+		if !strings.Contains(got, "SignedHeaders=host;x-amz-date,") {
+			t.Errorf("%s: signed headers %s", c.name, got)
+		}
+	}
+}
+
+func TestAWSSignsThroughApply(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secretkey")
 	t.Setenv("AWS_SESSION_TOKEN", "sess")
 	t.Setenv("AWS_REGION", "eu-west-2")
+	t.Setenv("AWS_PROFILE", "")
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent")
 
@@ -78,7 +104,6 @@ func TestAWSSignature(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = r.Header.Clone()
 		gotBody, _ = io.ReadAll(r.Body)
-		got.Set("Host", r.Host)
 	}))
 	defer srv.Close()
 
@@ -94,26 +119,81 @@ func TestAWSSignature(t *testing.T) {
 		t.Fatal(err)
 	}
 	authz := got.Get("Authorization")
-	if !strings.HasPrefix(authz, "AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/20260912/eu-west-2/execute-api/aws4_request") {
+	if !strings.HasPrefix(authz, "AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/20260912/eu-west-2/execute-api/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=") {
 		t.Fatalf("authorization: %s", authz)
 	}
 	if got.Get("X-Amz-Date") != "20260912T080000Z" || got.Get("X-Amz-Security-Token") != "sess" || string(gotBody) != string(body) {
 		t.Fatalf("headers: %v body: %s", got, gotBody)
 	}
+}
 
-	// Re-sign an identical request with the same time and credentials and
-	// expect the same signature.
-	ref, _ := http.NewRequest("POST", srv.URL+"/orders?x=1", strings.NewReader(string(body)))
-	ref.Header.Set("Content-Type", "application/json")
-	ref.Header.Set("User-Agent", got.Get("User-Agent"))
-	ref.Header.Set("Content-Length", got.Get("Content-Length"))
-	creds := aws.Credentials{AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secretkey", SessionToken: "sess"}
-	if err := SignAWS(context.Background(), ref, body, creds, "execute-api", "eu-west-2", at); err != nil {
-		t.Fatal(err)
+func TestAWSProfileFilesAndCLI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(home, "credentials"))
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(home, "config"))
+	must(t, os.WriteFile(filepath.Join(home, "credentials"), []byte("[default]\naws_access_key_id = DEF\naws_secret_access_key = defsecret\n\n[static]\naws_access_key_id = STAT\naws_secret_access_key = statsecret\naws_session_token = stattok\n"), 0o600))
+	must(t, os.WriteFile(filepath.Join(home, "config"), []byte("[default]\nregion = us-east-1\n\n[profile static]\nregion = eu-west-2\ns3 =\n    max_concurrent_requests = 20\n\n[profile sso]\nsso_start_url = https://x\nregion = ap-southeast-2\n"), 0o600))
+
+	s, _ := Parse("aws")
+	got, err := resolveAWS(context.Background(), s)
+	if err != nil || got.Creds.AccessKeyID != "DEF" || got.Region != "us-east-1" || got.Source != "profile default" {
+		t.Fatalf("default: %+v %v", got, err)
 	}
-	if ref.Header.Get("Authorization") != authz {
-		t.Fatalf("signature mismatch:\n got %s\nwant %s", authz, ref.Header.Get("Authorization"))
+	s, _ = Parse("aws profile=static")
+	got, err = resolveAWS(context.Background(), s)
+	if err != nil || got.Creds.AccessKeyID != "STAT" || got.Creds.SessionToken != "stattok" || got.Region != "eu-west-2" {
+		t.Fatalf("static: %+v %v", got, err)
 	}
+	// An explicit profile wins over environment keys.
+	t.Setenv("AWS_ACCESS_KEY_ID", "ENV")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "envsecret")
+	got, _ = resolveAWS(context.Background(), s)
+	if got.Creds.AccessKeyID != "STAT" {
+		t.Fatalf("explicit profile should win: %+v", got)
+	}
+	s, _ = Parse("aws")
+	got, _ = resolveAWS(context.Background(), s)
+	if got.Creds.AccessKeyID != "ENV" || got.Source != "environment" {
+		t.Fatalf("env: %+v", got)
+	}
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	// A profile without static keys falls back to the AWS CLI.
+	if runtime.GOOS == "windows" {
+		t.Skip("fake aws cli script needs a POSIX shell")
+	}
+	bin := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(bin, "aws"), []byte("#!/bin/sh\n[ \"$1 $2 $4\" = \"configure export-credentials sso\" ] || { echo wrong args >&2; exit 2; }\necho '{\"Version\":1,\"AccessKeyId\":\"CLI\",\"SecretAccessKey\":\"clisecret\",\"SessionToken\":\"clitok\"}'\n"), 0o755))
+	t.Setenv("PATH", bin)
+	s, _ = Parse("aws profile=sso")
+	got, err = resolveAWS(context.Background(), s)
+	if err != nil || got.Creds.AccessKeyID != "CLI" || got.Creds.SessionToken != "clitok" || got.Region != "ap-southeast-2" || !strings.HasPrefix(got.Source, "aws cli") {
+		t.Fatalf("cli: %+v %v", got, err)
+	}
+	// And the CLI's error is surfaced.
+	must(t, os.WriteFile(filepath.Join(bin, "aws"), []byte("#!/bin/sh\necho 'Error loading SSO Token: run aws sso login' >&2; exit 1\n"), 0o755))
+	if _, err := resolveAWS(context.Background(), s); err == nil || !strings.Contains(err.Error(), "aws sso login") {
+		t.Fatalf("want cli error, got %v", err)
+	}
+	// No CLI and no keys: a clear error.
+	t.Setenv("PATH", t.TempDir())
+	if _, err := resolveAWS(context.Background(), s); err == nil || !strings.Contains(err.Error(), `profile "sso"`) {
+		t.Fatalf("want no-credentials error, got %v", err)
+	}
+}
+
+func signNoContentHash(req *http.Request, creds AWSCredentials, service, region string, at time.Time) {
+	SignSigV4(req, nil, creds, service, region, at)
+	// Re-sign without x-amz-content-sha256 to match the official vectors.
+	req.Header.Del("X-Amz-Content-Sha256")
+	req.Header.Del("Authorization")
+	signWithout(req, creds, service, region, at)
 }
 
 func TestAWSNeedsRegion(t *testing.T) {
@@ -274,5 +354,12 @@ func TestExec(t *testing.T) {
 	s, _ = Parse("exec definitely-not-a-command-xyz")
 	if err := Apply(context.Background(), s, req, nil, &Env{AllowExec: true}); err == nil {
 		t.Fatal("want exec failure")
+	}
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
