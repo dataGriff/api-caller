@@ -15,7 +15,7 @@ func TestSessionJSONMasksCachedTokens(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "api.http"), "GET http://example.com\n")
 	expires := time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)
-	mustWrite(t, filepath.Join(dir, ".apic", "session.json"), "{\n  \"envs\": {\n    \"dev\": {\n      \"$oauth2:test\": \"{\\\"access_token\\\":\\\"secret-token\\\",\\\"refresh_token\\\":\\\"secret-refresh\\\",\\\"expires_at\\\":\\\""+expires+"\\\"}\",\n      \"plain\": \"value\"\n    }\n  }\n}\n")
+	mustWrite(t, filepath.Join(dir, ".apic", "session.json"), "{\n  \"envs\": {\n    \"dev\": {\n      \"$oauth2:test\": \"{\\\"access_token\\\":\\\"secret-token\\\",\\\"refresh_token\\\":\\\"secret-refresh\\\",\\\"expires_at\\\":\\\""+expires+"\\\"}\",\n      \"$meta\": \"value-with-dollar-prefix\",\n      \"plain\": \"value\"\n    }\n  }\n}\n")
 
 	app := New()
 	var stdout, stderr bytes.Buffer
@@ -31,6 +31,9 @@ func TestSessionJSONMasksCachedTokens(t *testing.T) {
 	}
 	if got["dev"]["plain"] != "value" {
 		t.Fatalf("plain value missing: %+v", got)
+	}
+	if got["dev"]["$meta"] != "value-with-dollar-prefix" {
+		t.Fatalf("non-auth $ key should not be rewritten: %+v", got)
 	}
 	if strings.Contains(got["dev"]["$oauth2:test"], "secret-token") || strings.Contains(got["dev"]["$oauth2:test"], "secret-refresh") {
 		t.Fatalf("cached token leaked: %q", got["dev"]["$oauth2:test"])

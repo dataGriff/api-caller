@@ -271,7 +271,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				}
 				sort.Strings(keys)
 				for _, k := range keys {
-					if strings.HasPrefix(k, "$") {
+					if isAuthCacheKey(k) {
 						fmt.Fprintf(a.Stdout, "  %s = %s\n", k, auth.DescribeCached(vars[k], time.Now()))
 						continue
 					}
@@ -318,7 +318,7 @@ func maskSessionEnvs(envs map[string]map[string]string, now time.Time) map[strin
 	for env, vars := range envs {
 		masked := make(map[string]string, len(vars))
 		for k, v := range vars {
-			if strings.HasPrefix(k, "$") {
+			if isAuthCacheKey(k) {
 				masked[k] = auth.DescribeCached(v, now)
 				continue
 			}
@@ -327,6 +327,10 @@ func maskSessionEnvs(envs map[string]map[string]string, now time.Time) map[strin
 		out[env] = masked
 	}
 	return out
+}
+
+func isAuthCacheKey(k string) bool {
+	return strings.HasPrefix(k, "$oauth2:") || strings.HasPrefix(k, "$exec:")
 }
 
 func (a *App) validateCmd() *cobra.Command {

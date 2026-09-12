@@ -363,7 +363,7 @@ func (c sessionCache) Set(key, value string) error {
 }
 
 func (r *Runner) authEnv() *auth.Env {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr := cloneDefaultTransport()
 	if r.Opts.Insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
 	}
@@ -675,7 +675,7 @@ func (r *Runner) EnvVars() []VarInfo {
 }
 
 func (r *Runner) client(req *httpfile.Request) *http.Client {
-	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr := cloneDefaultTransport()
 	if r.Opts.Insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
 	}
@@ -684,6 +684,13 @@ func (r *Runner) client(req *httpfile.Request) *http.Client {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	}
 	return c
+}
+
+func cloneDefaultTransport() *http.Transport {
+	if tr, ok := http.DefaultTransport.(*http.Transport); ok {
+		return tr.Clone()
+	}
+	return &http.Transport{Proxy: http.ProxyFromEnvironment}
 }
 
 func statusText(s string) string {
