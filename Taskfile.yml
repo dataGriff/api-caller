@@ -1,0 +1,58 @@
+# https://taskfile.dev — developer tasks for apic itself.
+version: "3"
+
+vars:
+  BIN: bin/apic
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  LDFLAGS: -s -w -X github.com/dataGriff/api-caller/internal/cli.Version={{.VERSION}}
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the apic binary into bin/
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN}} ./cmd/apic
+
+  install:
+    desc: Install apic into $GOPATH/bin
+    cmds:
+      - go install -ldflags "{{.LDFLAGS}}" ./cmd/apic
+
+  test:
+    desc: Run unit and integration tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run gofmt check, go vet and golangci-lint
+    cmds:
+      - test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - go vet ./...
+      - golangci-lint run ./...
+
+  check:
+    desc: Everything CI runs
+    deps: [lint, test]
+
+  example:
+    desc: Run the example project against the given environment (default dev = httpbin.org)
+    dir: examples/httpbin
+    cmds:
+      - ../../{{.BIN}} run auth.http --env {{.ENV | default "dev"}}
+      - ../../{{.BIN}} run users.http --env {{.ENV | default "dev"}} --keep-going
+    deps: [build]
+
+  snapshot:
+    desc: Build release archives for every platform without publishing
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
+  cross:
+    desc: Cross-compile for every release target (quick sanity check)
+    cmds:
+      - for: { matrix: { OS: [linux, darwin, windows], ARCH: [amd64, arm64] } }
+        cmd: GOOS={{.ITEM.OS}} GOARCH={{.ITEM.ARCH}} go build -o /dev/null ./cmd/apic
