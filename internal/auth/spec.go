@@ -108,6 +108,9 @@ func (s *Spec) check() error {
 				return fmt.Errorf("@auth oauth2: unknown option %q", k)
 			}
 		}
+		if ca := s.Options["clientAuth"]; ca != "" && ca != "body" && ca != "basic" {
+			return fmt.Errorf("@auth oauth2: clientAuth must be body or basic")
+		}
 	case "exec":
 		if len(s.Args) == 0 {
 			return fmt.Errorf("@auth exec needs a command")

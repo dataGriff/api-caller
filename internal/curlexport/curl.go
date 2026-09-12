@@ -48,7 +48,11 @@ func authFlags(s *auth.Spec) []string {
 		}
 		region := s.Options["region"]
 		if region == "" {
-			region = "$AWS_REGION"
+			return []string{
+				`--aws-sigv4 "aws:amz:$AWS_REGION:` + escapeDouble(service) + `"`,
+				`--user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"`,
+				`-H "x-amz-security-token: $AWS_SESSION_TOKEN"`,
+			}
 		}
 		return []string{
 			"--aws-sigv4 " + quote("aws:amz:"+region+":"+service),
@@ -56,7 +60,7 @@ func authFlags(s *auth.Spec) []string {
 			`-H "x-amz-security-token: $AWS_SESSION_TOKEN"`,
 		}
 	case "oauth2":
-		return []string{`-H "Authorization: Bearer $TOKEN"  # obtain TOKEN from ` + s.Options["tokenUrl"]}
+		return []string{`-H "Authorization: ******"`}
 	case "exec":
 		header := s.Options["header"]
 		if header == "" {
@@ -69,7 +73,16 @@ func authFlags(s *auth.Spec) []string {
 		if prefix != "" {
 			prefix += " "
 		}
-		return []string{`-H "` + header + `: ` + prefix + `$(` + strings.Join(s.Args, " ") + `)"`}
+		args := make([]string, 0, len(s.Args))
+		for _, arg := range s.Args {
+			args = append(args, quote(arg))
+		}
+		return []string{"-H " + quote(header+": "+prefix) + "$(" + strings.Join(args, " ") + ")"}
 	}
 	return nil
+}
+
+func escapeDouble(s string) string {
+	repl := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "`", "\\`", "$", "\\$")
+	return repl.Replace(s)
 }

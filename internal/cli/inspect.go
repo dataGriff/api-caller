@@ -255,7 +255,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				return &runner.UsageError{Msg: "session disabled by --no-session"}
 			}
 			if a.g.json {
-				return a.writeJSON(r.Session.Envs)
+				return a.writeJSON(maskSessionEnvs(r.Session.Envs, time.Now()))
 			}
 			envs := r.Session.EnvNames()
 			if len(envs) == 0 {
@@ -311,6 +311,22 @@ func (a *App) sessionCmd() *cobra.Command {
 	clear.Flags().BoolVar(&all, "all", false, "clear every environment")
 	cmd.AddCommand(clear)
 	return cmd
+}
+
+func maskSessionEnvs(envs map[string]map[string]string, now time.Time) map[string]map[string]string {
+	out := make(map[string]map[string]string, len(envs))
+	for env, vars := range envs {
+		masked := make(map[string]string, len(vars))
+		for k, v := range vars {
+			if strings.HasPrefix(k, "$") {
+				masked[k] = auth.DescribeCached(v, now)
+				continue
+			}
+			masked[k] = v
+		}
+		out[env] = masked
+	}
+	return out
 }
 
 func (a *App) validateCmd() *cobra.Command {

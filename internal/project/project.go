@@ -212,8 +212,10 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 		}
 	}
 	if p.Config.Auth.Default != "" {
-		if _, err := auth.Parse(p.Config.Auth.Default); err != nil {
+		if spec, err := auth.Parse(p.Config.Auth.Default); err != nil {
 			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "error", Message: "auth.default: " + err.Error()})
+		} else if spec.Type == "exec" && !p.Config.Auth.AllowExec {
+			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "warning", Message: "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"})
 		}
 	}
 	for _, r := range p.Requests() {

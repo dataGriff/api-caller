@@ -160,3 +160,54 @@ func TestAuthValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyAuthDirectiveDoesNotBypassDefault(t *testing.T) {
+	dir := writeProject(t, map[string]string{
+		"apic.yaml": "auth:\n  default: bearer {{token}}\n",
+		"api.http":  "### t\n# @auth\nGET http://example.com\n",
+	})
+	r := newRunner(t, dir, Options{Vars: map[string]string{"token": "tok"}, NoSession: true})
+	reqs, err := r.Project.Resolve("api.http#1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(context.Background(), reqs[0]); err == nil || !strings.Contains(err.Error(), "@auth needs a type") {
+		t.Fatalf("want empty @auth usage error, got %v", err)
+	}
+}
+
+func TestInsecureAlsoAppliesToOAuthTokenClient(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "tok", "expires_in": 60})
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"authz": r.Header.Get("Authorization")})
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	dir := writeProject(t, map[string]string{
+		"http-client.env.json":         `{"default": {"baseUrl": "` + srv.URL + `"}}`,
+		"http-client.private.env.json": `{"default": {"clientSecret": "sec"}}`,
+		"api.http": `
+### oauth2
+# @name oauth2
+# @auth oauth2 tokenUrl={{baseUrl}}/token clientId=cid clientSecret={{clientSecret}}
+GET {{baseUrl}}/
+`,
+	})
+	r := newRunner(t, dir, Options{Env: "default", Insecure: true, NoSession: true})
+	req, err := r.Project.Lookup("oauth2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.OK {
+		t.Fatalf("unexpected failed result: %+v", res)
+	}
+}

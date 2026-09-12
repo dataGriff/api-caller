@@ -45,7 +45,18 @@ func DescribeCached(raw string, now time.Time) string {
 // CacheKey identifies the token cache entry for a rendered oauth2 spec.
 func CacheKey(s *Spec) string {
 	o := s.Options
-	return "$oauth2:" + hashKey(strings.Join([]string{o["tokenUrl"], o["clientId"], s.grant(), o["scope"], o["username"], o["audience"]}, "\x00"))
+	return "$oauth2:" + hashKey(strings.Join([]string{
+		o["tokenUrl"],
+		o["deviceUrl"],
+		o["clientId"],
+		o["clientSecret"],
+		o["clientAuth"],
+		s.grant(),
+		o["scope"],
+		o["username"],
+		o["password"],
+		o["audience"],
+	}, "\x00"))
 }
 
 const skew = 60 * time.Second
@@ -94,7 +105,9 @@ func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
 		entry.RefreshToken = cached.RefreshToken
 	}
 	if env.Cache != nil {
-		_ = env.Cache.Set(key, encodeToken(entry))
+		if err := env.Cache.Set(key, encodeToken(entry)); err != nil {
+			return "", err
+		}
 	}
 	return tok.AccessToken, nil
 }

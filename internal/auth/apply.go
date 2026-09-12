@@ -116,7 +116,9 @@ func applyExec(ctx context.Context, s *Spec, req *http.Request, env *Env) error 
 			return fmt.Errorf("@auth exec %s: command printed nothing", s.Args[0])
 		}
 		if ttl > 0 && env.Cache != nil {
-			_ = env.Cache.Set(key, encodeToken(cachedToken{AccessToken: token, ExpiresAt: env.now().Add(ttl)}))
+			if err := env.Cache.Set(key, encodeToken(cachedToken{AccessToken: token, ExpiresAt: env.now().Add(ttl)})); err != nil {
+				return err
+			}
 		}
 	}
 	if prefix != "" {

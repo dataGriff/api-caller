@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -215,6 +216,11 @@ type memCache map[string]string
 func (m memCache) Get(k string) (string, bool) { v, ok := m[k]; return v, ok }
 func (m memCache) Set(k, v string) error       { m[k] = v; return nil }
 
+type errCache struct{ err error }
+
+func (c errCache) Get(string) (string, bool) { return "", false }
+func (c errCache) Set(string, string) error  { return c.err }
+
 func TestOAuth2ClientCredentialsCachingAndRefresh(t *testing.T) {
 	var calls atomic.Int32
 	var lastForm url.Values
@@ -293,6 +299,57 @@ func TestOAuth2BasicClientAuthAndErrors(t *testing.T) {
 	}
 }
 
+func TestOAuth2ClientAuthValidation(t *testing.T) {
+	if _, err := Parse("oauth2 tokenUrl=https://idp/token clientId=cid clientAuth=basci"); err == nil || !strings.Contains(err.Error(), "clientAuth must be body or basic") {
+		t.Fatalf("want clientAuth validation error, got %v", err)
+	}
+}
+
+func TestOAuth2CacheKeyIncludesCredentialInputs(t *testing.T) {
+	base, _ := Parse("oauth2 tokenUrl=https://idp/token clientId=cid clientSecret=secret clientAuth=basic scope=read audience=aud")
+	diffSecret, _ := Parse("oauth2 tokenUrl=https://idp/token clientId=cid clientSecret=other clientAuth=basic scope=read audience=aud")
+	diffClientAuth, _ := Parse("oauth2 tokenUrl=https://idp/token clientId=cid clientSecret=secret clientAuth=body scope=read audience=aud")
+	passwordA := &Spec{Type: "oauth2", Options: map[string]string{
+		"tokenUrl": "https://idp/token",
+		"clientId": "cid",
+		"grant":    "password",
+		"username": "alice",
+		"password": "pw-one",
+	}}
+	passwordB := &Spec{Type: "oauth2", Options: map[string]string{
+		"tokenUrl": "https://idp/token",
+		"clientId": "cid",
+		"grant":    "password",
+		"username": "alice",
+		"password": "pw-two",
+	}}
+
+	if CacheKey(base) == CacheKey(diffSecret) {
+		t.Fatal("clientSecret must affect cache key")
+	}
+	if CacheKey(base) == CacheKey(diffClientAuth) {
+		t.Fatal("clientAuth must affect cache key")
+	}
+	if CacheKey(passwordA) == CacheKey(passwordB) {
+		t.Fatal("password must affect cache key")
+	}
+}
+
+func TestOAuth2CacheSaveErrorReturned(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "tok", "expires_in": 60})
+	}))
+	defer srv.Close()
+
+	s, _ := Parse("oauth2 tokenUrl=" + srv.URL + " clientId=cid")
+	req := httptest.NewRequest("GET", "http://x/", nil)
+	errWant := errors.New("save failed")
+	if err := Apply(context.Background(), s, req, nil, &Env{Cache: errCache{err: errWant}}); !errors.Is(err, errWant) {
+		t.Fatalf("want cache save error, got %v", err)
+	}
+}
+
 func TestOAuth2DeviceCode(t *testing.T) {
 	var polls atomic.Int32
 	mux := http.NewServeMux()
@@ -354,6 +411,15 @@ func TestExec(t *testing.T) {
 	s, _ = Parse("exec definitely-not-a-command-xyz")
 	if err := Apply(context.Background(), s, req, nil, &Env{AllowExec: true}); err == nil {
 		t.Fatal("want exec failure")
+	}
+}
+
+func TestExecCacheSaveErrorReturned(t *testing.T) {
+	s, _ := Parse("exec go env GOOS ttl=1h")
+	req := httptest.NewRequest("GET", "http://x/", nil)
+	errWant := errors.New("save failed")
+	if err := Apply(context.Background(), s, req, nil, &Env{AllowExec: true, Cache: errCache{err: errWant}}); !errors.Is(err, errWant) {
+		t.Fatalf("want cache save error, got %v", err)
 	}
 }
 

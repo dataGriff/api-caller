@@ -315,9 +315,9 @@ func (r *Runner) authSpec(req *httpfile.Request) (*auth.Spec, error) {
 	if !ok {
 		raw = r.Project.Config.Auth.Default
 		where = project.ConfigFile + " auth.default"
-	}
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
+		if strings.TrimSpace(raw) == "" {
+			return nil, nil
+		}
 	}
 	spec, err := auth.Parse(raw)
 	if err != nil {
@@ -363,7 +363,15 @@ func (c sessionCache) Set(key, value string) error {
 }
 
 func (r *Runner) authEnv() *auth.Env {
-	e := &auth.Env{AllowExec: r.Project.Config.Auth.AllowExec, Stderr: r.Stderr, Client: &http.Client{Timeout: r.Opts.Timeout}}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	if r.Opts.Insecure {
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
+	}
+	e := &auth.Env{
+		AllowExec: r.Project.Config.Auth.AllowExec,
+		Stderr:    r.Stderr,
+		Client:    &http.Client{Timeout: r.Opts.Timeout, Transport: tr},
+	}
 	if r.Session != nil {
 		e.Cache = sessionCache{r}
 	}
