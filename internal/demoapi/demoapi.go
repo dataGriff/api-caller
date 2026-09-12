@@ -198,7 +198,7 @@ func New() http.Handler {
 
 	mux.HandleFunc("GET /status/{code}", func(w http.ResponseWriter, r *http.Request) {
 		code, err := strconv.Atoi(r.PathValue("code"))
-		if err != nil || code < 100 || code > 999 {
+		if err != nil || code < 100 || code > 599 {
 			code = http.StatusOK
 		}
 		writeJSON(w, code, map[string]int{"status": code})
