@@ -1,0 +1,40 @@
+@baseUrl = https://api.example.com
+@user = alice
+
+### Log in and keep the token
+# @name login
+# @assert status == 200
+# @capture token = body.$.access_token
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"user": "{{user}}", "password": "{{password}}"}
+
+### Fetch a user
+# @name get-user
+# @description Fetch a single user by id
+# @assert status == 200
+# @assert body.$.id == {{userId}}
+# @assert header.content-type contains json
+# @frobnicate yes
+GET {{baseUrl}}/users/{{userId}}
+    ?expand=profile
+    &fields=id,email
+Authorization: Bearer {{token}}
+// Accept header below
+Accept: application/json
+
+###
+{{baseUrl}}/health HTTP/1.1
+
+### Upload from file
+# @name upload
+POST {{baseUrl}}/upload
+Content-Type: application/json
+
+< ./payload.json
+
+### bad capture
+# @name bad
+# @capture nope
+GET {{baseUrl}}/x

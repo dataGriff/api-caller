@@ -1,0 +1,9 @@
+/bin/
+/dist/
+.apic/
+http-client.private.env.json
+!examples/**/http-client.private.env.json
+coverage.out
+/apic
+/apic.exe
+/site/

@@ -1,0 +1,52 @@
+site_name: apic
+site_description: Run .http request files from the terminal, CI or an AI agent, on any platform.
+site_url: https://datagriff.github.io/api-caller/
+repo_url: https://github.com/dataGriff/api-caller
+repo_name: dataGriff/api-caller
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - CLI reference: cli.md
+  - The .http format: format.md
+  - Agents and MCP: agents.md
+  - Taskfile: taskfile.md
+  - Comparison: comparison.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - tables
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
