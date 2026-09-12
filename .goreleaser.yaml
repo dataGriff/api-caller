@@ -1,6 +1,10 @@
 version: 2
 project_name: apic
 
+before:
+  hooks:
+    - sh scripts/notices.sh THIRD_PARTY_NOTICES.md
+
 builds:
   - main: ./cmd/apic
     binary: apic
@@ -16,7 +20,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [README.md, docs/*]
+    files: [README.md, THIRD_PARTY_NOTICES.md, docs/*]
 
 checksum:
   name_template: checksums.txt

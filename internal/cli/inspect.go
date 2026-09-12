@@ -7,10 +7,12 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/curlexport"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/runner"
@@ -111,6 +113,10 @@ func (a *App) describeCmd() *cobra.Command {
 			if d.Body != "" {
 				section(a.Stdout, "body")
 				fmt.Fprintln(a.Stdout, indent(d.Body))
+			}
+			if d.Auth != "" {
+				section(a.Stdout, "auth")
+				fmt.Fprintf(a.Stdout, "  %s %s\n", d.Auth, styleDim.Render("("+d.AuthSource+")"))
 			}
 			if d.BodyFile != "" {
 				section(a.Stdout, "body file")
@@ -249,7 +255,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				return &runner.UsageError{Msg: "session disabled by --no-session"}
 			}
 			if a.g.json {
-				return a.writeJSON(r.Session.Envs)
+				return a.writeJSON(maskSessionEnvs(r.Session.Envs, time.Now()))
 			}
 			envs := r.Session.EnvNames()
 			if len(envs) == 0 {
@@ -265,6 +271,10 @@ func (a *App) sessionCmd() *cobra.Command {
 				}
 				sort.Strings(keys)
 				for _, k := range keys {
+					if isAuthCacheKey(k) {
+						fmt.Fprintf(a.Stdout, "  %s = %s\n", k, auth.DescribeCached(vars[k], time.Now()))
+						continue
+					}
 					fmt.Fprintf(a.Stdout, "  %s = %s\n", k, truncate(vars[k], 60))
 				}
 			}
@@ -301,6 +311,26 @@ func (a *App) sessionCmd() *cobra.Command {
 	clear.Flags().BoolVar(&all, "all", false, "clear every environment")
 	cmd.AddCommand(clear)
 	return cmd
+}
+
+func maskSessionEnvs(envs map[string]map[string]string, now time.Time) map[string]map[string]string {
+	out := make(map[string]map[string]string, len(envs))
+	for env, vars := range envs {
+		masked := make(map[string]string, len(vars))
+		for k, v := range vars {
+			if isAuthCacheKey(k) {
+				masked[k] = auth.DescribeCached(v, now)
+				continue
+			}
+			masked[k] = v
+		}
+		out[env] = masked
+	}
+	return out
+}
+
+func isAuthCacheKey(k string) bool {
+	return strings.HasPrefix(k, "$oauth2:") || strings.HasPrefix(k, "$exec:")
 }
 
 func (a *App) validateCmd() *cobra.Command {

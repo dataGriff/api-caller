@@ -20,6 +20,7 @@ given, or when `--json` is used.
 | `--no-session` | Do not read or write `.apic/session.json`. |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. |
+| `--redact` | Mask every request header value, the body, query-string values and captured values in `run` output. Use it in CI logs that are stored. Sensitive headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) are masked even without it. |
 
 ## Exit codes
 
@@ -87,7 +88,8 @@ apic run get-user --body-only | jq .email
     "name": "get-user", "file": "users.http", "line": 10,
     "method": "GET", "url": "https://dev.example.com/users/42",
     "headers": {"Accept": "application/json", "Authorization": "Bearer eyJ…"},
-    "body": ""
+    "body": "",
+    "auth": "aws"
   },
   "response": {
     "status": 200, "status_text": "OK",
@@ -103,6 +105,8 @@ apic run get-user --body-only | jq .email
 }
 ```
 
+- `request.auth` names the auth type applied, when any; credentials apic adds are never included.
+- `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string.
 - `response.headers` keys are lower-case; multiple values are joined with `, `.
 - `errors` (omitted when empty) lists failed captures and other problems.
@@ -160,9 +164,14 @@ that captures them if there is one.
   ],
   "captures": ["email = body.$.email"],
   "asserts": ["status == 200", "body.$.authenticated == true"],
+  "auth": "bearer {{token}}",
+  "auth_source": "apic.yaml",
   "ready": false
 }
 ```
+
+`auth` and `auth_source` are present when a `# @auth` directive or
+`auth.default` applies; see [auth.md](auth.md).
 
 Sources are one of `--var`, `shell APIC_VAR_<name>`, `captured this run`,
 `session`, `http-client.private.env.json [env]`, `http-client.env.json [env]`,
@@ -203,6 +212,8 @@ apic session clear [--all]
 
 `session` prints captured values per environment from `.apic/session.json`
 (in clear text, since this is the one place you may need to see them).
+Tokens cached by `# @auth oauth2` and `# @auth exec ttl=` appear as
+`$oauth2:…` and `$exec:…` entries with their remaining lifetime.
 `clear` forgets the current environment's values, or every environment with
 `--all`.
 
@@ -215,7 +226,8 @@ apic curl <target>
 ```
 
 Prints a POSIX-shell `curl` command with every variable resolved, one flag
-per line. Fails with exit code 2 and the usual hint if a variable is
+per line. Auth is mapped onto curl's `--user` and `--aws-sigv4` flags where
+possible (see [auth.md](auth.md)). Fails with exit code 2 and the usual hint if a variable is
 missing. Useful for a machine without apic, for a bug report, or for
 pasting into a Taskfile.
 
@@ -310,6 +322,9 @@ apic completion zsh > "${fpath[1]}/_apic"
 env: dev        # default --env
 dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
+auth:
+  default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
+  allowExec: false                # permit # @auth exec
 ```
 
 ## Files apic reads and writes

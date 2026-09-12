@@ -45,13 +45,13 @@ func Body(w io.Writer, res *runner.Result) {
 // Human writes a readable report of a result.
 func Human(w io.Writer, res *runner.Result, verbose bool) {
 	req := res.Request
-	fmt.Fprintf(w, "%s %s\n", styleMethod.Render(req.Method), styleURL.Render(req.URL))
+	fmt.Fprintf(w, "%s %s\n", styleMethod.Render(req.Method), styleURL.Render(req.DisplayURL(res.Redact)))
 	if verbose {
-		for _, h := range req.Headers {
+		for _, h := range req.DisplayHeaders(res.Redact) {
 			fmt.Fprintf(w, "%s %s\n", styleHeader.Render(h.Name+":"), h.Value)
 		}
-		if req.Body != "" {
-			fmt.Fprintf(w, "\n%s\n", strings.TrimRight(req.Body, "\n"))
+		if body := req.DisplayBody(res.Redact); body != "" {
+			fmt.Fprintf(w, "\n%s\n", strings.TrimRight(body, "\n"))
 		}
 		fmt.Fprintln(w)
 	}
@@ -98,13 +98,14 @@ func Human(w io.Writer, res *runner.Result, verbose bool) {
 			fmt.Fprintf(w, "%s %s %s\n", styleFail.Render("✗"), a.Expr, styleDim.Render(fmt.Sprintf("(actual: %s)", truncate(a.Actual, 80))))
 		}
 	}
-	names := make([]string, 0, len(res.Captures))
-	for n := range res.Captures {
+	captures := res.DisplayCaptures()
+	names := make([]string, 0, len(captures))
+	for n := range captures {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		fmt.Fprintf(w, "%s %s = %s\n", styleCapture.Render("↳"), n, truncate(res.Captures[n], 80))
+		fmt.Fprintf(w, "%s %s = %s\n", styleCapture.Render("↳"), n, truncate(captures[n], 80))
 	}
 	for _, e := range res.Errors {
 		fmt.Fprintf(w, "%s %s\n", styleFail.Render("✗"), e)

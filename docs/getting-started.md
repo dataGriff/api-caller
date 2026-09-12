@@ -193,16 +193,32 @@ Exit codes make apic safe in `set -e` scripts and CI steps:
 # .github/workflows/smoke.yml
 - run: curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
 - run: apic validate -C api
-- run: apic run auth.http users.http -C api --env staging --json
+- run: apic run auth.http users.http -C api --env staging --json --redact
   env:
     APIC_VAR_password: ${{ secrets.API_PASSWORD }}
 ```
 
 `APIC_VAR_<name>` environment variables override values from the env files,
-so secrets never need to be in a file on the runner. `apic run` runs targets
+so secrets never need to be in a file on the runner. `--redact` masks
+header values, bodies, query values and captures in the stored log;
+sensitive headers are masked even without it. `apic run` runs targets
 in the order given, so `auth.http users.http` logs in first.
 
-## 7. Hand it to an agent
+## 7. Add authentication
+
+If the API needs more than a bearer token, put it in the file or the
+project config and apic handles it at send time:
+
+```http
+# @auth aws service=execute-api region=eu-west-2
+# @auth basic {{user}} {{password}}
+# @auth oauth2 tokenUrl={{tokenUrl}} clientId={{clientId}} clientSecret={{clientSecret}}
+```
+
+AWS uses your existing credentials (environment, profiles, SSO via the AWS
+CLI); OAuth2 tokens are cached and refreshed. See [auth.md](auth.md).
+
+## 8. Hand it to an agent
 
 Add to your project's `AGENTS.md` or `CLAUDE.md`:
 

@@ -12,6 +12,7 @@ nav:
   - Getting started: getting-started.md
   - CLI reference: cli.md
   - The .http format: format.md
+  - Authentication: auth.md
   - Agents and MCP: agents.md
   - Taskfile: taskfile.md
   - Comparison: comparison.md

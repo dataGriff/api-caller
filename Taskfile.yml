@@ -56,6 +56,11 @@ tasks:
     cmds:
       - mkdocs build --strict
 
+  notices:
+    desc: Generate THIRD_PARTY_NOTICES.md from the modules compiled into apic
+    cmds:
+      - sh scripts/notices.sh THIRD_PARTY_NOTICES.md
+
   snapshot:
     desc: Build release archives for every platform without publishing
     cmds:

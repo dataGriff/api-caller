@@ -53,6 +53,7 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @description text` | One line shown by `list` and `describe`; defaults to the `###` title. |
 | `# @capture name = selector` | After the response arrives, store the selected value as `name`. It is available to later requests in the same run and persisted in `.apic/session.json` for later invocations. |
 | `# @assert selector op value` | Check the response. Failures set `ok: false` and exit code 1. |
+| `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
@@ -153,7 +154,7 @@ prints one JSON object per request (NDJSON).
 
 ```
 api/
-  apic.yaml                      optional: env: dev, dir: ., timeout: 30s
+  apic.yaml                      optional: env, dir, timeout, auth.default, auth.allowExec
   http-client.env.json           public per-environment variables
   http-client.private.env.json   secrets (gitignored)
   .env                           optional KEY=value
