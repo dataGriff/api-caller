@@ -161,7 +161,7 @@ func TestAuthValidate(t *testing.T) {
 	}
 }
 
-func TestEmptyAuthDirectiveDoesNotBypassDefault(t *testing.T) {
+func TestEmptyAuthDirectiveReturnsUsageErrorInsteadOfUsingDefault(t *testing.T) {
 	dir := writeProject(t, map[string]string{
 		"apic.yaml": "auth:\n  default: bearer {{token}}\n",
 		"api.http":  "### t\n# @auth\nGET http://example.com\n",
