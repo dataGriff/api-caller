@@ -40,3 +40,24 @@ func TestValidateWarnsWhenDefaultExecIsDisabled(t *testing.T) {
 		t.Fatalf("diagnostics: %+v", diags)
 	}
 }
+
+func TestLoadSkipsTestdataDir(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "testdata"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "testdata", "broken.http"), []byte(`
+# @name t
+# @capture nope
+GET https://example.com
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Files) != 0 || len(p.Diagnostics) != 0 {
+		t.Fatalf("expected testdata dir to be skipped, got files=%+v diagnostics=%+v", p.Files, p.Diagnostics)
+	}
+}
