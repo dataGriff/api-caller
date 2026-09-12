@@ -45,7 +45,11 @@ func WriteProject(dir string, port int, force bool) (written, skipped []string, 
 				return nil
 			}
 		}
-		if err := os.WriteFile(target, content, 0o644); err != nil {
+		mode := fs.FileMode(0o644)
+		if name == "http-client.private.env.json" {
+			mode = 0o600
+		}
+		if err := os.WriteFile(target, content, mode); err != nil {
 			return err
 		}
 		written = append(written, target)
@@ -143,19 +147,24 @@ func New() http.Handler {
 		nextID++
 		t := &todo{ID: id, Title: in.Title}
 		todos[id] = t
+		out := *t
 		mu.Unlock()
-		writeJSON(w, http.StatusCreated, t)
+		writeJSON(w, http.StatusCreated, out)
 	}))
 
 	mux.HandleFunc("GET /todos/{id}", requireBearer(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		t, ok := todos[r.PathValue("id")]
+		var out todo
+		if ok {
+			out = *t
+		}
 		mu.Unlock()
 		if !ok {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
 		}
-		writeJSON(w, http.StatusOK, t)
+		writeJSON(w, http.StatusOK, out)
 	}))
 
 	mux.HandleFunc("PUT /todos/{id}", requireBearer(func(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +198,7 @@ func New() http.Handler {
 
 	mux.HandleFunc("GET /status/{code}", func(w http.ResponseWriter, r *http.Request) {
 		code, err := strconv.Atoi(r.PathValue("code"))
-		if err != nil {
+		if err != nil || code < 100 || code > 999 {
 			code = http.StatusOK
 		}
 		writeJSON(w, code, map[string]int{"status": code})

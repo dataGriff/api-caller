@@ -39,4 +39,15 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go run ./cmd/apic validate -C examples/httpbin
-      - run: go run ./cmd/apic demo --out /tmp/apic-demo & sleep 1 && go run ./cmd/apic validate -C /tmp/apic-demo
+      - run: |
+          go build -o /tmp/apic ./cmd/apic
+          /tmp/apic demo --out /tmp/apic-demo >/tmp/apic-demo.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          i=0
+          until [ -f /tmp/apic-demo/apic.yaml ]; do
+            i=$((i+1))
+            [ $i -ge 100 ] && echo demo scaffold not ready >&2 && exit 1
+            sleep 0.1
+          done
+          /tmp/apic validate -C /tmp/apic-demo

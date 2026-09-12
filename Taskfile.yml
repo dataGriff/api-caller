@@ -59,9 +59,14 @@ tasks:
         sh -c "
         {{.BIN}} demo --out bin/apic-demo --force &
         pid=\$!
-        trap 'kill \$pid' EXIT
-        sleep 0.5
-        {{.BIN}} run auth.http todos.http -C bin/apic-demo --env local --keep-going
+        trap 'kill \$pid 2>/dev/null || true' EXIT
+        i=0
+        until [ -f bin/apic-demo/apic.yaml ] && {{.BIN}} run login -C bin/apic-demo --env local >/dev/null 2>&1; do
+          i=\$((i+1))
+          [ \$i -ge 100 ] && echo demo not ready >&2 && exit 1
+          sleep 0.1
+        done
+        {{.BIN}} run login whoami list-todos create-todo get-todo update-todo get-updated delete-todo get-deleted redirect-followed redirect-raw -C bin/apic-demo --env local --keep-going
         "
 
   docs:

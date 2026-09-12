@@ -50,8 +50,10 @@ example project and serves the fake API it targets, so you can see apic
 work before authoring a single `.http` file of your own:
 
 ```sh
-apic demo &      # writes ./apic-demo and serves its fake API on :8089
+# terminal 1 (leave running)
+apic demo        # writes ./apic-demo and serves its fake API on :8089
 
+# terminal 2
 apic list -C apic-demo
 apic run login whoami -C apic-demo --env local
 ```

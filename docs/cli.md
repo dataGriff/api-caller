@@ -304,6 +304,34 @@ not pass one. See [agents.md](agents.md).
 claude mcp add api -- apic mcp --dir ./api --env dev
 ```
 
+## apic demo
+
+```
+apic demo [--out <dir>] [--port <port>] [--force]
+```
+
+Writes a local example project (`apic.yaml`, `http-client.env.json`,
+`http-client.private.env.json`, `auth.http`, `todos.http`) into `--out`, then
+starts the bundled fake API and serves until you stop the process.
+
+| Flag | Meaning |
+|---|---|
+| `-o, --out <dir>` | Output directory for the scaffolded example project. Default `apic-demo`. |
+| `--port <port>` | Localhost port to serve on and to write into `http-client.env.json`. Must be `1-65535`. Default `8089`. |
+| `--force` | Overwrite existing scaffold files in `--out`. |
+
+`--json` prints one startup object and then keeps serving:
+
+```json
+{
+  "out": "apic-demo",
+  "url": "http://localhost:8089",
+  "written": ["apic-demo/apic.yaml"],
+  "skipped": [],
+  "listening": true
+}
+```
+
 ## apic version, apic completion
 
 `version` prints the build version. `completion bash|zsh|fish|powershell`

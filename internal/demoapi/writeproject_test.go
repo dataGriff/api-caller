@@ -31,6 +31,13 @@ func TestWriteProject(t *testing.T) {
 	if !strings.Contains(string(env), "http://localhost:9999") {
 		t.Fatalf("http-client.env.json missing the requested port: %s", env)
 	}
+	info, err := os.Stat(filepath.Join(dir, "http-client.private.env.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("http-client.private.env.json mode = %o, want 600", got)
+	}
 
 	p, err := project.Load(dir)
 	if err != nil {

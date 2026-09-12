@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/demoapi"
+	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 func (a *App) demoCmd() *cobra.Command {
@@ -25,19 +26,41 @@ Run it, then in another terminal (substituting your --out if you set one):
   apic run login whoami -C apic-demo --env local`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if port < 1 || port > 65535 {
+				return &runner.UsageError{Msg: "--port must be between 1 and 65535"}
+			}
 			written, skipped, err := demoapi.WriteProject(out, port, force)
 			if err != nil {
 				return err
 			}
-			for _, f := range written {
-				fmt.Fprintf(a.Stdout, "wrote %s\n", f)
+			url := fmt.Sprintf("http://localhost:%d", port)
+			if a.g.json {
+				if err := a.writeJSON(struct {
+					Out       string   `json:"out"`
+					URL       string   `json:"url"`
+					Written   []string `json:"written"`
+					Skipped   []string `json:"skipped,omitempty"`
+					Listening bool     `json:"listening"`
+				}{
+					Out:       out,
+					URL:       url,
+					Written:   written,
+					Skipped:   skipped,
+					Listening: true,
+				}); err != nil {
+					return err
+				}
+			} else {
+				for _, f := range written {
+					fmt.Fprintf(a.Stdout, "wrote %s\n", f)
+				}
+				for _, f := range skipped {
+					fmt.Fprintf(a.Stdout, "kept  %s (use --force to overwrite)\n", f)
+				}
+				fmt.Fprintf(a.Stdout, "demo api listening on %s\n", url)
+				fmt.Fprintf(a.Stdout, "try: apic run login whoami -C %s --env local\n", out)
 			}
-			for _, f := range skipped {
-				fmt.Fprintf(a.Stdout, "kept  %s (use --force to overwrite)\n", f)
-			}
-			addr := fmt.Sprintf(":%d", port)
-			fmt.Fprintf(a.Stdout, "demo api listening on http://localhost%s\n", addr)
-			fmt.Fprintf(a.Stdout, "try: apic run login whoami -C %s --env local\n", out)
+			addr := fmt.Sprintf("127.0.0.1:%d", port)
 			return http.ListenAndServe(addr, demoapi.New())
 		},
 	}
