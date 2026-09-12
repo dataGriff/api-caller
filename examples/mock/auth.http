@@ -1,0 +1,28 @@
+### Log in and keep the token
+# @name login
+# @assert status == 200
+# @capture token = body.$.access_token
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"user": "{{user}}", "password": "{{password}}"}
+
+### Who am I, using the token captured by login
+# @name whoami
+# @assert status == 200
+# @assert body.$.email endsWith @example.com
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+
+### Basic auth, encoded for you
+# @name basic-auth
+# @auth basic {{user}} {{password}}
+# @assert status == 200
+# @assert body.$.authenticated == true
+GET {{baseUrl}}/basic-auth/{{user}}/{{password}}
+
+### Client-credentials token, fetched and cached automatically
+# @name oauth2-token
+# @auth oauth2 tokenUrl={{baseUrl}}/oauth/token clientId={{clientId}} clientSecret={{clientSecret}}
+# @assert status == 200
+GET {{baseUrl}}/me

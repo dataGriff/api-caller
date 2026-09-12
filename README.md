@@ -43,6 +43,50 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 # Windows and everything else: download from GitHub Releases
 ```
 
+## Try it now
+
+No account, no API key, nothing to write — apic ships with a fake API and
+a matching example project, so you can see it work before authoring a
+single `.http` file of your own:
+
+```sh
+git clone https://github.com/dataGriff/api-caller && cd api-caller
+go run ./examples/mock/server &      # a fake API on :8089
+
+apic list -C examples/mock
+apic run login whoami -C examples/mock --env local
+```
+
+```
+POST http://localhost:8089/auth/login
+200 OK · 4 ms · 30 B
+{ "access_token": "mock-token" }
+✓ status == 200
+↳ token = mock-token
+
+GET http://localhost:8089/me
+200 OK · 1 ms · 30 B
+{ "email": "alice@example.com" }
+✓ status == 200
+✓ body.$.email endsWith @example.com
+
+2 passed
+```
+
+It's a full CRUD API too, not just auth demos — `examples/mock/todos.http`
+creates, reads, updates and deletes a resource in one flow:
+
+```sh
+apic run list-todos create-todo get-todo update-todo delete-todo \
+  -C examples/mock --env local --keep-going
+# 5 passed
+```
+
+Read `examples/mock/auth.http` and `examples/mock/todos.http` to see the
+`.http` files behind those commands. `examples/httpbin` is the same idea
+against a real API instead of the bundled mock, if you'd rather see live
+network behaviour (needs outbound HTTPS).
+
 ## 60-second tour
 
 ```http
@@ -165,10 +209,11 @@ tasks:
 ## Development
 
 ```sh
-task build && ./bin/apic list -C examples/httpbin
+task build && ./bin/apic list -C examples/mock
+task example:mock   # run the offline example end to end
 task test
 task lint
 ```
 
 Tests run against local `httptest` servers; no network is needed. The
-`examples/httpbin` project targets httpbin.org for a live demo.
+`examples/httpbin` project targets httpbin.org for a live demo instead.

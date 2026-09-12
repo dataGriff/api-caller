@@ -39,3 +39,4 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go run ./cmd/apic validate -C examples/httpbin
+      - run: go run ./cmd/apic validate -C examples/mock

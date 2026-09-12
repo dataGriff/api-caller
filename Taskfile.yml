@@ -46,6 +46,26 @@ tasks:
       - ../../{{.BIN}} run users.http --env {{.ENV | default "dev"}} --keep-going
     deps: [build]
 
+  example:mock:
+    desc: Run the offline mock example project (no network needed)
+    dir: examples/mock
+    deps: [build]
+    cmds:
+      # Task's built-in shell has no job control (no real `kill`), so the
+      # background server + trap cleanup needs a real shell via `sh -c`.
+      # Statements must stay newline-separated, not `&&`-chained: `&&` binds
+      # tighter than `&`, so chaining would background the `cd`/`build` too
+      # and leave the following commands running from the wrong directory.
+      - |
+        sh -c "
+        go build -o ../../bin/mockserver ./server
+        ../../bin/mockserver &
+        pid=\$!
+        trap 'kill \$pid' EXIT
+        sleep 0.5
+        ../../{{.BIN}} run auth.http todos.http --env local --keep-going
+        "
+
   docs:
     desc: Serve the documentation site locally (needs `pip install "mkdocs<2" "mkdocs-material<10"`)
     cmds:

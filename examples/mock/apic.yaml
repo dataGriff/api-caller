@@ -1,0 +1,2 @@
+# Default environment when --env is not given.
+env: local
