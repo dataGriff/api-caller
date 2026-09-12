@@ -24,6 +24,7 @@ func TestServerEndToEnd(t *testing.T) {
 			w.WriteHeader(401)
 			return
 		}
+
 		_, _ = w.Write([]byte(`{"name":"alice"}`))
 	})
 	srv := httptest.NewServer(mux)
@@ -86,7 +87,7 @@ Authorization: Bearer {{token}}
 		t.Fatalf("want missing-variable hint, got %v", e)
 	}
 	login := call("run_request", map[string]any{"name": "login"})
-	if login["ok"] != true || login["captures"].(map[string]any)["token"] != "t-1" {
+	if login["ok"] != true || login["captures"].(map[string]any)["token"] != "***" {
 		t.Fatalf("login: %v", login)
 	}
 	me := call("run_request", map[string]any{"name": "me"})
@@ -113,6 +114,22 @@ Authorization: Bearer {{token}}
 	must(t, err)
 	if !strings.Contains(rr.Contents[0].Text, "@name login") {
 		t.Fatal("resource content")
+	}
+}
+
+func TestReadFileRejectsPathTraversal(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	target := filepath.Join(outside, "secret.txt")
+	must(t, os.WriteFile(target, []byte("x"), 0o644))
+	link := filepath.Join(root, "leak.txt")
+	must(t, os.Symlink(target, link))
+	s := &service{root: root}
+	_, err := s.readFile(context.Background(), &sdk.ReadResourceRequest{
+		Params: &sdk.ReadResourceParams{URI: "file://" + filepath.ToSlash(link)},
+	})
+	if err == nil || !strings.Contains(err.Error(), "outside project") {
+		t.Fatalf("expected outside-project rejection, got %v", err)
 	}
 }
 

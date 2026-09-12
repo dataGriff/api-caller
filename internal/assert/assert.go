@@ -42,6 +42,12 @@ func Parse(expr string) (Expr, error) {
 	if rest == "exists" || rest == "not exists" {
 		return Expr{Selector: sel, Op: rest}, nil
 	}
+	if strings.HasPrefix(rest, "exists ") {
+		return Expr{}, fmt.Errorf("assert %q: %q does not take a value", expr, "exists")
+	}
+	if strings.HasPrefix(rest, "not exists ") {
+		return Expr{}, fmt.Errorf("assert %q: %q does not take a value", expr, "not exists")
+	}
 	op := fields[1]
 	valid := false
 	for _, o := range Operators {
@@ -53,6 +59,9 @@ func Parse(expr string) (Expr, error) {
 		return Expr{}, fmt.Errorf("assert %q: unknown operator %q (one of %s)", expr, op, strings.Join(Operators, ", "))
 	}
 	val := strings.TrimSpace(rest[len(op):])
+	if val == "" {
+		return Expr{}, fmt.Errorf("assert %q: expected `<selector> <op> <value>`", expr)
+	}
 	if len(val) >= 2 && (val[0] == '"' && val[len(val)-1] == '"' || val[0] == '\'' && val[len(val)-1] == '\'') {
 		val = val[1 : len(val)-1]
 	}

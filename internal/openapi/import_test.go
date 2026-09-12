@@ -61,3 +61,67 @@ func TestImportPetstore(t *testing.T) {
 		t.Fatalf("%+v %v", res2, err)
 	}
 }
+
+func TestImportResolvesServerVariables(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info:
+  title: t
+  version: 1.0.0
+servers:
+  - url: https://{region}.example.com/{base}
+    variables:
+      region:
+        default: us
+      base:
+        default: api
+paths:
+  /ping:
+    get:
+      operationId: ping
+      responses:
+        "200":
+          description: ok
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://us.example.com/api" {
+		t.Fatalf("base url: %q", res.BaseURL)
+	}
+}
+
+func TestImportUsesFirstNonEmptyServerURL(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info:
+  title: t
+  version: 1.0.0
+servers:
+  - url: ""
+  - url: https://api.example.com
+paths:
+  /ping:
+    get:
+      operationId: ping
+      responses:
+        "200":
+          description: ok
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://api.example.com" {
+		t.Fatalf("base url: %q", res.BaseURL)
+	}
+}

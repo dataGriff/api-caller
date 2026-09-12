@@ -205,8 +205,14 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 	}
 	for _, r := range p.Requests() {
 		for _, a := range r.Asserts {
-			if _, err := assert.Parse(a.Expr); err != nil {
+			expr, err := assert.Parse(a.Expr)
+			if err != nil {
 				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: a.Line, Severity: "error", Message: err.Error()})
+				continue
+			}
+			if !validSelector(expr.Selector) {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: a.Line, Severity: "error",
+					Message: fmt.Sprintf("assert %q: unknown selector %q", a.Expr, expr.Selector)})
 			}
 		}
 		for _, c := range r.Captures {

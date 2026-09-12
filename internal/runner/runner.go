@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,11 @@ type Runner struct {
 
 // New builds a Runner, loading env files and the session.
 func New(p *project.Project, opts Options) (*Runner, error) {
+	for _, d := range p.Diagnostics {
+		if d.Severity == "error" {
+			return nil, usagef("%s:%d: %s (run `apic validate`)", d.Path, d.Line, d.Message)
+		}
+	}
 	if opts.Env == "" {
 		opts.Env = p.Config.Env
 	}
@@ -136,6 +142,20 @@ type Result struct {
 	raw      *selector.Response
 }
 
+// MarshalJSON redacts resolved request and capture values from machine output.
+func (r Result) MarshalJSON() ([]byte, error) {
+	type alias Result
+	out := alias(r)
+	out.Request = redactResolved(out.Request)
+	if len(out.Captures) > 0 {
+		out.Captures = map[string]string{}
+		for k := range r.Captures {
+			out.Captures[k] = "***"
+		}
+	}
+	return json.Marshal(out)
+}
+
 // Raw returns the underlying response for renderers.
 func (r *Result) Raw() *selector.Response { return r.raw }
 
@@ -165,7 +185,10 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	body := req.Body
 	if req.BodyFile != "" {
-		path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), req.BodyFile)
+		path, err := r.bodyFilePath(req)
+		if err != nil {
+			return nil, err
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
@@ -189,7 +212,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 func (r *Runner) MissingError(req *httpfile.Request, missing []string) error {
 	var parts []string
 	for _, m := range missing {
-		info, _ := r.lookup(req, m, 0)
+		info, _, _ := r.lookup(req, m, 0)
 		hint := fmt.Sprintf("pass --var %s=... or add it to %s", m, env.PublicFile)
 		if info.CapturedBy != "" {
 			hint = fmt.Sprintf("it is captured by request %q; run `apic run %s` first, or pass --var %s=...", info.CapturedBy, info.CapturedBy, m)
@@ -219,6 +242,33 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 		return nil, r.MissingError(req, resolved.missing)
 	}
 	result := &Result{Request: *resolved, OK: true}
+	preparedAsserts := make([]struct {
+		expr     assert.Expr
+		expected string
+		raw      string
+	}, 0, len(req.Asserts))
+	for _, a := range req.Asserts {
+		expr, err := assert.Parse(a.Expr)
+		if err != nil {
+			return nil, usagef("%s:%d: %v", req.File.Path, a.Line, err)
+		}
+		expected := expr.Value
+		if expr.Op != "exists" && expr.Op != "not exists" {
+			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
+			if err != nil {
+				var me *template.MissingError
+				if errors.As(err, &me) {
+					return nil, r.MissingError(req, dedupe(me.Exprs))
+				}
+				return nil, usagef("%s:%d: assert %q: %v", req.File.Path, a.Line, a.Expr, err)
+			}
+		}
+		preparedAsserts = append(preparedAsserts, struct {
+			expr     assert.Expr
+			expected string
+			raw      string
+		}{expr: expr, expected: expected, raw: a.Expr})
+	}
 
 	timeout := r.Opts.Timeout
 	if t, ok := req.Directive("timeout"); ok {
@@ -287,20 +337,8 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 	if req.Name != "" {
 		r.results[req.Name] = result
 	}
-	for _, a := range req.Asserts {
-		expr, err := assert.Parse(a.Expr)
-		if err != nil {
-			result.Asserts = append(result.Asserts, assert.Result{Expr: a.Expr, Error: err.Error()})
-			result.OK = false
-			continue
-		}
-		expected, err := template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
-		if err != nil {
-			result.Asserts = append(result.Asserts, assert.Result{Expr: a.Expr, Error: err.Error()})
-			result.OK = false
-			continue
-		}
-		ar := assert.Eval(expr, expected, raw)
+	for _, a := range preparedAsserts {
+		ar := assert.Eval(a.expr, a.expected, raw)
 		if !ar.Pass {
 			result.OK = false
 		}
@@ -312,6 +350,7 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 			r.Session.Set(r.Opts.Env, result.Captures)
 			if err := r.Session.Save(); err != nil {
 				result.Errors = append(result.Errors, "session: "+err.Error())
+				result.OK = false
 			}
 		}
 	}
@@ -322,6 +361,7 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 // unless KeepGoing is set. Results for requests that ran are always returned.
 func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Result, error) {
 	var out []*Result
+	var firstErr error
 	for _, req := range reqs {
 		res, err := r.Run(ctx, req)
 		if err != nil {
@@ -332,6 +372,9 @@ func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Resul
 			if !r.Opts.KeepGoing {
 				return out, err
 			}
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		out = append(out, res)
@@ -339,7 +382,7 @@ func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Resul
 			return out, nil
 		}
 	}
-	return out, nil
+	return out, firstErr
 }
 
 // Description is what `apic describe` shows.
@@ -386,30 +429,33 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 			}
 			seen[e] = true
 			if strings.HasPrefix(e, "$") || strings.Contains(e, ".response.") {
-				v, ok, err := r.resolveExpr(req, e, 0)
-				info := VarInfo{Name: e, Source: "built-in", Value: v, Missing: !ok || err != nil}
+				v, ok, secret, err := r.resolveExprMeta(req, e, 0)
+				info := VarInfo{Name: e, Source: "built-in", Value: v, Secret: secret, Missing: !ok || err != nil}
 				if strings.Contains(e, ".response.") {
 					info.Source = "response reference (flow only)"
 				}
 				if err != nil {
 					info.Source += ": " + err.Error()
 				}
+				if !ok || err != nil {
+					d.Ready = false
+				}
 				d.Variables = append(d.Variables, info)
 				continue
 			}
-			info, ok := r.lookup(req, e, 0)
-			if !ok {
+			info, ok, err := r.lookup(req, e, 0)
+			if !ok || err != nil {
 				d.Ready = false
+			}
+			if err != nil {
+				info.Source = info.Source + ": " + err.Error()
+				info.Missing = true
 			}
 			d.Variables = append(d.Variables, info)
 		}
 	}
 	sort.SliceStable(d.Variables, func(i, j int) bool { return d.Variables[i].Missing && !d.Variables[j].Missing })
-	if resolved, err := r.Resolve(req); err == nil {
-		d.URL = resolved.URL
-	} else {
-		d.URL = req.URL
-	}
+	d.URL = req.URL
 	return d
 }
 
@@ -435,7 +481,7 @@ func (r *Runner) EnvVars() []VarInfo {
 	}
 	var out []VarInfo
 	for n := range names {
-		info, _ := r.lookup(nil, n, 0)
+		info, _, _ := r.lookup(nil, n, 0)
 		out = append(out, info)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -471,10 +517,40 @@ func flatHeaders(h http.Header) map[string]string {
 
 func jsonOrString(data []byte) any {
 	t := bytes.TrimSpace(data)
-	if len(t) > 0 && (t[0] == '{' || t[0] == '[') && json.Valid(t) {
+	if len(t) > 0 && json.Valid(t) {
 		return json.RawMessage(t)
 	}
 	return string(data)
+}
+
+func (r *Runner) bodyFilePath(req *httpfile.Request) (string, error) {
+	root, err := filepath.EvalSymlinks(r.Project.Root)
+	if err != nil {
+		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+	}
+	path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), req.BodyFile)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
+			if derr != nil {
+				real = abs
+			} else {
+				real = filepath.Join(dirReal, filepath.Base(abs))
+			}
+		} else {
+			return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+		}
+	}
+	rel, err := filepath.Rel(root, real)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", usagef("%s:%d: body file %q resolves outside project root", req.File.Path, req.Line, req.BodyFile)
+	}
+	return real, nil
 }
 
 func dedupe(in []string) []string {
@@ -485,6 +561,20 @@ func dedupe(in []string) []string {
 			seen[s] = true
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+func redactResolved(in Resolved) Resolved {
+	out := in
+	if out.URL != "" {
+		out.URL = "***"
+	}
+	for i := range out.Headers {
+		out.Headers[i].Value = "***"
+	}
+	if out.Body != "" {
+		out.Body = "***"
 	}
 	return out
 }

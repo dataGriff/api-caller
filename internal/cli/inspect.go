@@ -291,9 +291,10 @@ func (a *App) sessionCmd() *cobra.Command {
 			if err := r.Session.Save(); err != nil {
 				return err
 			}
-			if !a.g.json {
-				fmt.Fprintln(a.Stdout, "session cleared")
+			if a.g.json {
+				return a.writeJSON(map[string]string{"cleared": target})
 			}
+			fmt.Fprintln(a.Stdout, "session cleared")
 			return nil
 		},
 	}

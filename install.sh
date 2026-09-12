@@ -34,8 +34,21 @@ mkdir -p "$INSTALL_DIR"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 url="https://github.com/$REPO/releases/download/$VERSION/apic_${number}_${os}_${arch}.tar.gz"
+archive="$tmp/apic_${number}_${os}_${arch}.tar.gz"
+checksums="$tmp/checksums.txt"
+archive_name=$(basename "$archive")
 echo "downloading $url"
-curl -fsSL "$url" | tar -xz -C "$tmp"
+curl -fsSL "$url" -o "$archive"
+curl -fsSL "https://github.com/$REPO/releases/download/$VERSION/checksums.txt" -o "$checksums"
+expected=$(awk -v file="$archive_name" '$2 == file { print $1 }' "$checksums")
+[ -n "$expected" ] || { echo "checksum not found for $archive_name" >&2; exit 1; }
+if command -v sha256sum >/dev/null 2>&1; then
+  actual=$(sha256sum "$archive" | awk '{print $1}')
+else
+  actual=$(shasum -a 256 "$archive" | awk '{print $1}')
+fi
+[ "$actual" = "$expected" ] || { echo "checksum mismatch for $archive_name" >&2; exit 1; }
+tar -xzf "$archive" -C "$tmp"
 install -m 0755 "$tmp/apic" "$INSTALL_DIR/apic"
 echo "installed apic $VERSION to $INSTALL_DIR/apic"
 case ":$PATH:" in

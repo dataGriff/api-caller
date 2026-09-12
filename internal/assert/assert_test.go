@@ -46,7 +46,7 @@ func TestParseAndEval(t *testing.T) {
 			t.Errorf("%s: pass=%v (%+v)", c.expr, r.Pass, r)
 		}
 	}
-	for _, bad := range []string{"status", "status ~= 1", ""} {
+	for _, bad := range []string{"status", "status ~= 1", "", "status ==", "status exists extra", "status not exists extra"} {
 		if _, err := Parse(bad); err == nil {
 			t.Errorf("%q should not parse", bad)
 		}

@@ -8,9 +8,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
@@ -159,7 +161,7 @@ func TestLoginCaptureAndReuseAcrossInvocations(t *testing.T) {
 	if src["token"] != "session" || !strings.Contains(src["baseUrl"], "http-client.env.json [dev]") || !d.Ready {
 		t.Fatalf("describe: %+v", d.Variables)
 	}
-	if !strings.HasPrefix(d.URL, srv.URL+"/users/7") {
+	if d.URL != "{{baseUrl}}/users/{{userId}}" {
 		t.Fatalf("url %q", d.URL)
 	}
 
@@ -232,5 +234,190 @@ func TestUnknownEnv(t *testing.T) {
 	p, _ := project.Load(dir)
 	if _, err := New(p, Options{Env: "prod"}); err == nil || !strings.Contains(err.Error(), "have: dev") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestNewRejectsParseDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	p := &project.Project{
+		Root:        dir,
+		Diagnostics: []httpfile.Diagnostic{{Path: "bad.http", Line: 3, Severity: "error", Message: "bad directive"}},
+	}
+	if _, err := New(p, Options{}); err == nil || !strings.Contains(err.Error(), "bad.http:3") {
+		t.Fatalf("want parse diagnostic error, got %v", err)
+	}
+}
+
+func TestRunPreflightsAssertTemplatesAndSkipsTransport(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	dir := writeProject(t, map[string]string{
+		"api.http": `
+# @name t
+# @assert status == {{missing}}
+GET ` + srv.URL + `
+`,
+	})
+	r := newRunner(t, dir, Options{NoSession: true})
+	_, err := r.Run(context.Background(), r.Project.Requests()[0])
+	if ExitCode(err) != ExitUsage {
+		t.Fatalf("want usage error, got %v", err)
+	}
+	if hits != 0 {
+		t.Fatalf("request should not have been sent, hits=%d", hits)
+	}
+}
+
+func TestRunAllKeepGoingReturnsFirstError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	dir := writeProject(t, map[string]string{"api.http": `
+GET {{missing}}
+###
+GET ` + srv.URL + `
+`})
+	r := newRunner(t, dir, Options{NoSession: true, KeepGoing: true})
+	results, err := r.RunAll(context.Background(), r.Project.Requests())
+	if len(results) != 2 {
+		t.Fatalf("want 2 results, got %d", len(results))
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Fatalf("want usage error, got %v", err)
+	}
+}
+
+func TestRunRejectsBodyFileOutsideProject(t *testing.T) {
+	base := t.TempDir()
+	secret := filepath.Join(base, "secret.txt")
+	if err := os.WriteFile(secret, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proj := filepath.Join(base, "proj")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(proj, "api.http"), []byte(`
+POST https://example.com
+
+< ../secret.txt
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := newRunner(t, proj, Options{NoSession: true})
+	_, err := r.Run(context.Background(), r.Project.Requests()[0])
+	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "outside project root") {
+		t.Fatalf("want outside project error, got %v", err)
+	}
+}
+
+func TestJSONOrStringAcceptsScalarJSON(t *testing.T) {
+	for _, in := range []string{"true", "7", "null", `"x"`} {
+		got := jsonOrString([]byte(in))
+		if reflect.TypeOf(got) != reflect.TypeOf(json.RawMessage{}) {
+			t.Fatalf("want RawMessage for %q, got %T", in, got)
+		}
+	}
+}
+
+func TestNestedFileVarMissingPropagates(t *testing.T) {
+	dir := writeProject(t, map[string]string{"api.http": `
+@base = {{missing}}
+GET {{base}}/x
+`})
+	r := newRunner(t, dir, Options{NoSession: true})
+	_, err := r.Run(context.Background(), r.Project.Requests()[0])
+	if ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "{{missing}}") {
+		t.Fatalf("want missing variable error, got %v", err)
+	}
+}
+
+func TestDescribeMarksDotenvBuiltinsSecret(t *testing.T) {
+	dir := writeProject(t, map[string]string{
+		"api.http": `
+# @name t
+GET https://example.com?q={{$dotenv X}}
+`,
+		".env": "X=1",
+	})
+	r := newRunner(t, dir, Options{NoSession: true})
+	d := r.Describe(r.Project.Requests()[0])
+	if !d.Ready {
+		t.Fatalf("expected request to be ready: %+v", d)
+	}
+	found := false
+	for _, v := range d.Variables {
+		if v.Name == "$dotenv X" {
+			found = true
+			if !v.Secret {
+				t.Fatalf("dotenv variable should be secret: %+v", v)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("dotenv variable not reported: %+v", d.Variables)
+	}
+}
+
+func TestSessionSaveFailureMarksResultFailed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"token":"x"}`))
+	}))
+	defer srv.Close()
+	dir := writeProject(t, map[string]string{
+		"api.http": `
+# @name t
+# @capture token = body.$.token
+GET ` + srv.URL + `
+`,
+	})
+	r := newRunner(t, dir, Options{})
+	// Make session persistence fail deterministically: .apic must be a directory.
+	if err := os.WriteFile(filepath.Join(dir, ".apic"), []byte("not-a-dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(context.Background(), r.Project.Requests()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK {
+		t.Fatalf("result should fail on session save error: %+v", res)
+	}
+	if len(res.Errors) == 0 || !strings.Contains(res.Errors[0], "session:") {
+		t.Fatalf("missing session save error: %+v", res.Errors)
+	}
+}
+
+func TestResultJSONRedactsRequestAndCaptures(t *testing.T) {
+	res := Result{
+		OK: true,
+		Request: Resolved{
+			Method: "GET",
+			URL:    "https://example.com?token=secret",
+			Headers: []httpfile.Header{
+				{Name: "Authorization", Value: "******"},
+			},
+			Body: "secret-body",
+		},
+		Captures: map[string]string{"token": "secret"},
+	}
+	data, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(data)
+	for _, bad := range []string{"secret-body", "******", "token=secret"} {
+		if strings.Contains(s, bad) {
+			t.Fatalf("json should redact %q: %s", bad, s)
+		}
+	}
+	if !strings.Contains(s, `"url":"***"`) || !strings.Contains(s, `"token":"***"`) {
+		t.Fatalf("json should contain redactions: %s", s)
 	}
 }

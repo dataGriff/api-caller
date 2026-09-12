@@ -6,7 +6,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,10 +274,25 @@ func (s *service) clearSession(_ context.Context, _ *sdk.CallToolRequest, in cle
 func (s *service) readFile(_ context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
 	path := strings.TrimPrefix(req.Params.URI, "file://")
 	abs, err := filepath.Abs(filepath.FromSlash(path))
-	if err != nil || !strings.HasPrefix(abs, s.root) {
+	if err != nil {
 		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
 	}
-	data, err := os.ReadFile(abs)
+	root, err := filepath.EvalSymlinks(s.root)
+	if err != nil {
+		return nil, err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
+	}
+	rel, err := filepath.Rel(root, real)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
+	}
+	data, err := os.ReadFile(real)
 	if err != nil {
 		return nil, err
 	}

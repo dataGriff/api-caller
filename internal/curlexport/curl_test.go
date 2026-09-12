@@ -17,4 +17,7 @@ func TestCommand(t *testing.T) {
 	if got := Command(&runner.Resolved{Method: "DELETE", URL: "https://a.b"}); got != "curl -sS \\\n  -X DELETE \\\n  'https://a.b'" {
 		t.Fatalf("got %q", got)
 	}
+	if got := Command(&runner.Resolved{Method: "GET", URL: "https://a.b", Body: "x=1"}); got != "curl -sS \\\n  -X GET \\\n  --data-raw 'x=1' \\\n  'https://a.b'" {
+		t.Fatalf("got %q", got)
+	}
 }

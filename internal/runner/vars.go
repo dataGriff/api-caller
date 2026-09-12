@@ -27,38 +27,38 @@ type VarInfo struct {
 
 // lookup resolves a plain variable name (no `$`, no response reference) for a
 // request, walking the precedence layers.
-func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo, bool) {
+func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo, bool, error) {
 	info := VarInfo{Name: name}
 	if v, ok := r.Opts.Vars[name]; ok {
 		info.Value, info.Source = v, "--var"
-		return info, true
+		return info, true, nil
 	}
 	if v, ok := os.LookupEnv("APIC_VAR_" + name); ok {
 		info.Value, info.Source = v, "shell APIC_VAR_"+name
-		return info, true
+		return info, true, nil
 	}
 	if v, ok := r.captured[name]; ok {
 		info.Value, info.Source, info.Secret = v, "captured this run", true
-		return info, true
+		return info, true, nil
 	}
 	if r.Session != nil {
 		if v, ok := r.Session.Get(r.Opts.Env, name); ok {
 			info.Value, info.Source, info.Secret = v, "session", true
-			return info, true
+			return info, true, nil
 		}
 	}
 	if r.Envs != nil {
 		if v, ok := r.Envs.PrivateVars(r.Opts.Env)[name]; ok {
 			info.Value, info.Source, info.Secret = v, envSource("http-client.private.env.json", r.Opts.Env), true
-			return info, true
+			return info, true, nil
 		}
 		if v, ok := r.Envs.PublicVars(r.Opts.Env)[name]; ok {
 			info.Value, info.Source = v, envSource("http-client.env.json", r.Opts.Env)
-			return info, true
+			return info, true, nil
 		}
 		if v, ok := r.Envs.DotEnv[name]; ok {
 			info.Value, info.Source, info.Secret = v, ".env", true
-			return info, true
+			return info, true, nil
 		}
 	}
 	if req != nil {
@@ -70,18 +70,21 @@ func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo,
 			}
 			info.Source = fmt.Sprintf("%s:%d @%s", req.File.Path, fv.Line, fv.Name)
 			if depth > 8 {
-				info.Value = fv.Value
-				return info, true
+				return info, true, fmt.Errorf("variable %q exceeds max expansion depth", name)
 			}
+			secret := false
 			v, err := template.Render(fv.Value, func(e string) (string, bool, error) {
-				return r.resolveExpr(req, e, depth+1)
+				val, ok, sec, err := r.resolveExprMeta(req, e, depth+1)
+				if sec {
+					secret = true
+				}
+				return val, ok, err
 			})
 			if err != nil {
-				info.Value = v
-				return info, true
+				return info, false, err
 			}
-			info.Value = v
-			return info, true
+			info.Value, info.Secret = v, secret
+			return info, true, nil
 		}
 	}
 	info.Missing = true
@@ -91,7 +94,7 @@ func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo,
 			info.CapturedBy = by.ID()
 		}
 	}
-	return info, false
+	return info, false, nil
 }
 
 func envSource(file, env string) string {
@@ -103,26 +106,32 @@ func envSource(file, env string) string {
 
 // resolveExpr resolves any `{{expr}}` for a request.
 func (r *Runner) resolveExpr(req *httpfile.Request, expr string, depth int) (string, bool, error) {
+	val, ok, _, err := r.resolveExprMeta(req, expr, depth)
+	return val, ok, err
+}
+
+func (r *Runner) resolveExprMeta(req *httpfile.Request, expr string, depth int) (string, bool, bool, error) {
 	if strings.HasPrefix(expr, "$") {
 		return r.builtin(expr)
 	}
 	if strings.Contains(expr, ".response.") {
-		return r.responseRef(expr)
+		v, ok, err := r.responseRef(expr)
+		return v, ok, false, err
 	}
-	info, ok := r.lookup(req, expr, depth)
-	return info.Value, ok, nil
+	info, ok, err := r.lookup(req, expr, depth)
+	return info.Value, ok, info.Secret, err
 }
 
-func (r *Runner) builtin(expr string) (string, bool, error) {
+func (r *Runner) builtin(expr string) (string, bool, bool, error) {
 	fields := strings.Fields(expr)
 	name, args := fields[0], fields[1:]
 	switch name {
 	case "$uuid", "$guid":
-		return uuid.NewString(), true, nil
+		return uuid.NewString(), true, false, nil
 	case "$timestamp":
-		return strconv.FormatInt(time.Now().Unix(), 10), true, nil
+		return strconv.FormatInt(time.Now().Unix(), 10), true, false, nil
 	case "$isoTimestamp":
-		return time.Now().UTC().Format(time.RFC3339), true, nil
+		return time.Now().UTC().Format(time.RFC3339), true, false, nil
 	case "$datetime":
 		layout := time.RFC3339
 		if len(args) > 0 {
@@ -135,43 +144,43 @@ func (r *Runner) builtin(expr string) (string, bool, error) {
 				layout = strings.Trim(strings.Join(args, " "), `"'`)
 			}
 		}
-		return time.Now().UTC().Format(layout), true, nil
+		return time.Now().UTC().Format(layout), true, false, nil
 	case "$randomInt":
 		lo, hi := 0, 1000
 		var err error
 		if len(args) >= 2 {
 			if lo, err = strconv.Atoi(args[0]); err != nil {
-				return "", false, fmt.Errorf("$randomInt min must be an integer")
+				return "", false, false, fmt.Errorf("$randomInt min must be an integer")
 			}
 			if hi, err = strconv.Atoi(args[1]); err != nil {
-				return "", false, fmt.Errorf("$randomInt max must be an integer")
+				return "", false, false, fmt.Errorf("$randomInt max must be an integer")
 			}
 		}
 		if hi <= lo {
-			return "", false, fmt.Errorf("$randomInt max must be greater than min")
+			return "", false, false, fmt.Errorf("$randomInt max must be greater than min")
 		}
-		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, nil
+		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, false, nil
 	case "$processEnv":
 		if len(args) != 1 {
-			return "", false, fmt.Errorf("$processEnv needs a variable name")
+			return "", false, false, fmt.Errorf("$processEnv needs a variable name")
 		}
 		v, ok := os.LookupEnv(args[0])
-		return v, ok, nil
+		return v, ok, false, nil
 	case "$dotenv":
 		if len(args) != 1 {
-			return "", false, fmt.Errorf("$dotenv needs a variable name")
+			return "", false, false, fmt.Errorf("$dotenv needs a variable name")
 		}
 		if r.Envs == nil {
-			return "", false, nil
+			return "", false, true, nil
 		}
 		v, ok := r.Envs.DotEnv[args[0]]
-		return v, ok, nil
+		return v, ok, true, nil
 	}
 	if strings.HasPrefix(name, "$env.") {
 		v, ok := os.LookupEnv(strings.TrimPrefix(name, "$env."))
-		return v, ok, nil
+		return v, ok, false, nil
 	}
-	return "", false, fmt.Errorf("unknown built-in %s", name)
+	return "", false, false, fmt.Errorf("unknown built-in %s", name)
 }
 
 // responseRef resolves `<name>.response.<selector>` against a request already

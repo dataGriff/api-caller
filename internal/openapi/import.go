@@ -26,6 +26,32 @@ type Result struct {
 	Skipped  []string `json:"skipped,omitempty"`
 }
 
+func resolveServerURL(s *v3.Server) (string, error) {
+	url := strings.TrimSpace(s.URL)
+	if url == "" {
+		return "", nil
+	}
+	defaults := map[string]string{}
+	if s.Variables != nil {
+		for name, v := range s.Variables.FromOldest() {
+			if v != nil {
+				defaults[name] = v.Default
+			}
+		}
+	}
+	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
+		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
+		if v, ok := defaults[name]; ok && v != "" {
+			return v
+		}
+		return match
+	})
+	if unresolved := reServerVar.FindStringSubmatch(out); unresolved != nil {
+		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", s.URL, unresolved[1])
+	}
+	return strings.TrimRight(out, "/"), nil
+}
+
 // Options controls generation.
 type Options struct {
 	OutDir  string // directory to write into
@@ -61,8 +87,18 @@ func Import(specPath string, opts Options) (*Result, error) {
 	}
 
 	res := &Result{BaseURL: "https://example.com"}
-	if len(model.Model.Servers) > 0 && model.Model.Servers[0].URL != "" {
-		res.BaseURL = strings.TrimRight(model.Model.Servers[0].URL, "/")
+	if len(model.Model.Servers) > 0 {
+		for _, srv := range model.Model.Servers {
+			if strings.TrimSpace(srv.URL) == "" {
+				continue
+			}
+			baseURL, err := resolveServerURL(srv)
+			if err != nil {
+				return nil, err
+			}
+			res.BaseURL = baseURL
+			break
+		}
 	}
 
 	byTag := map[string][]*operation{}
@@ -335,6 +371,7 @@ func exampleFromSchema(s *base.Schema, depth int) any {
 }
 
 var reNonWord = regexp.MustCompile(`[^A-Za-z0-9]+`)
+var reServerVar = regexp.MustCompile(`\{([^{}]+)\}`)
 
 func kebab(s string) string {
 	s = reNonWord.ReplaceAllString(s, "-")
