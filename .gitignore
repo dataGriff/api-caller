@@ -6,3 +6,4 @@ http-client.private.env.json
 coverage.out
 /apic
 /apic.exe
+/site/

@@ -16,7 +16,7 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/output` — human and JSON renderers
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands
 - `internal/cli` — cobra commands
-- `examples/httpbin` — sample project used in docs; `docs/` — format spec and agent guide
+- `examples/httpbin` — sample project used in docs; `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`)
 
 ## Commands
 
@@ -24,6 +24,7 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `task test` / `go test ./...` — tests use `net/http/httptest`, no network needed
 - `task lint` — gofmt, go vet, golangci-lint (config in `.golangci.yml`)
 - `task check` — what CI runs
+- `task docs` / `task docs:build` — preview or strictly build the docs site (`pip install "mkdocs<2" "mkdocs-material<10"`)
 
 ## Conventions
 

@@ -46,6 +46,16 @@ tasks:
       - ../../{{.BIN}} run users.http --env {{.ENV | default "dev"}} --keep-going
     deps: [build]
 
+  docs:
+    desc: Serve the documentation site locally (needs `pip install "mkdocs<2" "mkdocs-material<10"`)
+    cmds:
+      - mkdocs serve
+
+  docs:build:
+    desc: Build the documentation site with strict link checking
+    cmds:
+      - mkdocs build --strict
+
   snapshot:
     desc: Build release archives for every platform without publishing
     cmds:

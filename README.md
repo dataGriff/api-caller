@@ -118,6 +118,8 @@ not a terminal or `NO_COLOR` is set.
 
 ## Documentation
 
+Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-caller/)**.
+
 | | |
 |---|---|
 | [Getting started](docs/getting-started.md) | Install, first project, login flow, CI, agents |
