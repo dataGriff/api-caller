@@ -85,6 +85,7 @@ func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo,
 		}
 	}
 	info.Missing = true
+	info.Source = "missing"
 	if req != nil {
 		if by := r.Project.CapturedBy(name); by != nil && by != req {
 			info.CapturedBy = by.ID()

@@ -9,10 +9,10 @@ import (
 
 // Diagnostic is a non-fatal problem found while parsing.
 type Diagnostic struct {
-	Path     string
-	Line     int
-	Severity string // "error" or "warning"
-	Message  string
+	Path     string `json:"path"`
+	Line     int    `json:"line"`
+	Severity string `json:"severity"` // "error" or "warning"
+	Message  string `json:"message"`
 }
 
 func (d Diagnostic) String() string {

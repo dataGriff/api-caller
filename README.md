@@ -116,6 +116,17 @@ not a terminal or `NO_COLOR` is set.
 
 **Exit codes:** `0` ok · `1` assertion or capture failed · `2` usage, parse error or missing variable · `3` network error.
 
+## Documentation
+
+| | |
+|---|---|
+| [Getting started](docs/getting-started.md) | Install, first project, login flow, CI, agents |
+| [CLI reference](docs/cli.md) | Every command, flag, JSON shape and exit code |
+| [The `.http` format](docs/format.md) | Directives, variables, selectors, assertions |
+| [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
+| [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
+| [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |
+
 ## For agents
 
 Shell: `apic list --json`, `apic describe <id> --json`, `apic run <id> --json`.
