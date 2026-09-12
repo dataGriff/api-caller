@@ -12,7 +12,7 @@ import (
 func Command(r *runner.Resolved) string {
 	var parts []string
 	parts = append(parts, "curl -sS")
-	if r.Method != "GET" && !(r.Method == "POST" && r.Body != "") {
+	if r.Method != "GET" && (r.Method != "POST" || r.Body == "") {
 		parts = append(parts, "-X "+r.Method)
 	}
 	for _, h := range r.Headers {

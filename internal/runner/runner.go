@@ -254,7 +254,7 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 	if err != nil {
 		return nil, &TransportError{Err: err}
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 	data, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return nil, &TransportError{Err: err}

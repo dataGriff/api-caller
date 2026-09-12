@@ -53,7 +53,7 @@ Authorization: Bearer {{token}}
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "0"}, nil)
 	cs, err := client.Connect(ctx, ct, nil)
 	must(t, err)
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	tools, err := cs.ListTools(ctx, nil)
 	must(t, err)

@@ -80,14 +80,13 @@ func ToGJSON(tail string) string {
 	var b strings.Builder
 	i := 0
 	for i < len(tail) {
-		c := tail[i]
-		switch {
-		case c == '.':
+		switch c := tail[i]; c {
+		case '.':
 			i++
 			if b.Len() > 0 {
 				b.WriteByte('.')
 			}
-		case c == '[':
+		case '[':
 			end := strings.IndexByte(tail[i:], ']')
 			if end < 0 {
 				b.WriteString(tail[i:])

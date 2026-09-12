@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"errors"
+	"io"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/mcp"
@@ -18,7 +22,11 @@ Register it with your agent, for example:
   claude mcp add api -- apic mcp --dir ./api --env dev`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return mcp.Serve(cmd.Context(), mcp.Config{Dir: a.g.dir, Env: a.g.env, Version: Version})
+			err := mcp.Serve(cmd.Context(), mcp.Config{Dir: a.g.dir, Env: a.g.env, Version: Version})
+			if errors.Is(err, io.EOF) || (err != nil && strings.HasSuffix(err.Error(), "EOF")) {
+				return nil // client closed the pipe: normal shutdown
+			}
+			return err
 		},
 	}
 }
