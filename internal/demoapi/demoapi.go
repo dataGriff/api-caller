@@ -1,11 +1,16 @@
-// Package mockserver is a tiny, fully in-memory HTTP API used by
-// examples/mock and its test suite, so apic's features can be exercised
-// end to end with no network access.
-package mockserver
+// Package demoapi backs `apic demo`: a tiny, fully in-memory HTTP API and
+// its matching example .http project (embedded from project/), so apic can
+// be tried with no network access and no git clone.
+package demoapi
 
 import (
+	"embed"
 	"encoding/json"
+	"fmt"
+	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,13 +24,68 @@ const (
 	demoClientSecret = "demo-secret"
 )
 
+//go:embed project
+var projectFS embed.FS
+
+// WriteProject writes the bundled example project into dir (creating it if
+// needed): apic.yaml, http-client.private.env.json, auth.http and
+// todos.http verbatim from project/, plus a generated http-client.env.json
+// pointing at http://localhost:<port>. Files that already exist are left
+// alone unless force is set.
+func WriteProject(dir string, port int, force bool) (written, skipped []string, err error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, nil, err
+	}
+
+	write := func(name string, content []byte) error {
+		target := filepath.Join(dir, name)
+		if !force {
+			if _, err := os.Stat(target); err == nil {
+				skipped = append(skipped, target)
+				return nil
+			}
+		}
+		if err := os.WriteFile(target, content, 0o644); err != nil {
+			return err
+		}
+		written = append(written, target)
+		return nil
+	}
+
+	entries, err := fs.ReadDir(projectFS, "project")
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, e := range entries {
+		content, err := fs.ReadFile(projectFS, "project/"+e.Name())
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := write(e.Name(), content); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	envJSON := fmt.Sprintf(`{
+  "local": {
+    "baseUrl": "http://localhost:%d"
+  }
+}
+`, port)
+	if err := write("http-client.env.json", []byte(envJSON)); err != nil {
+		return nil, nil, err
+	}
+
+	return written, skipped, nil
+}
+
 type todo struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Done  bool   `json:"done"`
 }
 
-// New returns the mock API as an http.Handler.
+// New returns the demo API as an http.Handler.
 func New() http.Handler {
 	mux := http.NewServeMux()
 

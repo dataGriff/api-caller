@@ -45,16 +45,15 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 
 ## Try it now
 
-No account, no API key, nothing to write — apic ships with a fake API and
-a matching example project, so you can see it work before authoring a
-single `.http` file of your own:
+No account, no API key, no git clone — `apic demo` scaffolds a small
+example project and serves the fake API it targets, so you can see apic
+work before authoring a single `.http` file of your own:
 
 ```sh
-git clone https://github.com/dataGriff/api-caller && cd api-caller
-go run ./examples/mock/server &      # a fake API on :8089
+apic demo &      # writes ./apic-demo and serves its fake API on :8089
 
-apic list -C examples/mock
-apic run login whoami -C examples/mock --env local
+apic list -C apic-demo
+apic run login whoami -C apic-demo --env local
 ```
 
 ```
@@ -73,19 +72,20 @@ GET http://localhost:8089/me
 2 passed
 ```
 
-It's a full CRUD API too, not just auth demos — `examples/mock/todos.http`
+It's a full CRUD API too, not just auth demos — `apic-demo/todos.http`
 creates, reads, updates and deletes a resource in one flow:
 
 ```sh
 apic run list-todos create-todo get-todo update-todo delete-todo \
-  -C examples/mock --env local --keep-going
+  -C apic-demo --env local --keep-going
 # 5 passed
 ```
 
-Read `examples/mock/auth.http` and `examples/mock/todos.http` to see the
-`.http` files behind those commands. `examples/httpbin` is the same idea
-against a real API instead of the bundled mock, if you'd rather see live
-network behaviour (needs outbound HTTPS).
+Read `apic-demo/auth.http` and `apic-demo/todos.http` (written by the
+command above) to see the `.http` files behind those commands.
+`examples/httpbin` in this repo is the same idea against a real API
+instead of the bundled demo, if you'd rather see live network behaviour
+(needs outbound HTTPS and a git clone).
 
 ## 60-second tour
 
@@ -156,6 +156,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
 | `apic validate` | Parse every file and report problems; non-zero exit on errors. Use it in CI. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
+| `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`) — see [Try it now](#try-it-now). |
 
 All commands take `--json` and `-C <dir>`. Colour is disabled when output is
 not a terminal or `NO_COLOR` is set.
@@ -209,8 +210,8 @@ tasks:
 ## Development
 
 ```sh
-task build && ./bin/apic list -C examples/mock
-task example:mock   # run the offline example end to end
+task build
+task example:demo   # run the built-in demo project end to end
 task test
 task lint
 ```

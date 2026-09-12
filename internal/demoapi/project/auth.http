@@ -1,3 +1,6 @@
+@user = alice
+@clientId = demo-client
+
 ### Log in and keep the token
 # @name login
 # @assert status == 200

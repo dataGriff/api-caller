@@ -1,4 +1,4 @@
-package mockserver
+package demoapi
 
 import (
 	"context"
@@ -9,14 +9,14 @@ import (
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
-// TestExamplesMockSuite runs every request in examples/mock as one flow
-// against a live instance of the mock API, so the bundled example stays
-// correct without needing network access.
-func TestExamplesMockSuite(t *testing.T) {
+// TestExamplesSuite runs every request in project/ as one flow against a
+// live instance of the demo API, so the bundled example stays correct
+// without needing network access.
+func TestExamplesSuite(t *testing.T) {
 	srv := httptest.NewServer(New())
 	defer srv.Close()
 
-	p, err := project.Load("../../examples/mock")
+	p, err := project.Load("project")
 	if err != nil {
 		t.Fatal(err)
 	}
