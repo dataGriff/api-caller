@@ -46,7 +46,7 @@ type Project struct {
 	byPath      map[string]*httpfile.File
 }
 
-var skipDirs = map[string]bool{"node_modules": true, "vendor": true, ".git": true, ".apic": true}
+var skipDirs = map[string]bool{"node_modules": true, "vendor": true, ".git": true, ".apic": true, "testdata": true}
 
 // Load discovers and parses every *.http and *.rest file under root.
 func Load(root string) (*Project, error) {
