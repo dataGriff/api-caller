@@ -11,7 +11,8 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/template` — `{{placeholder}}` substitution
 - `internal/selector` — `status`, `header.x`, `body.$.path` selectors
 - `internal/assert` — assertion parser and evaluator
-- `internal/session` — `.apic/session.json` persistence of captured values
+- `internal/session` — `.apic/session.json` persistence of captured values and cached tokens
+- `internal/auth` — `# @auth` spec parsing and application: bearer, basic, AWS SigV4, OAuth2 grants, exec
 - `internal/runner` — variable precedence, request execution, captures, asserts, flows, `describe`
 - `internal/output` — human and JSON renderers
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands

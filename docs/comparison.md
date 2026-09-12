@@ -6,22 +6,24 @@ lands against the tools you might otherwise use.
 
 ## Summary
 
-| | Taskfile + curl | VS Code REST Client / JetBrains | Bruno | Hurl | apic |
-|---|---|---|---|---|---|
-| Runs with nothing installed but a binary | curl is everywhere | editor only | needs Node for the CLI | yes | yes |
-| Request files editors can send with a click | no | yes (`.http`) | Bruno app / extension (`.bru`) | no | yes (`.http`) |
-| Environments | shell vars | env files | yes | `--variables-file` | env files, `.env`, shell, `--var` |
-| Capture and reuse values | shell plumbing | in-editor only | JS scripts, in one run | yes, in one run | yes, and persisted between runs |
-| Assertions | none | none (JetBrains: JS) | yes | yes | yes |
-| Structured output for programs | curl's | no | reports (JSON, JUnit, HTML) | JSON report | JSON per request, NDJSON for flows |
-| Discovery (`list`, `describe`) | `task --list` | file tree | GUI | no | yes |
-| MCP server for agents | no | no | no | no | yes |
-| OpenAPI import | no | no | yes | no | yes |
-| curl export | is curl | yes | GUI | no | yes |
-| Scripting | shell | JetBrains JS | JavaScript | no | no |
-| OAuth2 helpers, cookie jar, client certs | via curl flags | some | yes | some | no |
-| GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | yes | GraphQL | no |
-| GUI | no | the editor | yes | no | no |
+| | Taskfile + curl | VS Code REST Client / JetBrains | httpyac | Bruno | Hurl | apic |
+|---|---|---|---|---|---|---|
+| Runs with nothing installed but a binary | curl is everywhere | editor only | needs Node | needs Node for the CLI | yes | yes |
+| Request files editors can send with a click | no | yes (`.http`) | yes (`.http`) | Bruno app / extension (`.bru`) | no | yes (`.http`) |
+| Environments | shell vars | env files | env files, `.env` | yes | `--variables-file` | env files, `.env`, shell, `--var` |
+| Capture and reuse values | shell plumbing | in-editor only | yes, in one run | JS scripts, in one run | yes, in one run | yes, and persisted between runs |
+| Assertions | none | none (JetBrains: JS) | yes, plus JS | yes | yes | yes |
+| Structured output for programs | curl's | no | `--json`, JUnit | reports (JSON, JUnit, HTML) | JSON report | JSON per request, NDJSON for flows |
+| Discovery (`list`, `describe`) | `task --list` | file tree | no | GUI | no | yes |
+| Never prompts | yes | n/a | picker unless `--all`/`--name` | yes | yes | yes |
+| MCP server for agents | no | no | no | no | no | yes |
+| OpenAPI import | no | no | no | yes | no | yes |
+| curl export | is curl | yes | extension | GUI | no | yes |
+| Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
+| Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4, OAuth2 (client credentials, password, device code), basic, bearer, exec |
+| Cookie jar, client certs | via curl flags | some | yes | yes | yes | no |
+| GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
+| GUI | no | the editor | VS Code extension | yes | no | no |
 
 ## Against Taskfile + curl
 
@@ -40,6 +42,23 @@ What the editors have that apic does not: JetBrains' JavaScript response
 handlers, and the in-editor response viewer. apic reads the common subset
 and ignores what it does not know, so a file with editor-only features still
 parses; run `apic validate` to see what is skipped.
+
+## Against httpyac
+
+httpyac is the closest existing tool: it runs the same `.http` files, reads
+the same `http-client.env.json` and `.env`, and ships a VS Code extension.
+It is far richer: JavaScript blocks and handlers, `# @ref` to run
+dependencies automatically, `@loop` and `@import`, every OAuth2 flow, AWS
+and digest auth, GraphQL, gRPC, WebSocket, MQTT and AMQP, JUnit output, and
+a plugin system. If Node is acceptable everywhere you run requests, take it
+seriously.
+
+apic differs in the ways that matter for agents and locked-down machines: it
+is one binary with no Node; captured values and tokens persist between
+invocations; it never opens an interactive picker; it has `list`,
+`describe` and the missing-variable hints; and it has an MCP server, curl
+export and OpenAPI import in the CLI. The two can share one project:
+httpyac in the editor, apic for agents and CI.
 
 ## Against Bruno
 
@@ -89,8 +108,10 @@ So you are not surprised later:
 - No scripting. Anything needing computed signatures, loops or conditional
   logic has nowhere to go. The escape hatch is a shell script around
   `apic run --json`.
-- No OAuth2 flow helpers, cookie jar or client certificates. Token
-  endpoints work as ordinary requests with `@capture`.
+- No browser-based OAuth2 flows (authorization code, PKCE), no cookie jar,
+  no client certificates. Client credentials, password and device code
+  grants, AWS SigV4, basic and command-provided tokens are covered in
+  [auth.md](auth.md).
 - HTTP only. No GraphQL-specific tooling (a GraphQL query is just a POST),
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover

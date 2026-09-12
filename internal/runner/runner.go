@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/dataGriff/api-caller/internal/assert"
+	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
@@ -47,6 +48,7 @@ type Runner struct {
 	Envs    *env.Environments
 	Session *session.Store
 	Opts    Options
+	Stderr  io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
 
 	results  map[string]*Result
 	captured map[string]string
@@ -82,7 +84,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, results: map[string]*Result{}, captured: map[string]string{}}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}}
 	if !opts.NoSession {
 		if r.Session, err = session.Open(p.Root); err != nil {
 			return nil, usagef("session: %v", err)
@@ -93,14 +95,16 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 
 // Resolved is a request with every placeholder substituted.
 type Resolved struct {
-	Name    string            `json:"name,omitempty"`
-	File    string            `json:"file"`
-	Line    int               `json:"line"`
-	Method  string            `json:"method"`
-	URL     string            `json:"url"`
-	Headers []httpfile.Header `json:"-"`
-	Body    string            `json:"-"`
-	missing []string
+	Name     string            `json:"name,omitempty"`
+	File     string            `json:"file"`
+	Line     int               `json:"line"`
+	Method   string            `json:"method"`
+	URL      string            `json:"url"`
+	Headers  []httpfile.Header `json:"-"`
+	Body     string            `json:"-"`
+	Auth     string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
+	AuthSpec *auth.Spec        `json:"-"`              // rendered spec (contains secrets)
+	missing  []string
 }
 
 // MarshalJSON renders headers as an object and the body as a string.
@@ -204,8 +208,80 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 			return nil, usagef("%s:%d: body: %v", req.File.Path, req.Line, err)
 		}
 	}
+	if spec, err := r.authSpec(req); err != nil {
+		return nil, err
+	} else if spec != nil {
+		rendered, err := spec.Render(render)
+		if err != nil {
+			return nil, usagef("%s:%d: @auth: %v", req.File.Path, req.Line, err)
+		}
+		res.Auth, res.AuthSpec = spec.Type, rendered
+	}
 	res.missing = dedupe(missing)
 	return res, nil
+}
+
+// authSpec returns the parsed auth spec for a request: its own `# @auth`
+// directive, else auth.default from apic.yaml, else nil.
+func (r *Runner) authSpec(req *httpfile.Request) (*auth.Spec, error) {
+	raw, ok := req.Directive("auth")
+	where := fmt.Sprintf("%s:%d", req.File.Path, req.Line)
+	if !ok {
+		raw = r.Project.Config.Auth.Default
+		where = project.ConfigFile + " auth.default"
+	}
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	spec, err := auth.Parse(raw)
+	if err != nil {
+		return nil, usagef("%s: %v", where, err)
+	}
+	if spec.Type == "none" {
+		return nil, nil
+	}
+	return spec, nil
+}
+
+// AuthSource reports the auth spec template for describe: the raw text and
+// where it was declared.
+func (r *Runner) AuthSource(req *httpfile.Request) (raw, source string) {
+	if v, ok := req.Directive("auth"); ok {
+		return v, "request"
+	}
+	if r.Project.Config.Auth.Default != "" {
+		return r.Project.Config.Auth.Default, project.ConfigFile
+	}
+	return "", ""
+}
+
+// sessionCache adapts the session store to auth.Cache, scoped to the
+// current environment.
+type sessionCache struct {
+	r *Runner
+}
+
+func (c sessionCache) Get(key string) (string, bool) {
+	if c.r.Session == nil {
+		return "", false
+	}
+	return c.r.Session.Get(c.r.Opts.Env, key)
+}
+
+func (c sessionCache) Set(key, value string) error {
+	if c.r.Session == nil {
+		return nil
+	}
+	c.r.Session.Set(c.r.Opts.Env, map[string]string{key: value})
+	return c.r.Session.Save()
+}
+
+func (r *Runner) authEnv() *auth.Env {
+	e := &auth.Env{AllowExec: r.Project.Config.Auth.AllowExec, Stderr: r.Stderr, Client: &http.Client{Timeout: r.Opts.Timeout}}
+	if r.Session != nil {
+		e.Cache = sessionCache{r}
+	}
+	return e
 }
 
 // MissingError explains unresolved variables with a hint on how to provide them.
@@ -297,6 +373,12 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 			continue
 		}
 		httpReq.Header.Add(h.Name, h.Value)
+	}
+
+	if resolved.AuthSpec != nil {
+		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, []byte(resolved.Body), r.authEnv()); err != nil {
+			return nil, usagef("%s:%d: auth: %v", req.File.Path, req.Line, err)
+		}
 	}
 
 	start := time.Now()
@@ -401,7 +483,9 @@ type Description struct {
 	Variables   []VarInfo         `json:"variables"`
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
-	Ready       bool              `json:"ready"` // every variable resolves
+	Auth        string            `json:"auth,omitempty"`        // auth spec template
+	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
+	Ready       bool              `json:"ready"`                 // every variable resolves
 }
 
 // Describe reports a request's variables and where each comes from.
@@ -421,6 +505,12 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	}
 	for _, c := range req.Captures {
 		d.Captures = append(d.Captures, c.Name+" = "+c.Selector)
+	}
+	if raw, src := r.AuthSource(req); raw != "" {
+		d.Auth, d.AuthSource = raw, src
+		if spec, err := auth.Parse(raw); err == nil {
+			texts = append(texts, spec.Texts()...)
+		}
 	}
 	for _, t := range texts {
 		for _, e := range template.Exprs(t) {
@@ -473,7 +563,9 @@ func (r *Runner) EnvVars() []VarInfo {
 	}
 	if r.Session != nil {
 		for k := range r.Session.Vars(r.Opts.Env) {
-			names[k] = true
+			if !strings.HasPrefix(k, "$") {
+				names[k] = true
+			}
 		}
 	}
 	for k := range r.Opts.Vars {

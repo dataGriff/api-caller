@@ -41,6 +41,8 @@ The `--json` shape is stable:
 ```
 
 `response.body` is parsed JSON when the body is JSON, otherwise a string.
+`request.auth` names the auth type applied (`aws`, `oauth2`, …) without
+exposing credentials; see [auth.md](auth.md).
 
 ## 2. MCP (Claude Code, Cursor, Windsurf, any MCP client)
 

@@ -22,6 +22,7 @@ terminal and agents need:
 - **Environments** from `http-client.env.json` (the JetBrains / kulala / httpyac convention) plus `.env`, shell and `--var`.
 - **Captured variables that persist.** `# @capture token = body.$.access_token` in `login` means the next `apic run get-user`, in a new shell or a new agent call, has `{{token}}`.
 - **Assertions** with `# @assert status == 200`, and files that run as ordered flows with a pass/fail summary and exit code.
+- **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials; `# @auth oauth2` fetches, caches and refreshes client-credentials tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out. Set a project default once in `apic.yaml`.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
 - **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import openapi.yaml` scaffolds files from a spec.
@@ -125,6 +126,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Getting started](docs/getting-started.md) | Install, first project, login flow, CI, agents |
 | [CLI reference](docs/cli.md) | Every command, flag, JSON shape and exit code |
 | [The `.http` format](docs/format.md) | Directives, variables, selectors, assertions |
+| [Authentication](docs/auth.md) | AWS SigV4, OAuth2, basic, bearer, exec |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |
@@ -145,7 +147,7 @@ operators. Short version: standard `.http`, plus
 ```
 # @name id                      # @capture name = selector
 # @description one line         # @assert selector op value
-# @no-redirect  # @no-session   # @timeout 10s
+# @auth aws|oauth2|basic|...    # @no-redirect  # @no-session  # @timeout 10s
 ```
 
 ## Keeping a Taskfile

@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dataGriff/api-caller/internal/assert"
+	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 )
 
@@ -23,9 +24,16 @@ const ConfigFile = "apic.yaml"
 
 // Config is the content of apic.yaml.
 type Config struct {
-	Env     string `yaml:"env"`     // default environment
-	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
-	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
+	Env     string     `yaml:"env"`     // default environment
+	Dir     string     `yaml:"dir"`     // directory holding .http files, relative to the project root
+	Timeout string     `yaml:"timeout"` // default request timeout, e.g. "30s"
+	Auth    AuthConfig `yaml:"auth"`
+}
+
+// AuthConfig is the `auth:` section of apic.yaml.
+type AuthConfig struct {
+	Default   string `yaml:"default"`   // auth spec applied to requests without `# @auth`, e.g. "aws region=eu-west-2"
+	AllowExec bool   `yaml:"allowExec"` // permit `# @auth exec ...`
 }
 
 // Project is a loaded set of .http files.
@@ -203,7 +211,23 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 		}
 	}
+	if p.Config.Auth.Default != "" {
+		if _, err := auth.Parse(p.Config.Auth.Default); err != nil {
+			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "error", Message: "auth.default: " + err.Error()})
+		}
+	}
 	for _, r := range p.Requests() {
+		for _, d := range r.Directives {
+			if d.Key != "auth" {
+				continue
+			}
+			spec, err := auth.Parse(d.Value)
+			if err != nil {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+			} else if spec.Type == "exec" && !p.Config.Auth.AllowExec {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "warning", Message: "@auth exec will be refused until apic.yaml sets auth.allowExec: true"})
+			}
+		}
 		for _, a := range r.Asserts {
 			expr, err := assert.Parse(a.Expr)
 			if err != nil {
