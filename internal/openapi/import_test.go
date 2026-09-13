@@ -949,3 +949,54 @@ paths:
 		t.Fatalf("generated header must parse: %v %v %+v", err, diags, f)
 	}
 }
+
+func TestImportLiteralBracesAndTimestamps(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /tpl:
+    post:
+      operationId: tpl
+      requestBody:
+        content:
+          application/json:
+            example: {"greeting": "hello {{name}}"}
+      responses: {"200": {description: ok}}
+  /when:
+    post:
+      operationId: when
+      requestBody:
+        content:
+          application/json:
+            example: {"day": 2025-01-01, "at": 2025-01-01T10:00:00Z}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	if !strings.Contains(all, "< ./api.tpl.body.json\n") || strings.Contains(all, "hello {{name}}") {
+		t.Errorf("a body with literal braces must be referenced as a raw body file:\n%s", all)
+	}
+	if side := mustRead(t, filepath.Join(dir, "out", "api.tpl.body.json")); !strings.Contains(side, `"greeting": "hello {{name}}"`) {
+		t.Errorf("body file must hold the literal example: %s", side)
+	}
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || f.Requests[0].BodyFile != "./api.tpl.body.json" || f.Requests[0].BodyFileTemplated {
+		t.Fatalf("generated file must reference the body file verbatim: %v %v %+v", err, diags, f.Requests[0])
+	}
+	if !strings.Contains(all, `"day": "2025-01-01"`) || !strings.Contains(all, `"at": "2025-01-01T10:00:00Z"`) {
+		t.Errorf("timestamps keep their written form:\n%s", all)
+	}
+}

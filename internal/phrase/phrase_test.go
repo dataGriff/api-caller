@@ -72,7 +72,7 @@ func TestConflicts(t *testing.T) {
 	}
 	// Built-in captures keep their constraints: a bare word cannot match a
 	// quoted capture and a word cannot match a numeric one.
-	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms", "the response time is under pending"} {
+	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms", "the response time is under pending", "I run {id}foo", "the response status is v{n}", "I run pre{id}"} {
 		ok, err := Parse(text)
 		if err != nil {
 			t.Fatal(err)
@@ -81,11 +81,17 @@ func TestConflicts(t *testing.T) {
 			t.Errorf("unexpected conflict for %q: %v", text, err)
 		}
 	}
-	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`, "the response time is under 500ms", "the response time is under {t}"} {
+	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`, "the response time is under 500ms", "the response time is under {t}", "the response status is {n}0", "the response time is under {n}ms"} {
 		p, _ := Parse(text)
 		if err := p.ConflictsWithBuiltin(); err == nil {
 			t.Errorf("%q should conflict with a built-in step", text)
 		}
+	}
+	affixed, _ := Parse("I say {a}x")
+	lit, _ := Parse("I say helloworldx")
+	nolit, _ := Parse("I say hello")
+	if !affixed.ConflictsWith(lit) || affixed.ConflictsWith(nolit) {
+		t.Error("a placeholder with a suffix only meets words carrying that suffix")
 	}
 	quotedOnly, _ := Parse(`I say "{a}"`)
 	bare, _ := Parse("I say hello")

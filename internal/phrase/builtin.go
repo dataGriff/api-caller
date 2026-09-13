@@ -67,6 +67,9 @@ type token struct {
 	literal string
 	param   bool
 	kind    paramKind
+	// Literal text around a phrase placeholder inside one word, as in
+	// `{id}foo`; a matching word must carry it.
+	prefix, suffix string
 }
 
 // paramKind narrows what a parameter can match, mirroring the regex that
@@ -99,7 +102,12 @@ func tokenize(text string) []token {
 		case strings.Contains(w, "{") && isQuoted(w):
 			out = append(out, token{param: true, kind: quotedToken})
 		case strings.Contains(w, "{"):
-			out = append(out, token{param: true, kind: anyToken})
+			open, close := strings.Index(w, "{"), strings.LastIndex(w, "}")
+			tok := token{param: true, kind: anyToken, prefix: w[:open]}
+			if close >= 0 && close+1 <= len(w) {
+				tok.suffix = w[close+1:]
+			}
+			out = append(out, tok)
 		default:
 			out = append(out, token{literal: w})
 		}
@@ -163,6 +171,12 @@ func meet(x, y token) bool {
 	case !x.param && !y.param:
 		return x.literal == y.literal
 	case x.param && y.param:
+		if x.kind == anyToken && y.kind != anyToken {
+			return affixesFit(x, y.kind)
+		}
+		if y.kind == anyToken && x.kind != anyToken {
+			return affixesFit(y, x.kind)
+		}
 		return x.kind == anyToken || y.kind == anyToken || x.kind == y.kind
 	case y.param:
 		x, y = y, x
@@ -175,6 +189,21 @@ func meet(x, y token) bool {
 		return isDigits(y.literal)
 	case digitsMsToken:
 		return strings.HasSuffix(y.literal, "ms") && isDigits(strings.TrimSuffix(y.literal, "ms"))
+	}
+	return strings.HasPrefix(y.literal, x.prefix) && strings.HasSuffix(y.literal, x.suffix) && len(y.literal) >= len(x.prefix)+len(x.suffix)
+}
+
+// affixesFit reports whether a free placeholder with literal affixes can
+// still produce a word of the constrained kind.
+func affixesFit(free token, kind paramKind) bool {
+	switch kind {
+	case quotedToken:
+		return (free.prefix == "" || strings.HasPrefix(free.prefix, `"`)) && (free.suffix == "" || strings.HasSuffix(free.suffix, `"`))
+	case digitsToken:
+		return (free.prefix == "" || isDigits(free.prefix)) && (free.suffix == "" || isDigits(free.suffix))
+	case digitsMsToken:
+		okSuffix := free.suffix == "" || isDigits(free.suffix) || (strings.HasSuffix(free.suffix, "ms") && (free.suffix == "ms" || isDigits(strings.TrimSuffix(free.suffix, "ms"))))
+		return (free.prefix == "" || isDigits(free.prefix)) && okSuffix
 	}
 	return true
 }

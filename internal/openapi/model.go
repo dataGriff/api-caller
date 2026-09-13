@@ -258,6 +258,9 @@ func decodeGuarded(n *yaml.Node, path map[*yaml.Node]bool) any {
 		}
 		return out
 	default:
+		if n.ShortTag() == "!!timestamp" {
+			return n.Value // keep `2025-01-01` as written, not as time.Time
+		}
 		var v any
 		if err := n.Decode(&v); err != nil {
 			return n.Value
