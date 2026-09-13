@@ -985,9 +985,8 @@ func TestEnvironmentSwitchCarriesAuthCache(t *testing.T) {
 		Config: Config{Project: p, Env: "dev", UseSession: true, Stderr: io.Discard},
 		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(`
 Feature: Auth cache across environments
-  Scenario: The cache follows the scenario into the new environment
+  Scenario: The cache follows the scenario into the new environment and is saved
     When the environment is "alt"
-    And I am logged in
 `)}},
 	})
 	if err != nil || code != ExitPassed {
@@ -999,8 +998,8 @@ Feature: Auth cache across environments
 		Envs map[string]map[string]string `json:"envs"`
 	}
 	must(t, json.Unmarshal(data, &saved))
-	if saved.Envs["alt"]["$oauth2:abc"] != "cached-token" || saved.Envs["alt"]["token"] != "t-1" {
-		t.Fatalf("the auth cache must be available under the new environment: %s", data)
+	if saved.Envs["alt"]["$oauth2:abc"] != "cached-token" {
+		t.Fatalf("the auth cache must be persisted under the new environment even without a later capture: %s", data)
 	}
 }
 

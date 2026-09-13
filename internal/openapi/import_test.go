@@ -1207,3 +1207,58 @@ paths:
 		t.Errorf("a body with a ### line goes to a body file: %+v", r)
 	}
 }
+
+func TestImportSidecarJSONConcretisesPlaceholdersAndNullBodies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /split:
+    post:
+      operationId: split
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, format: uuid}
+                note: {type: string, example: "line\n### looks like a block"}
+      responses: {"200": {description: ok}}
+  /nul:
+    post:
+      operationId: nul
+      requestBody:
+        content:
+          text/plain:
+            example: null
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || len(f.Requests) != 2 {
+		t.Fatalf("two requests must come out: %v %v\n%s", err, diags, all)
+	}
+	// JSON encoding escapes the line break, so the ### never starts a line:
+	// the body stays inline with its placeholder rendered at run time.
+	split := f.Requests[0]
+	if split.BodyFile != "" || !strings.Contains(split.Body, `"id": "{{$uuid}}"`) || !strings.Contains(split.Body, `line\n### looks`) {
+		t.Errorf("a JSON body keeps its placeholder inline: %+v", split)
+	}
+	if !strings.Contains(all, "Content-Type: text/plain\n\nnull\n") {
+		t.Errorf("an explicit null example is a body:\n%s", all)
+	}
+}

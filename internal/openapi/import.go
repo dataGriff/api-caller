@@ -459,7 +459,12 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		}
 		if isJSON(ct) {
 			data, _ := json.MarshalIndent(v, "", "  ")
-			return string(data), ct, raw || splitsBlock(string(data))
+			if !raw && splitsBlock(string(data)) {
+				// Verbatim for the parser's sake: placeholders cannot render there.
+				data, _ = json.MarshalIndent(concretize(v), "", "  ")
+				raw = true
+			}
+			return string(data), ct, raw
 		}
 		if s, ok := v.(string); ok {
 			return s, ct, raw || splitsBlock(s)
@@ -468,6 +473,8 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 			return string(p), ct, false
 		}
 		switch v.(type) {
+		case nil:
+			return "null", ct, false // an explicit null example is a body
 		case int, int64, float64, bool, json.Number:
 			return fmt.Sprint(v), ct, false // a scalar serialises the same under any media type
 		}

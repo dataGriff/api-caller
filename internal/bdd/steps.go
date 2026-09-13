@@ -99,6 +99,9 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 		}
 		if len(cache) > 0 {
 			next.r.Session.Set(next.r.Opts.Env, cache)
+			if err := next.r.Session.Save(); err != nil { // a no-op for the in-memory store
+				return ctx, sc.cfg.fail(fmt.Errorf("session: %w", err))
+			}
 		}
 	}
 	for k, v := range sc.r.Captured() {
