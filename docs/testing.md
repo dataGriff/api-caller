@@ -56,9 +56,12 @@ Authorization: Bearer {{token}}
 A phrase does exactly what `I run "<id>"` does: it sends the request,
 fails the step if any `# @assert` or `# @capture` on it fails, and makes
 captured values available to later steps. `apic validate` reports a phrase
-that is declared on two requests, that could match the same text as another
-phrase, or that overlaps a built-in step (for example `# @step I run {x}`),
-since godog would treat such steps as ambiguous. `apic list` and `describe`
+that could match the same text as another phrase or as a built-in step
+(for example `# @step I run {x}`, or `I do {x}` next to `I {x} foo`, which
+both match "I do foo"), since godog would treat such steps as ambiguous.
+The check is deliberately cautious and may flag a pair that would not
+collide in practice; rephrase one of them. A phrase may declare at most six
+parameters. `apic list` and `describe`
 show phrases.
 
 Phrases are matched whatever Gherkin keyword introduces them (`Given`,

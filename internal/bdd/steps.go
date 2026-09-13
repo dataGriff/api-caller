@@ -71,6 +71,9 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	if err != nil {
 		return ctx, err
 	}
+	if env, err = sc.render(env); err != nil {
+		return ctx, err
+	}
 	next, err := sc.cfg.newScenario(env)
 	if err != nil {
 		sc.cfg.noteError(err)

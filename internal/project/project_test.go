@@ -113,11 +113,31 @@ func TestValidatePhraseConflictsWithBuiltin(t *testing.T) {
 	}
 	found := false
 	for _, d := range p.Validate() {
-		if d.Severity == "error" && strings.Contains(d.Message, "ambiguous with the built-in step run") {
+		if d.Severity == "error" && strings.Contains(d.Message, "the built-in step run") {
 			found = true
 		}
 	}
 	if !found {
 		t.Fatalf("built-in conflict not reported: %v", p.Validate())
+	}
+}
+
+func TestValidateRejectsTooManyPhraseParams(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step {a} {b} {c} {d} {e} {f} {g}\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, "more than 6 parameters") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("arity not reported: %v", p.Validate())
 	}
 }

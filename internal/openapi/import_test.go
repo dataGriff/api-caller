@@ -316,3 +316,42 @@ components:
 		}
 	}
 }
+
+func TestImportPatternedStatusAndRefSiblings(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /pets:
+    post:
+      operationId: createPet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Pet"
+              example: {"name": "inline-wins"}
+      responses:
+        "2XX": {description: any success}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties: {name: {type: string, example: from-ref}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"# @assert status >= 200\n# @assert status < 300\n", `"name": "inline-wins"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "2XX") {
+		t.Errorf("patterned status must not be emitted literally:\n%s", s)
+	}
+}

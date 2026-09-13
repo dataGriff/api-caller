@@ -511,7 +511,49 @@ func TestPhraseConflictingWithBuiltinIsUsageError(t *testing.T) {
 	must(t, err)
 	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
 		Features: []godog.Feature{{Name: "c.feature", Contents: []byte("Feature: c\n  Scenario: s\n    When I run \"login\"\n")}}})
-	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "ambiguous with the built-in step") {
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "the built-in step") {
 		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestPhraseTargetsSurviveDuplicateNames(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "a.http"), []byte("### a\n# @name login\n# @step I log in via a\n# @capture token = body.$.token\nPOST {{baseUrl}}/login\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "b.http"), []byte("### b\n# @name login\n# @step I log in via b\nPOST {{baseUrl}}/login\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, code := run(t, p, "Feature: d\n  Scenario: s\n    Given I log in via a\n    And I log in via b\n    Then the response status is 200\n", "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestEnvironmentStepRendersVariables(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, "Feature: e\n  Scenario: s\n    Given the variable \"target\" is \"dev\"\n    And the environment is \"{{target}}\"\n    When I run \"login\"\n    Then the response status is 200\n", "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestRedactedTransportErrorIsRecorded(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name ping\nGET {{baseUrl}}/ping?token={{secret}}\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.private.env.json"), []byte(`{"dev":{"secret":"hunter2-value"}}`), 0o644))
+	_ = srv
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Redact: true},
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    When I run \"ping\"\n")}}})
+	if code != ExitTransport || err == nil || strings.Contains(err.Error(), "hunter2-value") || !strings.Contains(err.Error(), "token=***") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if sum == nil || sum.Scenarios != 1 || sum.Failed != 1 {
+		t.Fatalf("summary should still describe the run: %+v", sum)
 	}
 }

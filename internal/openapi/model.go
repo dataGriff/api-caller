@@ -92,10 +92,13 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 			return n
 		}
 		ref := ""
+		var siblings []*yaml.Node
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			if n.Content[i].Value == "$ref" {
 				ref = n.Content[i+1].Value
+				continue
 			}
+			siblings = append(siblings, n.Content[i], n.Content[i+1])
 		}
 		if ref == "" || !strings.HasPrefix(ref, "#/") {
 			return n
@@ -103,6 +106,24 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 		target := d.pointer(strings.TrimPrefix(ref, "#/"))
 		if target == nil {
 			return n
+		}
+		if len(siblings) > 0 {
+			// OpenAPI 3.1 allows keys next to $ref; they override the target's.
+			target = d.resolve(target)
+			if target != nil && target.Kind == yaml.MappingNode {
+				merged := &yaml.Node{Kind: yaml.MappingNode, Tag: target.Tag}
+				overridden := map[string]bool{}
+				for i := 0; i+1 < len(siblings); i += 2 {
+					overridden[siblings[i].Value] = true
+				}
+				for i := 0; i+1 < len(target.Content); i += 2 {
+					if !overridden[target.Content[i].Value] {
+						merged.Content = append(merged.Content, target.Content[i], target.Content[i+1])
+					}
+				}
+				merged.Content = append(merged.Content, siblings...)
+				return merged
+			}
 		}
 		n = target
 	}

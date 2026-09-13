@@ -178,12 +178,13 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 		s.cfg.noteSecrets(res.Captures)
 	}
 	if err != nil {
-		s.cfg.noteError(err)
 		var te *runner.TransportError
 		if s.cfg.Redact && errors.As(err, &te) && s.last != nil {
-			// Go's transport errors quote the full URL; keep the masked form only.
-			return &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.last.Request.DisplayURL(true))}
+			// Go's transport errors quote the full URL; keep the masked form only,
+			// and record that form so the CLI never prints the original.
+			err = &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.last.Request.DisplayURL(true))}
 		}
+		s.cfg.noteError(err)
 		return err
 	}
 	for _, res := range results {

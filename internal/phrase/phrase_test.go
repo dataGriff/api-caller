@@ -43,7 +43,10 @@ func TestParseAndMatch(t *testing.T) {
 }
 
 func TestConflicts(t *testing.T) {
-	for _, text := range []string{`I run {req}`, `the response status is {code}`, `I run "login"`, `the variables:`} {
+	if _, err := Parse("{a} {b} {c} {d} {e} {f} {g}"); err == nil {
+		t.Error("seven parameters should be rejected")
+	}
+	for _, text := range []string{`I run {req}`, `the response status is {code}`, `I run "login"`, `the variables:`, `the response {what} "{sel}" is "{v}"`, `I capture the response {a} {b} as {c}`} {
 		p, err := Parse(text)
 		if err != nil {
 			t.Fatal(err)
@@ -64,5 +67,16 @@ func TestConflicts(t *testing.T) {
 	}
 	if a.ConflictsWith(c) {
 		t.Error("distinct phrases should not conflict")
+	}
+	// `I do foo` matches both of these, which fixed samples cannot detect.
+	d, _ := Parse("I do {x}")
+	e, _ := Parse("I {x} foo")
+	if !d.ConflictsWith(e) {
+		t.Error("`I do {x}` and `I {x} foo` both match `I do foo`")
+	}
+	f, _ := Parse("I log in as {user}")
+	g, _ := Parse("I log out")
+	if f.ConflictsWith(g) {
+		t.Error("different literals must not conflict")
 	}
 }

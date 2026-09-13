@@ -28,9 +28,6 @@ func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 			if err != nil {
 				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
 			}
-			if len(ph.Params) > maxPhraseParams {
-				return nil, fmt.Errorf("%s:%d: @step %q has more than %d parameters", req.File.Path, req.Line, text, maxPhraseParams)
-			}
 			if err := ph.ConflictsWithBuiltin(); err != nil {
 				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
 			}
@@ -39,7 +36,8 @@ func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, req.Line, text, prev.phrase.Text, prev.target)
 				}
 			}
-			out = append(out, compiledPhrase{phrase: ph, target: req.ID()})
+			// file#index is unique even when two requests share a name.
+			out = append(out, compiledPhrase{phrase: ph, target: fmt.Sprintf("%s#%d", req.File.Path, req.Index)})
 		}
 	}
 	return out, nil
@@ -67,8 +65,6 @@ func registerPhrases(sc *godog.ScenarioContext, phrases []compiledPhrase) {
 	}
 }
 
-const maxPhraseParams = 6
-
 // handlerFor adapts a []string handler to the fixed-arity function godog expects.
 func handlerFor(n int, fn func(context.Context, []string) error) any {
 	switch n {
@@ -84,7 +80,8 @@ func handlerFor(n int, fn func(context.Context, []string) error) any {
 		return func(ctx context.Context, a, b, c, d string) error { return fn(ctx, []string{a, b, c, d}) }
 	case 5:
 		return func(ctx context.Context, a, b, c, d, e string) error { return fn(ctx, []string{a, b, c, d, e}) }
-	default:
+	default: // phrase.MaxParams
+
 		return func(ctx context.Context, a, b, c, d, e, f string) error { return fn(ctx, []string{a, b, c, d, e, f}) }
 	}
 }

@@ -295,14 +295,23 @@ func (s *service) runFeatures(ctx context.Context, _ *sdk.CallToolRequest, in fe
 		env = p.Config.Env
 	}
 	runner.Version = s.cfg.Version
-	sum, _, _, err := bdd.RunSummary(ctx, bdd.Options{
+	sum, _, code, err := bdd.RunSummary(ctx, bdd.Options{
 		Config: bdd.Config{Project: p, Env: env, Vars: in.Vars, Stderr: os.Stderr},
 		Paths:  in.Paths, Tags: in.Tags,
 	})
-	if err != nil {
+	if err != nil && sum == nil {
 		return toolError(err)
 	}
-	return structured(sum)
+	out := struct {
+		*bdd.Summary
+		ExitCode int    `json:"exit_code"`
+		Error    string `json:"error,omitempty"`
+	}{Summary: sum, ExitCode: code}
+	if err != nil {
+		out.Error = err.Error()
+		out.OK = false
+	}
+	return structured(out)
 }
 
 func (s *service) readFile(_ context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {

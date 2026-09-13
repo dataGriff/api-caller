@@ -123,8 +123,14 @@ Feature: Me
     Then the response status is 500
 `), 0o644))
 	feat := call("run_features", map[string]any{})
-	if feat["ok"] != false || feat["passed"] != float64(1) || feat["failed"] != float64(1) {
+	if feat["ok"] != false || feat["passed"] != float64(1) || feat["failed"] != float64(1) || feat["exit_code"] != float64(1) {
 		t.Fatalf("run_features: %v", feat)
+	}
+	// A transport failure still returns the summary of what ran, with the error and exit code.
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"},"down":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
+	down := call("run_features", map[string]any{"env": "down"})
+	if down["ok"] != false || down["exit_code"] != float64(3) || down["scenarios"] != float64(2) || !strings.Contains(down["error"].(string), "request failed") {
+		t.Fatalf("run_features transport: %v", down)
 	}
 	if f := feat["failures"].([]any)[0].(map[string]any); f["scenario"] != "Fails" || !strings.Contains(f["error"].(string), "status == 500") {
 		t.Fatalf("failure detail: %v", f)

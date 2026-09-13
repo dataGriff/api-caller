@@ -155,21 +155,27 @@ func (m *maskWriter) flush() error {
 }
 
 // RunSummary runs with the cucumber formatter into memory and returns the
-// parsed summary plus the raw report. Used by MCP and --json.
+// parsed summary plus the raw report. Used by MCP and tests. When a usage
+// or transport error ends the run, the summary of what ran is still
+// returned alongside the error whenever a report was produced.
 func RunSummary(ctx context.Context, opts Options) (*Summary, []byte, int, error) {
 	var buf bytes.Buffer
 	opts.Format = "cucumber"
 	opts.Output = &buf
 	opts.NoColors = true
 	code, err := Run(ctx, opts)
-	if err != nil {
+	if buf.Len() == 0 {
 		return nil, nil, code, err
 	}
 	sum, perr := Summarize(buf.Bytes())
 	if perr != nil {
+		if err != nil {
+			return nil, buf.Bytes(), code, err
+		}
 		return nil, buf.Bytes(), code, perr
 	}
-	return sum, buf.Bytes(), code, nil
+	// A typed step error (exit 2 or 3) still comes with the report of what ran.
+	return sum, buf.Bytes(), code, err
 }
 
 func (o *Options) resolvePaths() ([]string, error) {

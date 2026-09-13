@@ -225,7 +225,12 @@ func (o *operation) render() string {
 	if d := strings.TrimSpace(strings.SplitN(o.Description, "\n", 2)[0]); d != "" && d != title {
 		fmt.Fprintf(&b, "# @description %s\n", d)
 	}
-	fmt.Fprintf(&b, "# @assert status == %s\n", o.Success)
+	if strings.HasSuffix(o.Success, "XX") && len(o.Success) == 3 {
+		// Patterned key such as 2XX: assert the range instead of a literal.
+		fmt.Fprintf(&b, "# @assert status >= %s00\n# @assert status < %s00\n", o.Success[:1], string(o.Success[0]+1))
+	} else {
+		fmt.Fprintf(&b, "# @assert status == %s\n", o.Success)
+	}
 
 	path := o.Path
 	var query []string

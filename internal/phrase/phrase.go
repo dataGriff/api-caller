@@ -44,6 +44,9 @@ func Parse(text string) (*Phrase, error) {
 		b.WriteString(`("[^"]*"|\S+)`)
 		last = m[1]
 	}
+	if len(p.Params) > MaxParams {
+		return nil, fmt.Errorf("@step %q: more than %d parameters", text, MaxParams)
+	}
 	b.WriteString(regexp.QuoteMeta(text[last:]))
 	b.WriteString("$")
 	p.Regex = b.String()
