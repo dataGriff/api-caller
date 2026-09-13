@@ -41,8 +41,10 @@ var (
 	reComment     = regexp.MustCompile(`^(?:#|//)\s?(.*)$`)
 	reDirective   = regexp.MustCompile(`^@([A-Za-z][\w-]*)(?:\s+(.*))?$`)
 	reRequestLine = regexp.MustCompile(`^([A-Z]+)\s+(\S.*?)(?:\s+(HTTP/[\d.]+))?\s*$`)
-	// Header names are RFC 7230 tokens, so X.Correlation-ID is valid.
-	reHeader  = regexp.MustCompile("^([!#$%&'*+.^_`|~0-9A-Za-z-]+):\\s*(.*)$")
+	// Header names are RFC 7230 tokens, so X.Correlation-ID is valid. A
+	// leading `#` is the one exception: that line is a comment in this
+	// dialect, so the pattern does not claim it either.
+	reHeader  = regexp.MustCompile("^([!$%&'*+.^_`|~0-9A-Za-z-][!#$%&'*+.^_`|~0-9A-Za-z-]*):\\s*(.*)$")
 	reCapture = regexp.MustCompile(`^([A-Za-z_][\w.-]*)\s*=\s*(.+)$`)
 )
 

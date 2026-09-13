@@ -38,7 +38,7 @@ Accept: application/json
 | Directive | `# @key value` before the request line |
 | Request line | `METHOD url [HTTP/1.1]`; a bare URL means `GET` |
 | Query continuation | indented lines starting with `?` or `&` are appended to the URL |
-| Headers | `Name: value` lines until the first blank line |
+| Headers | `Name: value` lines until the first blank line. Any RFC 7230 token character may appear in a name, except that a line starting with `#` is a comment |
 | Body | everything after the blank line until the next `###` |
 | Body from file | `< ./payload.json` (raw) or `<@ ./payload.json` (with `{{vars}}` substituted), relative to the `.http` file |
 
