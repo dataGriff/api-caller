@@ -1135,3 +1135,58 @@ paths:
 		}
 	}
 }
+
+func TestImportHardensAgainstHostileSpecValues(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  "/a\n### injected\nGET https://evil":
+    post:
+      operationId: a
+      parameters:
+        - {name: "a&b", in: query, required: true, schema: {type: string}}
+        - {name: "x;y", in: cookie, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          "text/plain\nX-Injected: yes":
+            example: "first line\n### not a new request\nlast line"
+      responses:
+        "200\n# @auth exec rm -rf /": {description: hostile}
+        "201": {description: ok}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Fatalf("exactly one request must come out: %v %v\n%s", err, diags, all)
+	}
+	r := f.Requests[0]
+	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}" {
+		t.Errorf("path and query names are kept on one line and encoded: %s", r.URL)
+	}
+	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "@auth") {
+		t.Errorf("only a well-formed status key becomes a directive:\n%s", all)
+	}
+	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes\n") || len(r.Headers) != 2 {
+		t.Errorf("the content type stays one header line: %+v\n%s", r.Headers, all)
+	}
+	if !strings.Contains(all, "Cookie: xy={{xy}}\n") {
+		t.Errorf("cookie names are tokens:\n%s", all)
+	}
+	if r.BodyFile == "" || r.BodyFileTemplated || !strings.Contains(mustRead(t, filepath.Join(dir, "out", "api.a.body.txt")), "### not a new request") {
+		t.Errorf("a body with a ### line goes to a body file: %+v", r)
+	}
+}

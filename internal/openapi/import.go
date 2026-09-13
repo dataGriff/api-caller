@@ -216,6 +216,8 @@ func (d *document) parameters(n *yaml.Node) []parameter {
 }
 
 func (d *document) operation(path, method string, op *yaml.Node, shared []parameter) *operation {
+	// The path lands on the request line: it must not carry line breaks.
+	path = strings.Join(strings.Fields(path), "")
 	o := &operation{Path: path, Method: method,
 		OperationID: str(d.get(op, "operationId")), Summary: str(d.get(op, "summary")), Description: str(d.get(op, "description"))}
 	// Operation parameters override path-level ones with the same name and location.
@@ -235,7 +237,8 @@ func (d *document) operation(path, method string, op *yaml.Node, shared []parame
 	o.Body, o.ContentType, o.BodyRaw = d.exampleBody(d.get(op, "requestBody"))
 	responses := d.get(op, "responses")
 	for _, r := range d.entries(responses) {
-		if strings.HasPrefix(r.key, "2") {
+		// Only a well-formed status key may become a directive value.
+		if strings.HasPrefix(r.key, "2") && reStatusKey.MatchString(r.key) {
 			o.Success = r.key
 			break
 		}
@@ -279,30 +282,30 @@ func (o *operation) render() string {
 	for _, p := range o.Params {
 		v := "{{" + names[p.In+":"+p.Name] + "}}"
 		required := p.Required
-		// A spec is untrusted input: a name with a line break must not be
-		// able to add lines (headers, directives) to the generated file, and
-		// a header name must stay a single RFC 7230 token.
-		p.Name = strings.Join(strings.Fields(p.Name), "")
-		if p.In == "header" {
-			p.Name = reHeaderJunk.ReplaceAllString(p.Name, "")
-		}
+		// A spec is untrusted input: a name is written in the form its
+		// location allows, so it can neither add lines to the generated
+		// file nor change the request's meaning (`a&b`, `x;y`).
+		name := strings.Join(strings.Fields(p.Name), "")
 		switch p.In {
 		case "cookie":
+			name = reHeaderJunk.ReplaceAllString(name, "") // cookie names are tokens
 			if required {
-				cookies = append(cookies, p.Name+"="+v)
+				cookies = append(cookies, name+"="+v)
 			} else {
-				optionalCookies = append(optionalCookies, p.Name+"="+v)
+				optionalCookies = append(optionalCookies, name+"="+v)
 			}
 		case "path":
-			path = strings.ReplaceAll(path, "{"+p.Name+"}", v)
+			path = strings.ReplaceAll(path, "{"+p.Name+"}", v) // the spec's own spelling
 		case "query":
+			name = queryNameEscaper.Replace(name) // only what would change the query's shape
 			if required {
-				query = append(query, p.Name+"="+v)
+				query = append(query, name+"="+v)
 			} else {
-				query = append(query, "# "+p.Name+"="+v)
+				query = append(query, "# "+name+"="+v)
 			}
 		case "header":
-			line := p.Name + ": " + v
+			name = reHeaderJunk.ReplaceAllString(name, "")
+			line := name + ": " + v
 			if !required {
 				line = "# " + line
 			}
@@ -423,7 +426,7 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		return "", "", false
 	}
 	for _, mt := range mts {
-		ct := mt.key
+		ct := oneLine(mt.key) // it becomes a header value
 		media := d.resolve(mt.value)
 		var v any
 		selected := true
@@ -446,10 +449,10 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		}
 		if isJSON(ct) {
 			data, _ := json.MarshalIndent(v, "", "  ")
-			return string(data), ct, raw
+			return string(data), ct, raw || splitsBlock(string(data))
 		}
 		if s, ok := v.(string); ok {
-			return s, ct, raw
+			return s, ct, raw || splitsBlock(s)
 		}
 		if p, ok := v.(placeholder); ok {
 			return string(p), ct, false
@@ -471,6 +474,30 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		// than emit JSON under a misleading content type.
 	}
 	return "", mts[0].key, false
+}
+
+// queryNameEscaper encodes the characters that would let a parameter name
+// change the structure of the generated query string.
+var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23")
+
+// reStatusKey is the OpenAPI responses key grammar: a status code or a
+// class pattern such as 2XX.
+var reStatusKey = regexp.MustCompile(`^[1-5](\d\d|XX)$`)
+
+// splitsBlock reports whether an inline body would be misread by the .http
+// parser: a line starting with ### opens a new request block and a body
+// starting with `< ` refers to a file. Such bodies are written to a body
+// file instead.
+func splitsBlock(body string) bool {
+	if t := strings.TrimSpace(body); strings.HasPrefix(t, "< ") || strings.HasPrefix(t, "<@ ") {
+		return true
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "###") {
+			return true
+		}
+	}
+	return false
 }
 
 // oneLine collapses spec text into a single line for use in a comment or
