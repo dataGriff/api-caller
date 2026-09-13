@@ -388,6 +388,12 @@ func (r *Runner) Render(s string) (string, error) {
 	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e, 0) })
 }
 
+// Capture stores a value in the capture layer, below --var and shell
+// overrides and above the environment files, exactly like `# @capture`.
+func (r *Runner) Capture(name, value string) {
+	r.captured[name] = value
+}
+
 // SetVar adds or overrides a variable at --var precedence.
 func (r *Runner) SetVar(name, value string) {
 	if r.Opts.Vars == nil {

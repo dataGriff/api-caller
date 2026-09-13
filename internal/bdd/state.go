@@ -157,10 +157,11 @@ func (c *Config) newScenario(env string) (*scenario, error) {
 		r.Stderr = c.Stderr
 	}
 	if c.Redact {
-		c.noteSecrets(r.Envs.PrivateVars(env))
+		// r.Opts.Env is the effective environment (apic.yaml may supply the default).
+		c.noteSecrets(r.Envs.PrivateVars(r.Opts.Env))
 		c.noteSecrets(r.Envs.DotEnv)
 		if r.Session != nil {
-			c.noteSecrets(r.Session.Vars(env))
+			c.noteSecrets(r.Session.Vars(r.Opts.Env))
 		}
 		// APIC_VAR_* is the documented way to pass CI secrets.
 		shell := map[string]string{}

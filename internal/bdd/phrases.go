@@ -23,17 +23,21 @@ type compiledPhrase struct {
 func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 	var out []compiledPhrase
 	for _, req := range p.Requests() {
-		for _, text := range req.Steps() {
+		for _, d := range req.Directives {
+			if d.Key != "step" {
+				continue
+			}
+			text := d.Value
 			ph, err := phrase.Parse(text)
 			if err != nil {
-				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
+				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, d.Line, err)
 			}
 			if err := ph.ConflictsWithBuiltin(); err != nil {
-				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
+				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, d.Line, err)
 			}
 			for _, prev := range out {
 				if ph.ConflictsWith(prev.phrase) {
-					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, req.Line, text, prev.phrase.Text, prev.target)
+					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, d.Line, text, prev.phrase.Text, prev.target)
 				}
 			}
 			// file#index is unique even when two requests share a name.

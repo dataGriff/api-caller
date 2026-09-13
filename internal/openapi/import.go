@@ -35,7 +35,7 @@ func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
 	}
 	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
 		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
-		if v, ok := defaults[name]; ok && v != "" {
+		if v, ok := defaults[name]; ok { // an empty default is a valid value
 			return v
 		}
 		return match
@@ -236,10 +236,17 @@ func (o *operation) render() string {
 	var query []string
 	var headers []string
 	names := paramVarNames(o.Params)
+	var cookies, optionalCookies []string
 	for _, p := range o.Params {
 		v := "{{" + names[p.In+":"+p.Name] + "}}"
 		required := p.Required
 		switch p.In {
+		case "cookie":
+			if required {
+				cookies = append(cookies, p.Name+"="+v)
+			} else {
+				optionalCookies = append(optionalCookies, p.Name+"="+v)
+			}
 		case "path":
 			path = strings.ReplaceAll(path, "{"+p.Name+"}", v)
 		case "query":
@@ -277,6 +284,12 @@ func (o *operation) render() string {
 	}
 	for _, h := range headers {
 		b.WriteString(h + "\n")
+	}
+	if len(cookies) > 0 {
+		fmt.Fprintf(&b, "Cookie: %s\n", strings.Join(cookies, "; "))
+	}
+	for _, c := range optionalCookies {
+		fmt.Fprintf(&b, "# Cookie: %s  (optional)\n", c)
 	}
 	if body != "" {
 		b.WriteString("\n" + body + "\n")

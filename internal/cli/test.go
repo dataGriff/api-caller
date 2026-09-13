@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -62,12 +63,14 @@ phrase) · 3 a server could not be reached.`,
 				opts.Format = "cucumber"
 			}
 			if output != "" {
-				f, err := os.Create(output)
-				if err != nil {
-					return &runner.UsageError{Msg: err.Error()}
+				if ext := strings.ToLower(filepath.Ext(output)); ext == ".feature" || ext == ".http" || ext == ".rest" {
+					return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a source file; write the report elsewhere", output)}
 				}
-				defer func() { _ = f.Close() }()
-				opts.Output = f
+				// Created on first write, which happens only after the features
+				// have been read, so a report path can never truncate its input.
+				lf := &lazyFile{path: output}
+				defer func() { _ = lf.Close() }()
+				opts.Output = lf
 			}
 			code, err := bdd.Run(cmd.Context(), opts)
 			if err != nil {
@@ -91,6 +94,30 @@ phrase) · 3 a server could not be reached.`,
 	cmd.Flags().BoolVar(&useSession, "use-session", false, "read and write .apic/session.json instead of an isolated session per scenario")
 	cmd.Flags().BoolVar(&listSteps, "steps", false, "print the built-in step vocabulary and declared phrases, then exit")
 	return cmd
+}
+
+// lazyFile opens its path on the first write.
+type lazyFile struct {
+	path string
+	f    *os.File
+}
+
+func (l *lazyFile) Write(p []byte) (int, error) {
+	if l.f == nil {
+		f, err := os.Create(l.path)
+		if err != nil {
+			return 0, err
+		}
+		l.f = f
+	}
+	return l.f.Write(p)
+}
+
+func (l *lazyFile) Close() error {
+	if l.f == nil {
+		return nil
+	}
+	return l.f.Close()
 }
 
 func (a *App) printSteps() error {

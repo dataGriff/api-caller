@@ -384,3 +384,40 @@ paths:
 		}
 	}
 }
+
+func TestImportEmptyServerDefaultAndCookies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers:
+  - url: https://api.example.com/{base}
+    variables:
+      base: {default: ""}
+paths:
+  /me:
+    get:
+      operationId: me
+      parameters:
+        - {name: session, in: cookie, required: true, schema: {type: string}}
+        - {name: theme, in: cookie, schema: {type: string}}
+        - {name: csrf, in: cookie, required: true, schema: {type: string}}
+      responses:
+        "200": {description: ok}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://api.example.com" {
+		t.Fatalf("empty default should substitute: %q", res.BaseURL)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"Cookie: session={{session}}; csrf={{csrf}}\n", "# Cookie: theme={{theme}}  (optional)\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}

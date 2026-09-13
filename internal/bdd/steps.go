@@ -219,7 +219,7 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 		return fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), describeFailure(res))
 	}
 	sc.cfg.noteSecrets(map[string]string{name: r.Actual})
-	sc.r.SetVar(name, r.Actual)
+	sc.r.Capture(name, r.Actual) // same precedence as # @capture: below --var, above env files
 	// With --use-session the value outlives the scenario, like a request capture.
 	if sc.cfg.UseSession && sc.r.Session != nil {
 		sc.r.Session.Set(sc.r.Opts.Env, map[string]string{name: r.Actual})

@@ -32,6 +32,21 @@ func TestTestCommandExitCodes(t *testing.T) {
 	if code, out, _ := run("test", "--steps", "--json", "-C", t.TempDir()); code != 0 || !strings.Contains(out, `"pattern"`) {
 		t.Fatalf("--steps --json outside a project: code=%d out=%s", code, out)
 	}
+	// --output must never truncate a feature file, and is not created when the run fails early.
+	feature := filepath.Join(dir, "features", "p.feature")
+	if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", feature); code != 2 || !strings.Contains(stderr, "would overwrite") {
+		t.Fatalf("output onto a feature: code=%d stderr=%s", code, stderr)
+	}
+	if data, _ := os.ReadFile(feature); !strings.Contains(string(data), "Feature: p") {
+		t.Fatalf("feature file was damaged: %q", data)
+	}
+	report := filepath.Join(dir, "report.xml")
+	if code, _, _ := run("test", "-C", dir, "--env", "nope", "--output", report); code != 2 {
+		t.Fatalf("code=%d", code)
+	}
+	if _, err := os.Stat(report); !os.IsNotExist(err) {
+		t.Fatal("report file should not be created when the run never starts")
+	}
 }
 
 func must(t *testing.T, err error) {

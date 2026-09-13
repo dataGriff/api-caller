@@ -641,3 +641,55 @@ Feature: Session
 		t.Fatalf("capture step should persist under --use-session: %s", data)
 	}
 }
+
+func TestCaptureStepUsesCaptureLayer(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Vars: map[string]string{"pinned": "from-var"}},
+		Features: []godog.Feature{{Name: "c.feature", Contents: []byte(`
+Feature: Capture precedence
+  Scenario: A capture step cannot override --var, and a later request capture replaces it
+    Given I am logged in
+    When I capture the response body "$.token" as "pinned"
+    Then the variable "check" is "{{pinned}}"
+    And the variable "check" is "from-var"
+    When I capture the response body "$.token" as "token"
+    And I run "get-user" with:
+      | userId | 0 |
+    Then the response status is 404
+`)}},
+	})
+	if err != nil || code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+}
+
+func TestRedactRegistersSecretsForDefaultEnv(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte("env: dev\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.private.env.json"), []byte(`{"dev":{"apiKey":"hunter2-default-env"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	var report bytes.Buffer
+	_, err = Run(context.Background(), Options{
+		Config: Config{Project: p, Redact: true}, // Env left empty: apic.yaml supplies it
+		Format: "pretty", NoColors: true, Output: &report,
+		Features: []godog.Feature{{Name: "d.feature", Contents: []byte(`
+Feature: Default env
+  Scenario: Private values of the configured default environment are masked
+    Given I am logged in
+    When I run "get-user" with:
+      | userId | 0                   |
+      | token  | hunter2-default-env |
+    Then the response status is 404
+`)}},
+	})
+	must(t, err)
+	if strings.Contains(report.String(), "hunter2-default-env") {
+		t.Fatalf("private value of the default environment leaked:\n%s", report.String())
+	}
+}
