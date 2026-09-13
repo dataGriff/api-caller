@@ -924,3 +924,28 @@ paths:
 		t.Errorf("body must keep the $ref property:\n%s", all)
 	}
 }
+
+func TestImportHeaderWithDotParses(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: X.Correlation-ID, in: header, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X.Correlation-ID" {
+		t.Fatalf("generated header must parse: %v %v %+v", err, diags, f)
+	}
+}

@@ -83,3 +83,13 @@ func TestParseCRLFAndImplicitGet(t *testing.T) {
 		t.Fatalf("%+v", f.Requests[0])
 	}
 }
+
+func TestParseTokenHeaderNames(t *testing.T) {
+	f, diags := Parse("t.http", "### a\nGET http://x\nX.Correlation-ID: abc\nX-Api_Key: k\n")
+	if len(diags) != 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 2 {
+		t.Fatalf("header names may use any RFC 7230 token character: %v %+v", diags, f.Requests)
+	}
+	if f.Requests[0].Headers[0].Name != "X.Correlation-ID" {
+		t.Fatalf("%+v", f.Requests[0].Headers)
+	}
+}
