@@ -15,6 +15,8 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/auth` — `# @auth` spec parsing and application: bearer, basic, AWS SigV4 (own signer in `sigv4.go`, credentials in `awscreds.go`; no AWS SDK), OAuth2 grants, exec
 - `internal/runner` — variable precedence, request execution, captures, asserts, flows, `describe`
 - `internal/output` — human and JSON renderers
+- `internal/phrase` — `# @step` phrase to regex
+- `internal/bdd` — `apic test`: godog suite, step vocabulary (`steps.go`), phrase registration, JSON matching, cucumber-report summary
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands
 - `internal/cli` — cobra commands
 - `examples/httpbin` — sample project used in docs; `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`)
@@ -35,3 +37,4 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - Every command must work non-interactively (no prompts) and respect `--json`.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer is the precedent).
 - Add a test next to any parser or runner change; parser cases go in `internal/httpfile/testdata/sample.http`.
+- A new step in the vocabulary needs: the regex in `steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.

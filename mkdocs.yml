@@ -13,6 +13,7 @@ nav:
   - CLI reference: cli.md
   - The .http format: format.md
   - Authentication: auth.md
+  - Testing with Gherkin: testing.md
   - Agents and MCP: agents.md
   - Taskfile: taskfile.md
   - Comparison: comparison.md

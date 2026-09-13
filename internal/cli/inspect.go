@@ -43,6 +43,7 @@ type listEntry struct {
 	Description string   `json:"description,omitempty"`
 	Captures    []string `json:"captures,omitempty"`
 	Asserts     int      `json:"asserts,omitempty"`
+	Steps       []string `json:"steps,omitempty"`
 }
 
 func (a *App) listCmd() *cobra.Command {
@@ -56,7 +57,7 @@ func (a *App) listCmd() *cobra.Command {
 			}
 			var entries []listEntry
 			for _, r := range p.Requests() {
-				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts)}
+				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps()}
 				for _, c := range r.Captures {
 					e.Captures = append(e.Captures, c.Name)
 				}
@@ -138,6 +139,12 @@ func (a *App) describeCmd() *cobra.Command {
 				}
 			}
 			tw.Flush()
+			if steps := req.Steps(); len(steps) > 0 {
+				section(a.Stdout, "steps")
+				for _, st := range steps {
+					fmt.Fprintf(a.Stdout, "  %s\n", st)
+				}
+			}
 			if len(d.Captures) > 0 {
 				section(a.Stdout, "captures")
 				for _, c := range d.Captures {

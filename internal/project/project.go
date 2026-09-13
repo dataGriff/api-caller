@@ -17,6 +17,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/httpfile"
+	"github.com/dataGriff/api-caller/internal/phrase"
 )
 
 // ConfigFile is the optional per-project configuration file name.
@@ -28,6 +29,12 @@ type Config struct {
 	Dir     string     `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string     `yaml:"timeout"` // default request timeout, e.g. "30s"
 	Auth    AuthConfig `yaml:"auth"`
+	Test    TestConfig `yaml:"test"`
+}
+
+// TestConfig is the `test:` section of apic.yaml.
+type TestConfig struct {
+	Paths []string `yaml:"paths"` // feature files or directories, relative to the root (default: features)
 }
 
 // AuthConfig is the `auth:` section of apic.yaml.
@@ -218,7 +225,23 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "warning", Message: "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"})
 		}
 	}
+	phrases := map[string]*httpfile.Request{}
 	for _, r := range p.Requests() {
+		for _, d := range r.Directives {
+			if d.Key != "step" {
+				continue
+			}
+			if _, err := phrase.Parse(d.Value); err != nil {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+				continue
+			}
+			key := strings.TrimSpace(d.Value)
+			if other, dup := phrases[key]; dup && other != r {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
+					Message: fmt.Sprintf("@step %q is also declared on %s (%s:%d)", key, other.ID(), other.File.Path, other.Line)})
+			}
+			phrases[key] = r
+		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {
 				continue

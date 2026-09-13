@@ -2,6 +2,7 @@
 
 ### Fetch a user
 # @name get-user
+# @step I fetch user {userId}
 # @description Fetch a single user by id
 # @assert status == 200
 # @assert body.$.args.id == {{userId}}
@@ -14,6 +15,7 @@ Accept: application/json
 
 ### Create a user
 # @name create-user
+# @step a user named {user} is created
 # @assert status == 200
 # @assert body.$.json.name == {{user}}
 POST {{baseUrl}}/post
@@ -21,7 +23,7 @@ Content-Type: application/json
 
 {"name": "{{user}}", "email": "{{user}}@example.com", "created": "{{$isoTimestamp}}"}
 
-### A request that will fail its assertion
+### A request whose assertion expects a 404
 # @name not-found
-# @assert status == 200
+# @assert status == 404
 GET {{baseUrl}}/status/404

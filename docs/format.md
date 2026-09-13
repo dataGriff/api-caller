@@ -54,6 +54,7 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @capture name = selector` | After the response arrives, store the selected value as `name`. It is available to later requests in the same run and persisted in `.apic/session.json` for later invocations. |
 | `# @assert selector op value` | Check the response. Failures set `ok: false` and exit code 1. |
 | `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
+| `# @step a user named {name} exists` | A Gherkin phrase that runs this request from a `.feature` file; `{name}` becomes a variable. Repeatable. See [testing.md](testing.md). |
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
@@ -154,7 +155,8 @@ prints one JSON object per request (NDJSON).
 
 ```
 api/
-  apic.yaml                      optional: env, dir, timeout, auth.default, auth.allowExec
+  apic.yaml                      optional: env, dir, timeout, auth.default, auth.allowExec, test.paths
+  features/*.feature             Gherkin specs run by `apic test`
   http-client.env.json           public per-environment variables
   http-client.private.env.json   secrets (gitignored)
   .env                           optional KEY=value

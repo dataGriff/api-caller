@@ -20,6 +20,7 @@ Requests live in `api/*.http` and are run with `apic` (install: see README).
 - `apic run <id> --var name=value` — override a variable
 - `apic run <id> --env staging` — pick an environment from http-client.env.json
 - `apic curl <id>` — the equivalent curl command
+- `apic test --json` — run the Gherkin features in features/; `apic test --steps --json` lists the steps you may use
 
 Exit codes: 0 ok, 1 assertion failed, 2 usage/parse/missing variable, 3 network.
 Values captured with `# @capture` (like a login token) persist in `.apic/session.json`,
@@ -69,6 +70,7 @@ Tools exposed:
 | `run_file {file, env?, vars?, keep_going?}` | run a file as a flow |
 | `list_environments {env?}` | environments and effective variables (secrets masked) |
 | `clear_session {env?, all?}` | forget captured values |
+| `run_features {paths?, tags?, env?, vars?}` | run Gherkin features; returns pass/fail counts and the failing steps (see [testing.md](testing.md)) |
 
 Each `.http` file is also exposed as a resource so the agent can read the
 definitions. Assertion failures return `ok: false` rather than a tool error;

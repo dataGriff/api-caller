@@ -17,6 +17,7 @@ lands against the tools you might otherwise use.
 | Discovery (`list`, `describe`) | `task --list` | file tree | no | GUI | no | yes |
 | Never prompts | yes | n/a | picker unless `--all`/`--name` | yes | yes | yes |
 | MCP server for agents | no | no | no | no | no | yes |
+| Gherkin features without a Cucumber runtime | no | no | no | no | no | yes (`apic test`) |
 | OpenAPI import | no | no | no | yes | no | yes |
 | curl export | is curl | yes | extension | GUI | no | yes |
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |

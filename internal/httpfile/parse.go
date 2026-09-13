@@ -27,6 +27,7 @@ var KnownDirectives = map[string]string{
 	"capture":     "store a response value: `# @capture name = selector`",
 	"assert":      "assert on the response: `# @assert selector op value`",
 	"auth":        "authentication: `# @auth bearer|basic|aws|oauth2|exec|none ...`",
+	"step":        "Gherkin phrase that runs this request: `# @step a user named {name} exists`",
 	"no-redirect": "do not follow redirects",
 	"no-session":  "do not persist captures from this request",
 	"timeout":     "per-request timeout, e.g. `10s`",

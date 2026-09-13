@@ -25,6 +25,12 @@ type Store struct {
 	Envs map[string]map[string]string `json:"envs"`
 }
 
+// NewMemory returns a session that is never written to disk. Captures and
+// cached tokens still work within the process.
+func NewMemory() *Store {
+	return &Store{Envs: map[string]map[string]string{}}
+}
+
 // Open loads the session for a project root, or an empty one.
 func Open(root string) (*Store, error) {
 	s := &Store{path: filepath.Join(root, Dir, File), Envs: map[string]map[string]string{}}
@@ -99,7 +105,11 @@ func (s *Store) EnvNames() []string {
 }
 
 // Save writes the session to disk, creating .apic/ and its .gitignore.
+// A memory-only store is a no-op.
 func (s *Store) Save() error {
+	if s.path == "" {
+		return nil
+	}
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

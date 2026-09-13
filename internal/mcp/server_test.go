@@ -58,7 +58,7 @@ Authorization: Bearer {{token}}
 
 	tools, err := cs.ListTools(ctx, nil)
 	must(t, err)
-	if len(tools.Tools) != 6 {
+	if len(tools.Tools) != 7 {
 		t.Fatalf("tools: %d", len(tools.Tools))
 	}
 
@@ -108,6 +108,26 @@ Authorization: Bearer {{token}}
 	call("clear_session", map[string]any{})
 	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != false {
 		t.Fatal("session should be cleared")
+	}
+
+	must(t, os.MkdirAll(filepath.Join(dir, "features"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "features", "me.feature"), []byte(`
+Feature: Me
+  Scenario: Login then me
+    Given I run "login"
+    When I run "me"
+    Then the response status is 200
+    And the response body "$.name" is "alice"
+  Scenario: Fails
+    When I run "login"
+    Then the response status is 500
+`), 0o644))
+	feat := call("run_features", map[string]any{})
+	if feat["ok"] != false || feat["passed"] != float64(1) || feat["failed"] != float64(1) {
+		t.Fatalf("run_features: %v", feat)
+	}
+	if f := feat["failures"].([]any)[0].(map[string]any); f["scenario"] != "Fails" || !strings.Contains(f["error"].(string), "status == 500") {
+		t.Fatalf("failure detail: %v", f)
 	}
 
 	rr, err := cs.ReadResource(ctx, &sdk.ReadResourceParams{URI: "file://" + filepath.ToSlash(filepath.Join(dir, "api.http"))})

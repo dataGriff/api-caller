@@ -1,6 +1,7 @@
 ### Log in and keep the token
 # httpbin echoes the JSON we post, so the "token" comes back under json.token.
 # @name login
+# @step I am logged in
 # @assert status == 200
 # @capture token = body.$.json.token
 POST {{baseUrl}}/post
@@ -10,6 +11,7 @@ Content-Type: application/json
 
 ### Call an endpoint that needs the token
 # @name whoami
+# @step I ask who I am
 # @description Uses the token captured by login
 # @assert status == 200
 # @assert body.$.authenticated == true

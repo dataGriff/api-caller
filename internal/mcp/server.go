@@ -15,6 +15,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/dataGriff/api-caller/internal/bdd"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
@@ -50,6 +51,7 @@ func New(cfg Config) (*sdk.Server, error) {
 	sdk.AddTool(srv, &sdk.Tool{Name: "run_file", Description: "Run every request in a .http file in order as a flow. Stops at the first failure unless keep_going is set."}, s.runFile)
 	sdk.AddTool(srv, &sdk.Tool{Name: "list_environments", Description: "List the environments in http-client.env.json and the variables in effect (secrets masked)."}, s.listEnvironments)
 	sdk.AddTool(srv, &sdk.Tool{Name: "clear_session", Description: "Forget captured values for an environment (or all of them)."}, s.clearSession)
+	sdk.AddTool(srv, &sdk.Tool{Name: "run_features", Description: "Run Gherkin .feature files (default: features/ under the project) against the project's requests and return a pass/fail summary with the failing steps."}, s.runFeatures)
 
 	p, err := project.Load(root)
 	if err != nil {
@@ -269,6 +271,36 @@ func (s *service) clearSession(_ context.Context, _ *sdk.CallToolRequest, in cle
 		return toolError(err)
 	}
 	return structured(map[string]any{"cleared": target})
+}
+
+type featuresInput struct {
+	Paths []string          `json:"paths,omitempty" jsonschema:"feature files or directories relative to the project root; default features/"`
+	Tags  string            `json:"tags,omitempty" jsonschema:"tag expression such as @smoke && ~@slow"`
+	Env   string            `json:"env,omitempty"`
+	Vars  map[string]string `json:"vars,omitempty"`
+}
+
+func (s *service) runFeatures(ctx context.Context, _ *sdk.CallToolRequest, in featuresInput) (*sdk.CallToolResult, any, error) {
+	p, err := project.Load(s.root)
+	if err != nil {
+		return toolError(err)
+	}
+	env := in.Env
+	if env == "" {
+		env = s.cfg.Env
+	}
+	if env == "" {
+		env = p.Config.Env
+	}
+	runner.Version = s.cfg.Version
+	sum, _, _, err := bdd.RunSummary(ctx, bdd.Options{
+		Config: bdd.Config{Project: p, Env: env, Vars: in.Vars, Stderr: os.Stderr},
+		Paths:  in.Paths, Tags: in.Tags,
+	})
+	if err != nil {
+		return toolError(err)
+	}
+	return structured(sum)
 }
 
 func (s *service) readFile(_ context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
