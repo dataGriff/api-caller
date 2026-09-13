@@ -1,8 +1,8 @@
 package assert
 
 import (
-	"strings"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/dataGriff/api-caller/internal/selector"
