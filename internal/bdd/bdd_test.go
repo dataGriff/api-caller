@@ -1215,3 +1215,25 @@ Feature: t
 		t.Fatalf("forward reference: code=%d err=%v stderr=%s", code, err, stderr.String())
 	}
 }
+
+func TestEmptyFileDoesNotKeepThePreviousResponse(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	must(t, os.WriteFile(filepath.Join(p.Root, "empty.http"), []byte("# only a comment\n"), 0o644))
+	p, err := project.Load(p.Root)
+	must(t, err)
+	var stderr bytes.Buffer
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Stderr: &stderr},
+		Features: []godog.Feature{{Name: "e.feature", Contents: []byte(`
+Feature: Empty
+  Scenario: A file with no requests cannot stand in for a response
+    When I run "login"
+    And I run the file "empty.http"
+    Then the response status is 200
+`)}},
+	})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "no requests") || sum.OK {
+		t.Fatalf("the empty file must be a usage error, not a pass on the login response: code=%d err=%v sum=%+v", code, err, sum)
+	}
+}

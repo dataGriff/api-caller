@@ -333,6 +333,12 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 
 // runRequests runs reqs as a flow with vars scoped to this invocation.
 func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, vars map[string]string) error {
+	// Whatever happens next, the previous response is no longer "the
+	// response": an assertion after an empty or failed run must not read it.
+	s.last = nil
+	if len(reqs) == 0 {
+		return s.cfg.fail(&runner.UsageError{Msg: "nothing to run: the target has no requests"})
+	}
 	restore := s.setScoped(vars)
 	defer restore()
 	results, err := s.r.RunAll(ctx, reqs)
