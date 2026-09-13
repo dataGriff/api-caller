@@ -61,6 +61,14 @@ func TestTestCommandExitCodes(t *testing.T) {
 		}
 		must(t, os.Remove(filepath.Join(dir, "linked.xml")))
 	}
+	// Outside the project the name heuristics do not apply.
+	outside := filepath.Join(t.TempDir(), "report.http")
+	if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", outside); code != 3 || strings.Contains(stderr, "would overwrite") {
+		t.Fatalf("output outside the project: code=%d stderr=%s", code, stderr)
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("report outside the project must be written: %v", err)
+	}
 	// A symlink alias of a feature is refused too.
 	alias := filepath.Join(dir, "report.xml")
 	if err := os.Symlink(feature, alias); err == nil {

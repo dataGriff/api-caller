@@ -109,7 +109,12 @@ func (d *document) items(n *yaml.Node) []*yaml.Node {
 // External references are left unresolved (returned as the mapping holding
 // $ref).
 func (d *document) resolve(n *yaml.Node) *yaml.Node {
-	visited := map[*yaml.Node]bool{}
+	return d.resolveFrom(n, map[*yaml.Node]bool{})
+}
+
+// resolveFrom is resolve with the cycle-detection state threaded through,
+// so a 3.1 sibling merge cannot restart the walk on its own target.
+func (d *document) resolveFrom(n *yaml.Node, visited map[*yaml.Node]bool) *yaml.Node {
 	for n != nil {
 		if visited[n] {
 			d.fail(fmt.Errorf("cyclic $ref or alias at line %d", n.Line))
@@ -143,8 +148,11 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 		if len(siblings) > 0 && d.v31 {
 			// OpenAPI 3.1 allows keys next to $ref; they override the target's.
 			// In 3.0 a Reference Object's siblings are ignored.
-			target = d.resolve(target)
-			if target != nil && target.Kind == yaml.MappingNode {
+			target = d.resolveFrom(target, visited)
+			if target == nil {
+				return nil // cycle already recorded
+			}
+			if target.Kind == yaml.MappingNode {
 				merged := &yaml.Node{Kind: yaml.MappingNode, Tag: target.Tag}
 				overridden := map[string]bool{}
 				for i := 0; i+1 < len(siblings); i += 2 {

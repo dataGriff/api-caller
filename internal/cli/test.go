@@ -151,16 +151,39 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 			bodyFiles[filepath.Clean(abs)] = true
 		}
 	}
+	rootReal := p.Root
+	if real, err := filepath.EvalSymlinks(p.Root); err == nil {
+		rootReal = real
+	}
+	// underRoot reports whether path (existing or not) lies in the project.
+	underRoot := func(path string) bool {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return false
+		}
+		if real, err := filepath.EvalSymlinks(abs); err == nil {
+			abs = real
+		} else if dirReal, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+			abs = filepath.Join(dirReal, filepath.Base(abs))
+		}
+		rel, err := filepath.Rel(rootReal, abs)
+		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+	}
+	// isInput recognises project inputs by name only inside the project;
+	// files elsewhere are matched by identity below.
 	isInput := func(path string) bool {
+		if abs, err := filepath.Abs(path); err == nil && bodyFiles[filepath.Clean(abs)] {
+			return true
+		}
+		if !underRoot(path) {
+			return false
+		}
 		switch strings.ToLower(filepath.Ext(path)) {
 		case ".feature", ".http", ".rest":
 			return true
 		}
 		switch filepath.Base(path) {
 		case project.ConfigFile, env.PublicFile, env.PrivateFile, env.DotEnvFile:
-			return true
-		}
-		if abs, err := filepath.Abs(path); err == nil && bodyFiles[filepath.Clean(abs)] {
 			return true
 		}
 		return filepath.Base(filepath.Dir(path)) == session.Dir

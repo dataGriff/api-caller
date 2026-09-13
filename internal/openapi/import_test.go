@@ -677,3 +677,28 @@ paths:
 		t.Errorf("no 2xx response declared, so no status assertion:\n%s", all)
 	}
 }
+
+func TestImportSelfReferentialRefWithSiblingsIsCyclic(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/A"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    A: {$ref: "#/components/schemas/A", description: loops}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err == nil || !strings.Contains(err.Error(), "cyclic") {
+		t.Fatalf("a self-referential $ref with siblings must be reported as cyclic: %v", err)
+	}
+}
