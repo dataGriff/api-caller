@@ -70,9 +70,31 @@ func TestConflicts(t *testing.T) {
 			t.Errorf("%q should conflict with a built-in step", text)
 		}
 	}
-	ok, _ := Parse("I log in as {user}")
-	if err := ok.ConflictsWithBuiltin(); err != nil {
-		t.Errorf("unexpected conflict: %v", err)
+	// Built-in captures keep their constraints: a bare word cannot match a
+	// quoted capture and a word cannot match a numeric one.
+	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms"} {
+		ok, err := Parse(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ok.ConflictsWithBuiltin(); err != nil {
+			t.Errorf("unexpected conflict for %q: %v", text, err)
+		}
+	}
+	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`} {
+		p, _ := Parse(text)
+		if err := p.ConflictsWithBuiltin(); err == nil {
+			t.Errorf("%q should conflict with a built-in step", text)
+		}
+	}
+	quotedOnly, _ := Parse(`I say "{a}"`)
+	bare, _ := Parse("I say hello")
+	free, _ := Parse("I say {b}")
+	if quotedOnly.ConflictsWith(bare) {
+		t.Error("a quoted-only parameter cannot match a bare word")
+	}
+	if !quotedOnly.ConflictsWith(free) {
+		t.Error("a free parameter can match quoted text")
 	}
 	a, _ := Parse("a user named {name} exists")
 	b, _ := Parse("a {role} named {name} exists")
