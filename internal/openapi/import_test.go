@@ -894,3 +894,33 @@ paths:
 		t.Errorf("a JSON media type is preferred over one that cannot be rendered:\n%s", eitherPart)
 	}
 }
+
+func TestImportPropertyNamedRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                $ref: {type: boolean}
+                name: {type: string, example: n}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatalf("a property named $ref is data, not a reference: %v", err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, `"$ref": true`) || !strings.Contains(all, `"name": "n"`) {
+		t.Errorf("body must keep the $ref property:\n%s", all)
+	}
+}

@@ -1068,3 +1068,36 @@ func TestConfiguredTestPathsAndExplicitOverride(t *testing.T) {
 		t.Fatalf("explicit paths must override test.paths: code=%d err=%v sum=%+v", code, err, sum)
 	}
 }
+
+func TestPhraseRunsRequestFromFileNameWithHash(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "odd#name.http"), []byte("### a\n# @name login\n# @step I log in oddly\n# @capture token = body.$.token\nPOST {{baseUrl}}/login\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, code := run(t, p, "Feature: h\n  Scenario: s\n    Given I log in oddly\n    Then the response status is 200\n    And the variable \"check\" is \"{{token}}\"\n", "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestStopOnFailureCountsSkippedScenarios(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Stderr: io.Discard}, StopOnFailure: true,
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(`
+Feature: Stop
+  Scenario: Fails first
+    Given I am logged in
+    Then the response status is 500
+  Scenario: Never runs
+    Given I am logged in
+    Then the response status is 200
+`)}},
+	})
+	if err != nil || code != ExitFailed || sum.Scenarios != 2 || sum.Failed != 1 || sum.Passed != 0 || sum.Skipped != 1 || sum.OK {
+		t.Fatalf("the scenario that never ran must be reported as skipped: code=%d err=%v sum=%+v", code, err, sum)
+	}
+}

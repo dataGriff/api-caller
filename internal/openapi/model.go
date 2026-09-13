@@ -130,8 +130,10 @@ func (d *document) resolveFrom(n *yaml.Node, visited map[*yaml.Node]bool) *yaml.
 		ref := ""
 		var siblings []*yaml.Node
 		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == "$ref" {
-				ref = n.Content[i+1].Value
+			// A Reference Object's $ref is a string; a data map (say a
+			// schema's `properties`) may legitimately hold a key named $ref.
+			if v := n.Content[i+1]; n.Content[i].Value == "$ref" && v.Kind == yaml.ScalarNode && v.ShortTag() == "!!str" {
+				ref = v.Value
 				continue
 			}
 			siblings = append(siblings, n.Content[i], n.Content[i+1])

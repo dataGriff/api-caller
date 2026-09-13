@@ -187,7 +187,7 @@ in isolated sessions unless `use_session` is true, which shares
 the way `--use-session` does on the command line:
 
 ```json
-{"ok": false, "scenarios": 4, "passed": 3, "failed": 1, "undefined": 0,
+{"ok": false, "scenarios": 4, "passed": 3, "failed": 1, "skipped": 0, "undefined": 0,
  "failures": [{"feature": "Users", "scenario": "Fetch a user by id",
                "step": "Then the response status is 200",
                "status": "failed", "error": "expected status == 200, got \"404\"\n  GET https://…"}]}

@@ -13,6 +13,7 @@ type Summary struct {
 	Scenarios int       `json:"scenarios"`
 	Passed    int       `json:"passed"`
 	Failed    int       `json:"failed"`
+	Skipped   int       `json:"skipped"` // not run, e.g. after --stop-on-failure
 	Undefined int       `json:"undefined"`
 	Failures  []Failure `json:"failures,omitempty"`
 }
@@ -77,6 +78,7 @@ func Summarize(report []byte) (*Summary, error) {
 				s.Failures = append(s.Failures, pf)
 			}
 			pending = nil
+			ran := false
 			for _, st := range el.Steps {
 				switch st.Result.Status {
 				case "failed", "undefined", "pending", "ambiguous":
@@ -86,11 +88,16 @@ func Summarize(report []byte) (*Summary, error) {
 					}
 					s.Failures = append(s.Failures, Failure{Feature: f.Name, Scenario: el.Name,
 						Step: strings.TrimSpace(st.Keyword) + " " + st.Name, Status: st.Result.Status, Error: st.Result.ErrorMessage})
+				case "passed":
+					ran = true
 				}
 			}
-			if failed {
+			switch {
+			case failed:
 				s.Failed++
-			} else {
+			case !ran && len(el.Steps) > 0:
+				s.Skipped++ // every step skipped: the scenario never ran
+			default:
 				s.Passed++
 			}
 		}

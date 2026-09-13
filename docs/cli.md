@@ -132,7 +132,7 @@ for the vocabulary.
 | `-f, --format` | `pretty` (default), `progress`, `cucumber`, `junit`. `--json` selects `cucumber`. |
 | `-o, --output <file>` | Write the report to a file. |
 | `-t, --tags <expr>` | Tag expression, e.g. `"@smoke && ~@slow"`. |
-| `--stop-on-failure` | Stop after the first failed scenario. |
+| `--stop-on-failure` | Stop after the first failed scenario; the remaining scenarios are reported as skipped. |
 | `--use-session` | Share `.apic/session.json` instead of isolating each scenario. |
 | `--steps` | Print the vocabulary and this project's phrases (`--json` for machine form) and exit. |
 

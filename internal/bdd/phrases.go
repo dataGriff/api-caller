@@ -11,10 +11,12 @@ import (
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
-// compiledPhrase is a `# @step` directive ready to register.
+// compiledPhrase is a `# @step` directive ready to register. It keeps the
+// request itself: a file/name target string could be misread when a file
+// name contains the `#` delimiter.
 type compiledPhrase struct {
 	phrase *phrase.Phrase
-	target string
+	req    *httpfile.Request
 }
 
 // compilePhrases validates every `# @step` directive in the project before
@@ -37,11 +39,10 @@ func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 			}
 			for _, prev := range out {
 				if ph.ConflictsWith(prev.phrase) {
-					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, d.Line, text, prev.phrase.Text, prev.target)
+					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, d.Line, text, prev.phrase.Text, prev.req.ID())
 				}
 			}
-			// file#index is unique even when two requests share a name.
-			out = append(out, compiledPhrase{phrase: ph, target: fmt.Sprintf("%s#%d", req.File.Path, req.Index)})
+			out = append(out, compiledPhrase{phrase: ph, req: req})
 		}
 	}
 	return out, nil
@@ -51,7 +52,7 @@ func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 // with the phrase's parameters as variables.
 func registerPhrases(sc *godog.ScenarioContext, phrases []compiledPhrase) {
 	for _, cp := range phrases {
-		ph, target := cp.phrase, cp.target
+		ph, req := cp.phrase, cp.req
 		run := func(ctx context.Context, args []string) error {
 			s, err := from(ctx)
 			if err != nil {
@@ -63,7 +64,7 @@ func registerPhrases(sc *godog.ScenarioContext, phrases []compiledPhrase) {
 					return err
 				}
 			}
-			return s.run(ctx, target, vars)
+			return s.runRequests(ctx, []*httpfile.Request{req}, vars)
 		}
 		sc.Step(ph.Regex, handlerFor(len(ph.Params), run))
 	}

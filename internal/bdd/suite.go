@@ -90,10 +90,14 @@ func Run(ctx context.Context, opts Options) (int, error) {
 		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, format: opts.Format}
 		output = masker
 	}
+	// Stop-on-failure is handled by the hooks: godog's own option aborts the
+	// run before later scenarios have results, which breaks its formatters.
+	opts.stopOnFailure = opts.StopOnFailure
 	suite := godog.TestSuite{
 		Name: "apic",
 		ScenarioInitializer: func(sc *godog.ScenarioContext) {
 			sc.Before(opts.before)
+			sc.After(opts.after)
 			registerSteps(sc)
 			registerPhrases(sc, phrases)
 		},
@@ -104,7 +108,6 @@ func Run(ctx context.Context, opts Options) (int, error) {
 			FeatureContents: opts.Features,
 			Tags:            opts.Tags,
 			Strict:          true,
-			StopOnFailure:   opts.StopOnFailure,
 			NoColors:        opts.NoColors,
 			Concurrency:     1,
 			DefaultContext:  ctx,

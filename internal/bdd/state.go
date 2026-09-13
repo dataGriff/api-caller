@@ -18,6 +18,7 @@ import (
 
 	"github.com/cucumber/godog"
 
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
 	"github.com/dataGriff/api-caller/internal/session"
@@ -34,9 +35,11 @@ type Config struct {
 	Redact     bool
 	Stderr     io.Writer
 
-	usageErr     error           // first usage error raised by a step (unknown environment, request or variable)
-	transportErr error           // first transport error raised by a step
-	secrets      map[string]bool // values that must never appear in reports when Redact is set
+	usageErr      error           // first usage error raised by a step (unknown environment, request or variable)
+	transportErr  error           // first transport error raised by a step
+	secrets       map[string]bool // values that must never appear in reports when Redact is set
+	stopOnFailure bool            // set from Options.StopOnFailure
+	halted        bool            // a scenario failed and --stop-on-failure is on
 }
 
 // noteError records the first usage and transport errors so Run can map
@@ -278,11 +281,23 @@ func (c *Config) scenarioWith(env string, store *session.Store) (*scenario, erro
 }
 
 func (c *Config) before(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
+	if c.halted {
+		// --stop-on-failure: later scenarios are recorded as skipped rather
+		// than aborting the run, which would leave the report incomplete.
+		return ctx, godog.ErrSkip
+	}
 	sc, err := c.newScenario(c.Env)
 	if err != nil {
 		return ctx, err
 	}
 	return context.WithValue(ctx, ctxKey{}, sc), nil
+}
+
+func (c *Config) after(ctx context.Context, _ *godog.Scenario, err error) (context.Context, error) {
+	if err != nil && c.stopOnFailure && !errors.Is(err, godog.ErrSkip) {
+		c.halted = true
+	}
+	return ctx, nil
 }
 
 func from(ctx context.Context) (*scenario, error) {
@@ -309,12 +324,17 @@ func (s *scenario) render(text string) (string, error) {
 // vars apply to this invocation only: phrase parameters and `with:` tables
 // do not leak into later steps.
 func (s *scenario) run(ctx context.Context, target string, vars map[string]string) error {
-	restore := s.setScoped(vars)
-	defer restore()
 	reqs, err := s.r.Project.Resolve(target)
 	if err != nil {
 		return s.cfg.fail(&runner.UsageError{Msg: err.Error()})
 	}
+	return s.runRequests(ctx, reqs, vars)
+}
+
+// runRequests runs reqs as a flow with vars scoped to this invocation.
+func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, vars map[string]string) error {
+	restore := s.setScoped(vars)
+	defer restore()
 	results, err := s.r.RunAll(ctx, reqs)
 	if len(results) > 0 {
 		s.last = results[len(results)-1]
