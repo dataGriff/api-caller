@@ -86,8 +86,18 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 		next.r.SetVar(k, v)
 	}
 	if sc.r.Session != nil {
+		cache := map[string]string{}
 		for k, v := range sc.r.Session.Vars(sc.r.Opts.Env) {
+			if strings.HasPrefix(k, "$") {
+				// Auth caches ($oauth2:, $exec:) are read from the session
+				// under the current environment, not from captures.
+				cache[k] = v
+				continue
+			}
 			next.r.Capture(k, v)
+		}
+		if len(cache) > 0 {
+			next.r.Session.Set(next.r.Opts.Env, cache)
 		}
 	}
 	for k, v := range sc.r.Captured() {

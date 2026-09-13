@@ -66,6 +66,9 @@ func TestCompareNumbersExactly(t *testing.T) {
 		{"99", "<", "1e2", true},
 		{"abc", "==", "abc", true},
 		{"1/2", "==", "0.5", false},
+		{"1e1000", ">", "1e999", true},
+		{"1e-1000", "<", "1", true},
+		{"-0.5", "<", "+.5", true},
 	}
 	for _, c := range cases {
 		if got, why := compare(c.actual, c.op, c.expected); got != c.want || why != "" {

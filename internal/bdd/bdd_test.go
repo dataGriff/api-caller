@@ -965,3 +965,35 @@ Feature: Session across environments
 		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
 	}
 }
+
+func TestEnvironmentSwitchCarriesAuthCache(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"},"alt":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.MkdirAll(filepath.Join(dir, ".apic"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, ".apic", "session.json"), []byte(`{"envs":{"dev":{"$oauth2:abc":"cached-token"}}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	_, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", UseSession: true, Stderr: io.Discard},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(`
+Feature: Auth cache across environments
+  Scenario: The cache follows the scenario into the new environment
+    When the environment is "alt"
+    And I am logged in
+`)}},
+	})
+	if err != nil || code != ExitPassed {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".apic", "session.json"))
+	must(t, err)
+	var saved struct {
+		Envs map[string]map[string]string `json:"envs"`
+	}
+	must(t, json.Unmarshal(data, &saved))
+	if saved.Envs["alt"]["$oauth2:abc"] != "cached-token" || saved.Envs["alt"]["token"] != "t-1" {
+		t.Fatalf("the auth cache must be available under the new environment: %s", data)
+	}
+}

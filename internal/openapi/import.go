@@ -412,7 +412,7 @@ func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
 	if sub := d.items(d.get(s, "allOf")); len(sub) > 0 {
 		merged := &orderedObject{}
 		var scalar any
-		found := false
+		object, found := false, false
 		for _, branch := range sub {
 			v, ok := d.exampleFromSchema(branch, depth+1)
 			if !ok {
@@ -422,12 +422,12 @@ func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
 				for _, k := range obj.keys {
 					merged.set(k, obj.vals[k])
 				}
-				found = true
+				object = true
 			} else if !found {
 				scalar, found = v, true
 			}
 		}
-		if len(merged.keys) > 0 || typ == "object" || len(props) > 0 {
+		if object || typ == "object" || len(props) > 0 {
 			for _, p := range props {
 				v, _ := d.exampleFromSchema(p.value, depth+1)
 				merged.set(p.key, v)

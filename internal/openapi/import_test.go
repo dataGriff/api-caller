@@ -763,3 +763,44 @@ paths:
 		t.Errorf("generated file must parse as one request: %v %v", err, diags)
 	}
 }
+
+func TestImportAllOfObjectWithoutPropertiesAndExternalRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf: [{type: object}]
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, "\n{}\n") || strings.Contains(all, "null") {
+		t.Errorf("an allOf of a bare object is an empty object:\n%s", all)
+	}
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /b:
+    post:
+      operationId: b
+      requestBody: {$ref: "shared.yaml#/components/requestBodies/Body"}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out2")}); err == nil || !strings.Contains(err.Error(), "external $ref") {
+		t.Fatalf("an external $ref must be reported, not silently dropped: %v", err)
+	}
+}

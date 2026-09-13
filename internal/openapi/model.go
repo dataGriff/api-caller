@@ -106,8 +106,7 @@ func (d *document) items(n *yaml.Node) []*yaml.Node {
 
 // resolve follows YAML aliases and local `$ref` pointers such as
 // `#/components/schemas/Pet`. A cycle is recorded in d.err and yields nil.
-// External references are left unresolved (returned as the mapping holding
-// $ref).
+// External references are unsupported and recorded in d.err.
 func (d *document) resolve(n *yaml.Node) *yaml.Node {
 	return d.resolveFrom(n, map[*yaml.Node]bool{})
 }
@@ -137,7 +136,11 @@ func (d *document) resolveFrom(n *yaml.Node, visited map[*yaml.Node]bool) *yaml.
 			}
 			siblings = append(siblings, n.Content[i], n.Content[i+1])
 		}
-		if ref == "" || !strings.HasPrefix(ref, "#/") {
+		if ref == "" {
+			return n
+		}
+		if !strings.HasPrefix(ref, "#/") {
+			d.fail(fmt.Errorf("unsupported external $ref %q at line %d: only local #/ references are resolved", ref, n.Line))
 			return n
 		}
 		target := d.pointer(strings.TrimPrefix(ref, "#/"))

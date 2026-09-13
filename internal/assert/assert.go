@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/dataGriff/api-caller/internal/selector"
@@ -98,14 +97,18 @@ func Eval(e Expr, expected string, resp *selector.Response) Result {
 	return res
 }
 
+// reNumber is the decimal syntax assertions treat as numeric: an optional
+// sign, digits with an optional fraction, an optional exponent.
+var reNumber = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$`)
+
 // parseNumber reads a decimal number exactly, so large integers such as
-// 9007199254740993 keep their value instead of rounding through float64.
+// 9007199254740993 keep their value instead of rounding through float64,
+// and values beyond float64's range (1e1000) still compare as numbers.
 func parseNumber(s string) (*big.Rat, bool) {
-	if _, err := strconv.ParseFloat(s, 64); err != nil {
-		return nil, false // not a number in the usual sense (also rejects "1/2")
+	if !reNumber.MatchString(s) {
+		return nil, false // words, Inf, NaN and fractions like 1/2 compare as text
 	}
-	r, ok := new(big.Rat).SetString(s)
-	return r, ok // false for Inf and NaN, which then compare as text
+	return new(big.Rat).SetString(s)
 }
 
 func compare(actual, op, expected string) (bool, string) {
