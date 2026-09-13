@@ -55,6 +55,29 @@ func (c *Config) noteError(err error) {
 	}
 }
 
+// fail masks a step error's text under --redact (error messages may echo
+// rendered values), records typed errors for the exit code, and returns
+// the error to hand back to godog.
+func (c *Config) fail(err error) error {
+	if err == nil {
+		return nil
+	}
+	if c.Redact {
+		var ue *runner.UsageError
+		var te *runner.TransportError
+		switch {
+		case errors.As(err, &ue):
+			err = &runner.UsageError{Msg: c.mask(ue.Msg)}
+		case errors.As(err, &te):
+			err = &runner.TransportError{Err: errors.New(c.mask(te.Err.Error()))}
+		default:
+			err = errors.New(c.mask(err.Error()))
+		}
+	}
+	c.noteError(err)
+	return err
+}
+
 // noteSecrets registers values to mask in redacted reports.
 func (c *Config) noteSecrets(vals map[string]string) {
 	if !c.Redact {
@@ -159,6 +182,7 @@ func (c *Config) newScenario(env string) (*scenario, error) {
 	}
 	if c.Redact {
 		// r.Opts.Env is the effective environment (apic.yaml may supply the default).
+		c.noteSecrets(c.Vars) // --var values are operator input and may be secrets
 		c.noteSecrets(r.Envs.PrivateVars(r.Opts.Env))
 		c.noteSecrets(r.Envs.DotEnv)
 		if r.Session != nil {
@@ -196,28 +220,23 @@ func from(ctx context.Context) (*scenario, error) {
 func (s *scenario) render(text string) (string, error) {
 	out, err := s.r.Render(text)
 	if err != nil {
-		var uerr *runner.UsageError
 		if s.cfg.Redact {
-			uerr = &runner.UsageError{Msg: "step value (hidden by --redact): " + err.Error()}
-		} else {
-			uerr = &runner.UsageError{Msg: fmt.Sprintf("%q: %v", text, err)}
+			return "", s.cfg.fail(&runner.UsageError{Msg: "step value (hidden by --redact): " + err.Error()})
 		}
-		s.cfg.noteError(uerr)
-		return "", uerr
+		return "", s.cfg.fail(&runner.UsageError{Msg: fmt.Sprintf("%q: %v", text, err)})
 	}
 	return out, nil
 }
 
 // run executes a target (request id or file) and records the last result.
+// vars apply to this invocation only: phrase parameters and `with:` tables
+// do not leak into later steps.
 func (s *scenario) run(ctx context.Context, target string, vars map[string]string) error {
-	for k, v := range vars {
-		s.r.SetVar(k, v)
-	}
+	restore := s.setScoped(vars)
+	defer restore()
 	reqs, err := s.r.Project.Resolve(target)
 	if err != nil {
-		uerr := &runner.UsageError{Msg: err.Error()}
-		s.cfg.noteError(uerr)
-		return uerr
+		return s.cfg.fail(&runner.UsageError{Msg: err.Error()})
 	}
 	results, err := s.r.RunAll(ctx, reqs)
 	if len(results) > 0 {
@@ -233,8 +252,7 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 			// and record that form so the CLI never prints the original.
 			err = &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.last.Request.DisplayURL(true))}
 		}
-		s.cfg.noteError(err)
-		return err
+		return s.cfg.fail(err)
 	}
 	for _, res := range results {
 		if !res.OK {
@@ -242,6 +260,30 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 		}
 	}
 	return nil
+}
+
+// setScoped applies vars at --var precedence and returns a function that
+// restores the previous values.
+func (s *scenario) setScoped(vars map[string]string) func() {
+	type prev struct {
+		val string
+		ok  bool
+	}
+	saved := map[string]prev{}
+	for k, v := range vars {
+		old, ok := s.r.Opts.Vars[k]
+		saved[k] = prev{old, ok}
+		s.r.SetVar(k, v)
+	}
+	return func() {
+		for k, p := range saved {
+			if p.ok {
+				s.r.Opts.Vars[k] = p.val
+			} else {
+				delete(s.r.Opts.Vars, k)
+			}
+		}
+	}
 }
 
 func (s *scenario) requireLast() (*runner.Result, error) {

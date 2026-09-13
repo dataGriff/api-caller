@@ -51,12 +51,32 @@ func Summarize(report []byte) (*Summary, error) {
 	}
 	s := &Summary{OK: true}
 	for _, f := range features {
+		// godog emits a background element before each scenario it applies to;
+		// its failures belong to that scenario.
+		var pending []Failure
 		for _, el := range f.Elements {
+			if el.Type == "background" {
+				for _, st := range el.Steps {
+					switch st.Result.Status {
+					case "failed", "undefined", "pending", "ambiguous":
+						pending = append(pending, Failure{Feature: f.Name, Scenario: "", Step: strings.TrimSpace(st.Keyword) + " " + st.Name, Status: st.Result.Status, Error: st.Result.ErrorMessage})
+					}
+				}
+				continue
+			}
 			if el.Type != "scenario" {
 				continue
 			}
 			s.Scenarios++
-			failed := false
+			failed := len(pending) > 0
+			for _, pf := range pending {
+				pf.Scenario = el.Name
+				if pf.Status == "undefined" {
+					s.Undefined++
+				}
+				s.Failures = append(s.Failures, pf)
+			}
+			pending = nil
 			for _, st := range el.Steps {
 				switch st.Result.Status {
 				case "failed", "undefined", "pending", "ambiguous":

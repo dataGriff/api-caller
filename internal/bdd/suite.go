@@ -233,6 +233,8 @@ func (o *Options) resolvePaths() ([]string, error) {
 			if n == 0 {
 				return nil, fmt.Errorf("no .feature files under %s", real)
 			}
+		} else if !strings.HasSuffix(real, ".feature") {
+			return nil, fmt.Errorf("%s is not a .feature file", p)
 		}
 		out = append(out, real)
 	}

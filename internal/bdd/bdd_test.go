@@ -710,3 +710,58 @@ func TestEmptyOrInvalidVariableNamesAreRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestScopedVarsBackgroundFailuresAndMaskedErrors(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	// Phrase and table variables do not leak into later steps; a table may supply the target.
+	sum, code := run(t, p, `
+Feature: Scoping
+  Scenario: Phrase parameters are scoped to their request
+    Given I am logged in
+    And a user named "alice" exists
+    Then the variable "probe" is "{{role}}"
+    And the variable "probe" is "member"
+    When I run "{{which}}" with:
+      | which | login |
+    Then the response status is 200
+`, "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+	// A failing Background marks every scenario failed in the summary.
+	sum, code = run(t, p, `
+Feature: Background failure
+  Background:
+    Given I am logged in
+    And the response status is 500
+  Scenario: one
+    Then the response status is 200
+  Scenario: two
+    Then the response status is 200
+`, "dev")
+	if code != ExitFailed || sum.Failed != 2 || sum.Passed != 0 || len(sum.Failures) != 2 || sum.Failures[0].Scenario != "one" {
+		t.Fatalf("background failure not attributed: code=%d sum=%+v", code, sum)
+	}
+	// Table errors and unknown-request errors are usage errors, masked under --redact.
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Redact: true, Vars: map[string]string{"secretTarget": "hunter2-target"}},
+		Features: []godog.Feature{{Name: "m.feature", Contents: []byte("Feature: m\n  Scenario: s\n    When I run \"{{secretTarget}}\"\n")}}})
+	if code != ExitUsage || err == nil || strings.Contains(err.Error(), "hunter2-target") || !strings.Contains(err.Error(), "***") {
+		t.Fatalf("resolve error must be masked: code=%d err=%v", code, err)
+	}
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Redact: true, Vars: map[string]string{"secretEnv": "hunter2-env"}},
+		Features: []godog.Feature{{Name: "e.feature", Contents: []byte("Feature: e\n  Scenario: s\n    Given the environment is \"{{secretEnv}}\"\n")}}})
+	if code != ExitUsage || err == nil || strings.Contains(err.Error(), "hunter2-env") {
+		t.Fatalf("environment error must be masked: code=%d err=%v", code, err)
+	}
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    When I run \"login\" with:\n      | bad name | x |\n")}}})
+	if code != ExitUsage || err == nil {
+		t.Fatalf("table error must be a usage error: code=%d err=%v", code, err)
+	}
+	// A non-feature file path is a usage error.
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Paths: []string{"api.http"}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "not a .feature file") {
+		t.Fatalf("non-feature path: code=%d err=%v", code, err)
+	}
+}

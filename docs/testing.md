@@ -37,13 +37,12 @@ for that request; each matches a quoted string or a bare word.
 ### Create a user
 # @name create-user
 # @step a user named {name} exists
-# @step a {role} called {name} exists
 # @assert status == 201
 # @capture userId = body.$.id
 POST {{baseUrl}}/users
 Content-Type: application/json
 
-{"name": "{{name}}", "role": "{{role}}"}
+{"name": "{{name}}"}
 
 ### Fetch a user
 # @name get-user
@@ -55,7 +54,8 @@ Authorization: Bearer {{token}}
 
 A phrase does exactly what `I run "<id>"` does: it sends the request,
 fails the step if any `# @assert` or `# @capture` on it fails, and makes
-captured values available to later steps. `apic validate` reports a phrase
+captured values available to later steps. The phrase's parameters apply to
+that request only; they are not visible to later steps. `apic validate` reports a phrase
 that could match the same text as another phrase or as a built-in step
 (for example `# @step I run {x}`, or `I do {x}` next to `I {x} foo`, which
 both match "I do foo"), since godog would treat such steps as ambiguous.
@@ -86,7 +86,7 @@ scenario, and built-ins such as `{{$uuid}}`.
 | Step | Effect |
 |---|---|
 | `When I run "get-user"` | Send a request by id (`name`, `file.http#name` or `file.http#3`). |
-| `When I run "get-user" with:` + table | Same, with variables set first. |
+| `When I run "get-user" with:` + table | Same, with variables set for this request only (the table may also supply the target itself). |
 | `When I run the file "smoke.http"` | Send every request in the file in order; stops at the first failure. |
 
 A run step fails when the request cannot be sent (missing variable,
@@ -158,7 +158,7 @@ In the cucumber JSON report only string values are masked, so numbers and
 structure are untouched. Values shorter than three characters are not
 substituted in report text, since masking a lone digit would corrupt the
 report itself; they are still never printed by error messages. Values
-passed as `APIC_VAR_*` are treated as secrets.
+passed as `APIC_VAR_*` or `--var` are treated as secrets.
 
 ```yaml
 # GitHub Actions

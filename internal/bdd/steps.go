@@ -76,8 +76,7 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	}
 	next, err := sc.cfg.newScenario(env)
 	if err != nil {
-		sc.cfg.noteError(err)
-		return ctx, err
+		return ctx, sc.cfg.fail(err)
 	}
 	return context.WithValue(ctx, ctxKey{}, next), nil
 }
@@ -88,8 +87,7 @@ func stepVariable(ctx context.Context, name, value string) error {
 		return err
 	}
 	if err := checkVarName(name); err != nil {
-		sc.cfg.noteError(err)
-		return err
+		return sc.cfg.fail(err)
 	}
 	v, err := sc.render(value)
 	if err != nil {
@@ -106,7 +104,7 @@ func stepVariables(ctx context.Context, t *godog.Table) error {
 	}
 	vars, err := tableVars(t)
 	if err != nil {
-		return err
+		return sc.cfg.fail(err)
 	}
 	for k, v := range vars {
 		rv, err := sc.render(v)
@@ -136,14 +134,18 @@ func stepRunWith(ctx context.Context, target string, t *godog.Table) error {
 	}
 	vars, err := tableVars(t)
 	if err != nil {
-		return err
+		return sc.cfg.fail(err)
 	}
 	for k, v := range vars {
 		if vars[k], err = sc.render(v); err != nil {
 			return err
 		}
 	}
-	if target, err = sc.render(target); err != nil {
+	// The table may supply the target itself, so apply it before rendering.
+	restore := sc.setScoped(vars)
+	target, err = sc.render(target)
+	restore()
+	if err != nil {
 		return err
 	}
 	return sc.run(ctx, target, vars)
@@ -212,8 +214,7 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 		return err
 	}
 	if err := checkVarName(name); err != nil {
-		sc.cfg.noteError(err)
-		return err
+		return sc.cfg.fail(err)
 	}
 	res, err := sc.requireLast()
 	if err != nil {
