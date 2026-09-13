@@ -10,6 +10,7 @@ import (
 
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/phrase"
+	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 // Vocabulary documents the built-in steps for `apic test --steps` and the docs.
@@ -44,7 +45,7 @@ var handlers = map[string]any{
 	"variables":     stepVariables,
 	"run":           stepRun,
 	"run-with":      stepRunWith,
-	"run-file":      stepRun,
+	"run-file":      stepRunFile,
 	"status":        stepStatus,
 	"status-not":    stepStatusNot,
 	"status-class":  stepStatusClass,
@@ -156,6 +157,23 @@ func stepRun(ctx context.Context, target string) error {
 	return sc.run(ctx, target, nil)
 }
 
+// stepRunFile runs a whole .http file; a request id or a `file#fragment`
+// target is refused so the step means what it says.
+func stepRunFile(ctx context.Context, target string) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if target, err = sc.render(target); err != nil {
+		return err
+	}
+	lower := strings.ToLower(target)
+	if strings.Contains(target, "#") || !(strings.HasSuffix(lower, ".http") || strings.HasSuffix(lower, ".rest")) {
+		return sc.cfg.fail(&runner.UsageError{Msg: fmt.Sprintf("I run the file: %q is not a .http/.rest file (use `I run %q` for a single request)", target, target)})
+	}
+	return sc.run(ctx, target, nil)
+}
+
 func stepRunWith(ctx context.Context, target string, t *godog.Table) error {
 	sc, err := from(ctx)
 	if err != nil {
@@ -208,7 +226,7 @@ func stepStatusClass(ctx context.Context, class string) error {
 		ok = st >= 500 && st < 600
 	}
 	if !ok {
-		return fmt.Errorf("expected the response to be %s, got %d %s\n%s", class, st, res.Raw().StatusText, describeFailure(res))
+		return sc.cfg.fail(fmt.Errorf("expected the response to be %s, got %d %s\n%s", class, st, res.Raw().StatusText, sc.cfg.describeFailure(res)))
 	}
 	return nil
 }
@@ -267,7 +285,7 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 		return sc.cfg.fail(fmt.Errorf("capture %s: %s", sel, r.Error))
 	}
 	if !r.Pass {
-		return sc.cfg.fail(fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), describeFailure(res)))
+		return sc.cfg.fail(fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), sc.cfg.describeFailure(res)))
 	}
 	sc.cfg.noteSecrets(map[string]string{name: r.Actual})
 	sc.r.Capture(name, r.Actual) // same precedence as # @capture: below --var, above env files
@@ -313,7 +331,7 @@ func bodyMatch(ctx context.Context, doc *godog.DocString, exact bool) error {
 		if res.Redact {
 			return fmt.Errorf("response body does not match the expected document (details hidden by --redact)")
 		}
-		return fmt.Errorf("response body mismatch: %s\n%s", why, describeFailure(res))
+		return sc.cfg.fail(fmt.Errorf("response body mismatch: %s\n%s", why, sc.cfg.describeFailure(res)))
 	}
 	return nil
 }
@@ -331,15 +349,15 @@ func check(ctx context.Context, sel, op, expected string) error {
 	r := assert.Eval(assert.Expr{Selector: sel, Op: op, Value: expected}, expected, res.Raw())
 	if res.Redact {
 		if r.Error != "" || !r.Pass {
-			return fmt.Errorf("assertion failed: %s (values hidden by --redact)\n%s", redactExpr(r.Expr), describeFailure(res))
+			return sc.cfg.fail(fmt.Errorf("assertion failed: %s (values hidden by --redact)\n%s", redactExpr(r.Expr), sc.cfg.describeFailure(res)))
 		}
 		return nil
 	}
 	if r.Error != "" {
-		return fmt.Errorf("%s: %s\n%s", r.Expr, r.Error, describeFailure(res))
+		return sc.cfg.fail(fmt.Errorf("%s: %s\n%s", r.Expr, r.Error, sc.cfg.describeFailure(res)))
 	}
 	if !r.Pass {
-		return fmt.Errorf("expected %s, got %q\n%s", r.Expr, excerpt(r.Actual, 120), describeFailure(res))
+		return sc.cfg.fail(fmt.Errorf("expected %s, got %q\n%s", r.Expr, excerpt(r.Actual, 120), sc.cfg.describeFailure(res)))
 	}
 	return nil
 }

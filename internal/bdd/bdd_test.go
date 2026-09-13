@@ -1126,3 +1126,39 @@ Feature: Capture errors
 		}
 	}
 }
+
+func TestRedactMasksShortSecretInPath(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"userId": "zq"}},
+		Features: []godog.Feature{{Name: "p.feature", Contents: []byte(`
+Feature: Path secrets
+  Scenario: A two-character secret in the path never appears in a failure
+    Given I am logged in
+    When I run "get-user"
+    Then the response status is 200
+`)}},
+	})
+	if err != nil || code != ExitFailed || len(sum.Failures) != 1 {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+	if e := sum.Failures[0].Error; strings.Contains(e, "/users/zq") || strings.Contains(e, "zq") {
+		t.Fatalf("the path secret leaked: %q", e)
+	}
+}
+
+func TestRunFileStepRefusesRequestIDs(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard},
+		Features: []godog.Feature{{Name: "f.feature", Contents: []byte("Feature: f\n  Scenario: s\n    When I run the file \"login\"\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "not a .http/.rest file") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard},
+		Features: []godog.Feature{{Name: "f.feature", Contents: []byte("Feature: f\n  Scenario: s\n    When I run the file \"api.http#login\"\n")}}})
+	if code != ExitUsage || err == nil {
+		t.Fatalf("a fragment is not a whole file: code=%d err=%v", code, err)
+	}
+}

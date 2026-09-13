@@ -347,7 +347,7 @@ func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, va
 		if s.cfg.Redact && errors.As(err, &te) && s.last != nil {
 			// Go's transport errors quote the full URL; keep the masked form only,
 			// and record that form so the CLI never prints the original.
-			err = &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.last.Request.DisplayURL(true))}
+			err = &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.cfg.maskError(s.last.Request.DisplayURL(true)))}
 		}
 		return s.cfg.fail(err)
 	}
@@ -357,7 +357,7 @@ func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, va
 			if id == "" {
 				id = fmt.Sprintf("%s:%d", res.Request.File, res.Request.Line)
 			}
-			return fmt.Errorf("%s failed:\n%s", id, describeFailure(res))
+			return s.cfg.fail(fmt.Errorf("%s failed:\n%s", id, s.cfg.describeFailure(res)))
 		}
 	}
 	return nil
@@ -395,9 +395,13 @@ func (s *scenario) requireLast() (*runner.Result, error) {
 }
 
 // describeFailure summarises a result for a step error message.
-func describeFailure(res *runner.Result) string {
+func (c *Config) describeFailure(res *runner.Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "  %s %s\n", res.Request.Method, res.Request.DisplayURL(res.Redact))
+	url := res.Request.DisplayURL(res.Redact)
+	if res.Redact {
+		url = c.maskError(url) // DisplayURL masks query values; secrets may sit in the path too
+	}
+	fmt.Fprintf(&b, "  %s %s\n", res.Request.Method, url)
 	if res.Response != nil {
 		fmt.Fprintf(&b, "  %d %s (%d ms)\n", res.Response.Status, res.Response.StatusText, res.Response.DurationMs)
 	}
