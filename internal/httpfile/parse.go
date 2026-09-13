@@ -42,8 +42,8 @@ var (
 	reDirective   = regexp.MustCompile(`^@([A-Za-z][\w-]*)(?:\s+(.*))?$`)
 	reRequestLine = regexp.MustCompile(`^([A-Z]+)\s+(\S.*?)(?:\s+(HTTP/[\d.]+))?\s*$`)
 	// Header names are RFC 7230 tokens, so X.Correlation-ID is valid.
-	reHeader      = regexp.MustCompile("^([!#$%&'*+.^_`|~0-9A-Za-z-]+):\\s*(.*)$")
-	reCapture     = regexp.MustCompile(`^([A-Za-z_][\w.-]*)\s*=\s*(.+)$`)
+	reHeader  = regexp.MustCompile("^([!#$%&'*+.^_`|~0-9A-Za-z-]+):\\s*(.*)$")
+	reCapture = regexp.MustCompile(`^([A-Za-z_][\w.-]*)\s*=\s*(.+)$`)
 )
 
 // ParseFile reads and parses a .http file from disk.
