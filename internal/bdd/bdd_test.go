@@ -140,6 +140,8 @@ Feature: Users
       """
 
   Scenario: Variables and tables
+    Given the variable "role" is "{{role}}-x"
+    Then the variable "role" is "member-x"
     Given the variables:
       | name | value |
       | role | admin |
@@ -230,6 +232,64 @@ Feature: Isolation
 	}
 	if !strings.Contains(sum.Failures[0].Error, "request failed") {
 		t.Fatalf("environment switch should hit the unreachable env: %+v", sum.Failures)
+	}
+}
+
+func TestRedactHidesValuesInFailures(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	var stderr bytes.Buffer
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: &stderr},
+		Features: []godog.Feature{{Name: "r.feature", Contents: []byte(`
+Feature: Redacted
+  Scenario: Compare
+    Given I am logged in
+    When a user named "secret-name" exists
+    Then the response body "$.name" is "other-value"
+  Scenario: Body match
+    Given I am logged in
+    When a user named "secret-name" exists
+    Then the response body contains:
+      """
+      {"name": "expected-secret"}
+      """
+  Scenario: Request assert
+    When I run "get-user" with:
+      | userId | 0          |
+      | token  | secret-tok |
+    Then the response status is 200
+`)}},
+	})
+	if err != nil || code != ExitFailed || sum.Failed != 3 {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+	for _, f := range sum.Failures {
+		for _, leak := range []string{"secret-name", "other-value", "expected-secret", "secret-tok", "\"name\":"} {
+			if strings.Contains(f.Error, leak) {
+				t.Errorf("--redact leaked %q in %q", leak, f.Error)
+			}
+		}
+	}
+}
+
+func TestEnvironmentStepUsageError(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "e.feature", Contents: []byte("Feature: e\n  Scenario: s\n    Given the environment is \"missing\"\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), `environment "missing"`) {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestEmptyFeatureDirIsUsageError(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	must(t, os.MkdirAll(filepath.Join(p.Root, "features"), 0o755))
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "no .feature files") {
+		t.Fatalf("code=%d err=%v", code, err)
 	}
 }
 

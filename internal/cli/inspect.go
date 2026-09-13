@@ -74,9 +74,23 @@ func (a *App) listCmd() *cobra.Command {
 				return nil
 			}
 			tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(tw, styleBold.Render("ID")+"\t"+styleBold.Render("METHOD")+"\t"+styleBold.Render("URL")+"\t"+styleBold.Render("FILE")+"\t"+styleBold.Render("DESCRIPTION"))
+			hasSteps := false
 			for _, e := range entries {
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Method, e.URL, fmt.Sprintf("%s:%d", e.File, e.Line), e.Description)
+				if len(e.Steps) > 0 {
+					hasSteps = true
+				}
+			}
+			header := styleBold.Render("ID") + "\t" + styleBold.Render("METHOD") + "\t" + styleBold.Render("URL") + "\t" + styleBold.Render("FILE") + "\t" + styleBold.Render("DESCRIPTION")
+			if hasSteps {
+				header += "\t" + styleBold.Render("PHRASES")
+			}
+			fmt.Fprintln(tw, header)
+			for _, e := range entries {
+				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", e.ID, e.Method, e.URL, fmt.Sprintf("%s:%d", e.File, e.Line), e.Description)
+				if hasSteps {
+					line += "\t" + strings.Join(e.Steps, " | ")
+				}
+				fmt.Fprintln(tw, line)
 			}
 			return tw.Flush()
 		},

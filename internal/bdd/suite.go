@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cucumber/godog"
 
@@ -91,6 +93,9 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	if phraseErr != nil {
 		return ExitUsage, phraseErr
 	}
+	if opts.usageErr != nil {
+		return ExitUsage, opts.usageErr
+	}
 	switch code {
 	case 0:
 		return ExitPassed, nil
@@ -134,16 +139,32 @@ func (o *Options) resolvePaths() ([]string, error) {
 	for _, p := range paths {
 		abs := p
 		if !filepath.IsAbs(p) {
-			if _, err := os.Stat(p); err == nil {
-				abs, _ = filepath.Abs(p)
-			} else {
-				abs = filepath.Join(o.Project.Root, p)
-			}
+			abs = filepath.Join(o.Project.Root, p)
 		}
-		if _, err := os.Stat(abs); err != nil {
-			return nil, fmt.Errorf("no features at %s (create features/*.feature under the project, or pass a path)", p)
+		info, err := os.Stat(abs)
+		if err != nil {
+			return nil, fmt.Errorf("no features at %s (paths are relative to the project root %s)", p, o.Project.Root)
+		}
+		if info.IsDir() && !containsFeature(abs) {
+			return nil, fmt.Errorf("no .feature files under %s", abs)
 		}
 		out = append(out, abs)
 	}
 	return out, nil
+}
+
+// containsFeature reports whether a directory holds at least one .feature file.
+func containsFeature(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".feature") {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found
 }

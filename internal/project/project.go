@@ -236,7 +236,7 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				continue
 			}
 			key := strings.TrimSpace(d.Value)
-			if other, dup := phrases[key]; dup && other != r {
+			if other, dup := phrases[key]; dup {
 				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
 					Message: fmt.Sprintf("@step %q is also declared on %s (%s:%d)", key, other.ID(), other.File.Path, other.Line)})
 			}

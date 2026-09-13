@@ -61,3 +61,23 @@ GET https://example.com
 		t.Fatalf("expected testdata dir to be skipped, got files=%+v diagnostics=%+v", p.Files, p.Diagnostics)
 	}
 }
+
+func TestValidateDuplicatePhraseOnSameRequest(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I do it\n# @step I do it\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do it" is also declared`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("duplicate phrase on the same request not reported: %v", p.Validate())
+	}
+}

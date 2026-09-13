@@ -201,3 +201,43 @@ func TestImportRejectsSwagger2(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestImportExamplesAndBoolCase(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /things:
+    post:
+      operationId: makeThing
+      parameters:
+        - name: X-Req
+          in: header
+          required: True
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            examples:
+              summaryOnly:
+                summary: no value here
+              real:
+                value: {"name": "from-example"}
+            schema: {type: object, properties: {name: {type: string}}}
+      responses:
+        "201": {description: created}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	if !strings.Contains(s, `"name": "from-example"`) {
+		t.Errorf("should use the first example with a value:\n%s", s)
+	}
+	if !strings.Contains(s, "\nX-Req: {{xReq}}\n") {
+		t.Errorf("required: True should be treated as required:\n%s", s)
+	}
+}

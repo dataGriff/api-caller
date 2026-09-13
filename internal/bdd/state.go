@@ -26,6 +26,14 @@ type Config struct {
 	Insecure   bool
 	Redact     bool
 	Stderr     io.Writer
+
+	usageErr error // first usage error raised by a step (e.g. unknown environment)
+}
+
+func (c *Config) noteUsageError(err error) {
+	if c.usageErr == nil {
+		c.usageErr = err
+	}
 }
 
 // scenario is the per-scenario state carried in the context.
@@ -121,19 +129,37 @@ func describeFailure(res *runner.Result) string {
 	}
 	for _, a := range res.Asserts {
 		switch {
+		case res.Redact && (a.Error != "" || !a.Pass):
+			fmt.Fprintf(&b, "  ✗ %s\n", redactExpr(a.Expr))
 		case a.Error != "":
 			fmt.Fprintf(&b, "  ✗ %s (%s)\n", a.Expr, a.Error)
 		case !a.Pass:
 			fmt.Fprintf(&b, "  ✗ %s (actual: %s)\n", a.Expr, excerpt(a.Actual, 120))
 		}
 	}
+	if res.Redact {
+		if len(res.Errors) > 0 {
+			fmt.Fprintf(&b, "  ✗ %d error(s) (details hidden by --redact)\n", len(res.Errors))
+		}
+		return b.String()
+	}
 	for _, e := range res.Errors {
 		fmt.Fprintf(&b, "  ✗ %s\n", e)
 	}
-	if raw := res.Raw(); raw != nil && len(raw.Body) > 0 && !res.Redact {
+	if raw := res.Raw(); raw != nil && len(raw.Body) > 0 {
 		fmt.Fprintf(&b, "  body: %s", excerpt(string(raw.Body), 300))
 	}
 	return b.String()
+}
+
+// redactExpr keeps the selector and operator of an assertion expression
+// and hides the expected value.
+func redactExpr(expr string) string {
+	fields := strings.Fields(expr)
+	if len(fields) <= 2 {
+		return expr
+	}
+	return fields[0] + " " + fields[1] + " " + runner.Masked
 }
 
 func excerpt(s string, n int) string {

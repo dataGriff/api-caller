@@ -2,6 +2,7 @@ package bdd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/phrase"
+	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 // Vocabulary documents the built-in steps for `apic test --steps` and the docs.
@@ -61,6 +63,10 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	}
 	next, err := sc.cfg.newScenario(env)
 	if err != nil {
+		var ue *runner.UsageError
+		if errors.As(err, &ue) {
+			sc.cfg.noteUsageError(err)
+		}
 		return ctx, err
 	}
 	return context.WithValue(ctx, ctxKey{}, next), nil
@@ -229,6 +235,9 @@ func bodyMatch(ctx context.Context, doc *godog.DocString, exact bool) error {
 		ok, why = jsonContains(res.Raw().Body, []byte(expected))
 	}
 	if !ok {
+		if res.Redact {
+			return fmt.Errorf("response body does not match the expected document (details hidden by --redact)")
+		}
 		return fmt.Errorf("response body mismatch: %s\n%s", why, describeFailure(res))
 	}
 	return nil
@@ -245,6 +254,12 @@ func check(ctx context.Context, sel, op, expected string) error {
 		return err
 	}
 	r := assert.Eval(assert.Expr{Selector: sel, Op: op, Value: expected}, expected, res.Raw())
+	if res.Redact {
+		if r.Error != "" || !r.Pass {
+			return fmt.Errorf("assertion failed: %s (values hidden by --redact)\n%s", redactExpr(r.Expr), describeFailure(res))
+		}
+		return nil
+	}
 	if r.Error != "" {
 		return fmt.Errorf("%s: %s\n%s", r.Expr, r.Error, describeFailure(res))
 	}

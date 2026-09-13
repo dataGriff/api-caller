@@ -289,9 +289,8 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		switch {
 		case d.get(media, "example") != nil:
 			v = decode(d.get(media, "example"))
-		case len(d.entries(d.get(media, "examples"))) > 0:
-			first := d.entries(d.get(media, "examples"))[0]
-			v = decode(d.get(first.value, "value"))
+		case firstExampleValue(d, d.get(media, "examples")) != nil:
+			v = decode(firstExampleValue(d, d.get(media, "examples")))
 		case d.get(media, "schema") != nil:
 			v = d.exampleFromSchema(d.get(media, "schema"), 0)
 		}
@@ -309,6 +308,16 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		return string(data), ct
 	}
 	return "", ""
+}
+
+// firstExampleValue returns the `value` of the first named example that has one.
+func firstExampleValue(d *document, examples *yaml.Node) *yaml.Node {
+	for _, ex := range d.entries(examples) {
+		if v := d.get(ex.value, "value"); v != nil {
+			return v
+		}
+	}
+	return nil
 }
 
 func (d *document) exampleFromSchema(s *yaml.Node, depth int) any {

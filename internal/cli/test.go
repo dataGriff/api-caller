@@ -44,6 +44,7 @@ environment or bad phrase.`,
 			if err != nil {
 				return err
 			}
+			runner.Version = Version
 			opts := bdd.Options{
 				Config: bdd.Config{Project: p, Env: a.g.env, Vars: vars, UseSession: useSession,
 					Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Stderr: a.Stderr},

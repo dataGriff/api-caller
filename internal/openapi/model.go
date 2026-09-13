@@ -142,7 +142,7 @@ func str(n *yaml.Node) string {
 }
 
 func boolean(n *yaml.Node) bool {
-	return str(n) == "true"
+	return strings.EqualFold(str(n), "true")
 }
 
 // decode converts a node into plain Go values, keeping object key order.
