@@ -121,11 +121,15 @@ func ParseNumber(s string) (*big.Rat, bool) {
 		return nil, false
 	}
 	if m[2] != "" {
-		digits := strings.TrimLeft(m[2], "+-")
+		sign := strings.TrimRight(m[2], "0123456789")
+		digits := strings.TrimLeft(strings.TrimPrefix(m[2], sign), "0") // 1e+0004096 is 1e4096
 		if len(digits) > 6 { // ±4096 needs four digits; anything longer is out of range anyway
 			return nil, false
 		}
-		exp, err := strconv.Atoi(strings.TrimPrefix(m[2], "+"))
+		if digits == "" {
+			digits = "0"
+		}
+		exp, err := strconv.Atoi(strings.TrimPrefix(sign+digits, "+"))
 		if err != nil || exp > maxNumberExponent || exp < -maxNumberExponent {
 			return nil, false
 		}

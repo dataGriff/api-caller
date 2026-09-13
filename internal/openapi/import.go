@@ -310,7 +310,8 @@ func (o *operation) render() string {
 				query = append(query, "# "+name+"="+v)
 			}
 		case "header":
-			name = reHeaderJunk.ReplaceAllString(name, "")
+			// `#` is a token character but opens a comment in .http files.
+			name = strings.TrimLeft(reHeaderJunk.ReplaceAllString(name, ""), "#")
 			if name == "" {
 				headers = append(headers, fmt.Sprintf("# skipped header parameter %q: not a valid header name", p.Name))
 				continue

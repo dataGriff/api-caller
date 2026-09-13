@@ -1155,6 +1155,7 @@ paths:
         - {name: "x;y", in: query, required: true, schema: {type: string}}
         - {name: "x;y", in: cookie, required: true, schema: {type: string}}
         - {name: ":", in: header, required: true, schema: {type: string}}
+        - {name: "#X-Hash", in: header, required: true, schema: {type: string}}
       requestBody:
         content:
           "text/plain\nX-Injected: yes":
@@ -1185,8 +1186,11 @@ paths:
 	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "\n# @auth") {
 		t.Errorf("only a well-formed status key becomes a directive:\n%s", all)
 	}
-	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes\n") || len(r.Headers) != 2 {
+	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes\n") || len(r.Headers) != 3 {
 		t.Errorf("the content type stays one header line: %+v\n%s", r.Headers, all)
+	}
+	if !strings.Contains(all, "\nX-Hash: {{xHash}}\n") {
+		t.Errorf("a leading # would turn the header into a comment:\n%s", all)
 	}
 	if !strings.Contains(all, `# skipped header parameter ":"`) || strings.Contains(all, "\n: {{") {
 		t.Errorf("a name that sanitises to nothing is skipped with a note:\n%s", all)
