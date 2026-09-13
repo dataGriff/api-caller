@@ -3,6 +3,7 @@ package demoapi
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,7 +36,8 @@ func TestWriteProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
+	// Windows has no POSIX permission bits; Go reports 0666 there.
+	if got := info.Mode().Perm(); got != 0o600 && runtime.GOOS != "windows" {
 		t.Fatalf("http-client.private.env.json mode = %o, want 600", got)
 	}
 
