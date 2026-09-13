@@ -1019,3 +1019,52 @@ func TestMalformedFeatureIsUsageErrorWithPosition(t *testing.T) {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
 }
+
+func TestSelectorsAreRenderedAndResponseRefsSurviveEnvSwitch(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, `
+Feature: Rendered selectors
+  Scenario: Selectors may contain variables and named responses survive a switch
+    Given the variable "idPath" is "$.token"
+    And the variable "hdr" is "content-type"
+    And I am logged in
+    Then the response body "{{idPath}}" is "t-1"
+    And the response body "{{idPath}}" exists
+    And the response header "{{hdr}}" contains "json"
+    When I capture the response body "{{idPath}}" as "tok"
+    Then the variable "check" is "{{tok}}"
+    And the variable "check" is "t-1"
+    When the environment is "dev"
+    Then the variable "ref" is "{{login.response.body.$.token}}"
+    And the variable "ref" is "t-1"
+`, "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestConfiguredTestPathsAndExplicitOverride(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte("test:\n  paths: [specs]\n"), 0o644))
+	must(t, os.MkdirAll(filepath.Join(dir, "specs"), 0o755))
+	must(t, os.MkdirAll(filepath.Join(dir, "features"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "specs", "ok.feature"), []byte("Feature: ok\n  Scenario: passes\n    Given I am logged in\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "features", "bad.feature"), []byte("Feature: bad\n  Scenario: fails\n    Given I am logged in\n    Then the response status is 500\n"), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	if len(p.Config.Test.Paths) != 1 || p.Config.Test.Paths[0] != "specs" {
+		t.Fatalf("test.paths not loaded: %+v", p.Config.Test)
+	}
+	sum, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard}})
+	if err != nil || code != ExitPassed || sum.Scenarios != 1 || sum.Failed != 0 {
+		t.Fatalf("configured paths: code=%d err=%v sum=%+v", code, err, sum)
+	}
+	sum, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard}, Paths: []string{"features"}})
+	if err != nil || code != ExitFailed || sum.Scenarios != 1 || sum.Failed != 1 {
+		t.Fatalf("explicit paths must override test.paths: code=%d err=%v sum=%+v", code, err, sum)
+	}
+}

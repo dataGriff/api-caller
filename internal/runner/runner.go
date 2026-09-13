@@ -394,6 +394,25 @@ func (r *Runner) Capture(name, value string) {
 	r.captured[name] = value
 }
 
+// Results returns the named responses of this run, for
+// `{{name.response...}}` references.
+func (r *Runner) Results() map[string]*Result {
+	out := make(map[string]*Result, len(r.results))
+	for k, v := range r.results {
+		out[k] = v
+	}
+	return out
+}
+
+// SetResult registers a named response, e.g. one carried over from
+// another runner.
+func (r *Runner) SetResult(name string, res *Result) {
+	if r.results == nil {
+		r.results = map[string]*Result{}
+	}
+	r.results[name] = res
+}
+
 // Captured returns a copy of the values captured during this run.
 func (r *Runner) Captured() map[string]string {
 	out := make(map[string]string, len(r.captured))

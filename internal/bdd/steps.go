@@ -103,6 +103,9 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	for k, v := range sc.r.Captured() {
 		next.r.Capture(k, v)
 	}
+	for k, v := range sc.r.Results() {
+		next.r.SetResult(k, v) // keeps {{name.response...}} references working
+	}
 	next.last = sc.last
 	return context.WithValue(ctx, ctxKey{}, next), nil
 }
@@ -215,6 +218,9 @@ func stepCompare(ctx context.Context, where, sel, word, value string) error {
 	if err != nil {
 		return err
 	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
 	expected, err := sc.render(value)
 	if err != nil {
 		return err
@@ -223,6 +229,13 @@ func stepCompare(ctx context.Context, where, sel, word, value string) error {
 }
 
 func stepExists(ctx context.Context, where, sel, word string) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
 	op := "exists"
 	if word == "does not exist" {
 		op = "not exists"
@@ -244,6 +257,9 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 	}
 	res, err := sc.requireLast()
 	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
 		return err
 	}
 	r := assert.Eval(assert.Expr{Selector: selector(where, sel), Op: "exists"}, "", res.Raw())
