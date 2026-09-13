@@ -126,6 +126,18 @@ Feature: Me
 	if feat["ok"] != false || feat["passed"] != float64(1) || feat["failed"] != float64(1) || feat["exit_code"] != float64(1) {
 		t.Fatalf("run_features: %v", feat)
 	}
+	// Isolated by default: the feature's login capture never reaches the shared session.
+	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != false {
+		t.Fatal("run_features must not touch the shared session by default")
+	}
+	shared := call("run_features", map[string]any{"use_session": true, "tags": "~@none"})
+	if shared["scenarios"] != float64(2) {
+		t.Fatalf("run_features with use_session: %v", shared)
+	}
+	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != true {
+		t.Fatalf("use_session must share captures with the other tools: %v", d)
+	}
+	call("clear_session", map[string]any{})
 	// A transport failure still returns the summary of what ran, with the error and exit code.
 	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"},"down":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
 	down := call("run_features", map[string]any{"env": "down"})

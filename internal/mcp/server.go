@@ -276,10 +276,11 @@ func (s *service) clearSession(_ context.Context, _ *sdk.CallToolRequest, in cle
 }
 
 type featuresInput struct {
-	Paths []string          `json:"paths,omitempty" jsonschema:"feature files or directories relative to the project root; default features/"`
-	Tags  string            `json:"tags,omitempty" jsonschema:"tag expression such as @smoke && ~@slow"`
-	Env   string            `json:"env,omitempty"`
-	Vars  map[string]string `json:"vars,omitempty"`
+	Paths      []string          `json:"paths,omitempty" jsonschema:"feature files or directories relative to the project root; default features/"`
+	Tags       string            `json:"tags,omitempty" jsonschema:"tag expression such as @smoke && ~@slow"`
+	Env        string            `json:"env,omitempty"`
+	Vars       map[string]string `json:"vars,omitempty"`
+	UseSession bool              `json:"use_session,omitempty" jsonschema:"share .apic/session.json with run_request and later calls (captures flow both ways); by default every scenario runs in an isolated in-memory session"`
 }
 
 func (s *service) runFeatures(ctx context.Context, _ *sdk.CallToolRequest, in featuresInput) (*sdk.CallToolResult, any, error) {
@@ -296,7 +297,7 @@ func (s *service) runFeatures(ctx context.Context, _ *sdk.CallToolRequest, in fe
 	}
 	runner.Version = s.cfg.Version
 	sum, _, code, err := bdd.RunSummary(ctx, bdd.Options{
-		Config: bdd.Config{Project: p, Env: env, Vars: in.Vars, Stderr: os.Stderr},
+		Config: bdd.Config{Project: p, Env: env, Vars: in.Vars, UseSession: in.UseSession, Stderr: os.Stderr},
 		Paths:  in.Paths, Tags: in.Tags,
 	})
 	if err != nil && sum == nil {

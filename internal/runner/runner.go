@@ -394,6 +394,15 @@ func (r *Runner) Capture(name, value string) {
 	r.captured[name] = value
 }
 
+// Captured returns a copy of the values captured during this run.
+func (r *Runner) Captured() map[string]string {
+	out := make(map[string]string, len(r.captured))
+	for k, v := range r.captured {
+		out[k] = v
+	}
+	return out
+}
+
 // SetVar adds or overrides a variable at --var precedence.
 func (r *Runner) SetVar(name, value string) {
 	if r.Opts.Vars == nil {

@@ -148,8 +148,8 @@ func (c *Config) maskValue(v any) any {
 // rather than user text; masking them would change what the report means.
 var cukeStructural = map[string]struct{}{"status": {}, "type": {}, "keyword": {}, "uri": {}, "location": {}, "line": {}}
 
-// maskXML masks the text and attribute values of an XML report (JUnit)
-// while leaving element and attribute names untouched.
+// maskXML masks the text and the user-supplied attributes (name, message)
+// of an XML report (JUnit) while leaving its structure untouched.
 func (c *Config) maskXML(data []byte) ([]byte, error) {
 	dec := xml.NewDecoder(bytes.NewReader(data))
 	var out bytes.Buffer
@@ -166,7 +166,13 @@ func (c *Config) maskXML(data []byte) ([]byte, error) {
 		case xml.StartElement:
 			el := xml.StartElement{Name: t.Name, Attr: make([]xml.Attr, len(t.Attr))}
 			for i, a := range t.Attr {
-				el.Attr[i] = xml.Attr{Name: a.Name, Value: c.mask(a.Value)}
+				v := a.Value
+				// Only user text is masked; counts, timings, statuses and
+				// types keep the report machine-readable.
+				if a.Name.Local == "name" || a.Name.Local == "message" {
+					v = c.mask(v)
+				}
+				el.Attr[i] = xml.Attr{Name: a.Name, Value: v}
 			}
 			tok = el
 		case xml.CharData:
@@ -228,12 +234,20 @@ type scenario struct {
 type ctxKey struct{}
 
 func (c *Config) newScenario(env string) (*scenario, error) {
+	return c.scenarioWith(env, nil)
+}
+
+// scenarioWith builds a scenario for env, reusing store (the previous
+// scenario's session) when switching environments mid-scenario.
+func (c *Config) scenarioWith(env string, store *session.Store) (*scenario, error) {
 	vars := map[string]string{}
 	for k, v := range c.Vars {
 		vars[k] = v
 	}
 	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact}
-	if !c.UseSession {
+	if store != nil {
+		opts.Session = store
+	} else if !c.UseSession {
 		opts.Session = session.NewMemory()
 	}
 	r, err := runner.New(c.Project, opts)

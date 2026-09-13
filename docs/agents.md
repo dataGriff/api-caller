@@ -70,7 +70,7 @@ Tools exposed:
 | `run_file {file, env?, vars?, keep_going?}` | run a file as a flow |
 | `list_environments {env?}` | environments and effective variables (secrets masked) |
 | `clear_session {env?, all?}` | forget captured values |
-| `run_features {paths?, tags?, env?, vars?}` | run Gherkin features; returns pass/fail counts and the failing steps (see [testing.md](testing.md)) |
+| `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
 
 Each `.http` file is also exposed as a resource so the agent can read the
 definitions. Assertion failures return `ok: false` rather than a tool error;

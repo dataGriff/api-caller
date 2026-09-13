@@ -35,6 +35,17 @@ func TestParseAndMatch(t *testing.T) {
 	if err != nil || len(dashed.Params) != 2 || dashed.Params[0] != "user-id" || dashed.Params[1] != "a.b" {
 		t.Fatalf("parameter names follow the variable grammar: %v %+v", err, dashed)
 	}
+	quoted, err := Parse(`I say "{value}" loudly`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qm := regexp.MustCompile(quoted.Regex).FindStringSubmatch(`I say "hello world" loudly`)
+	if qm == nil || quoted.Values(qm[1:])["value"] != "hello world" {
+		t.Fatalf("a quoted placeholder must match quoted text with spaces: %v", qm)
+	}
+	if regexp.MustCompile(quoted.Regex).MatchString(`I say hello loudly`) {
+		t.Fatal("a quoted placeholder must not match a bare word")
+	}
 	plain, _ := Parse("I fetch the user")
 	if plain.Regex != "^I fetch the user$" || len(plain.Params) != 0 {
 		t.Fatalf("%+v", plain)

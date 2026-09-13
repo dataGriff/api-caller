@@ -20,7 +20,8 @@ type Phrase struct {
 
 // Parse compiles a phrase. Each {name} matches a double-quoted string or a
 // bare word, so `a user named {name} exists` matches both
-// `a user named "alice" exists` and `a user named alice exists`.
+// `a user named "alice" exists` and `a user named alice exists`. A
+// placeholder written as "{name}" matches quoted text only.
 func Parse(text string) (*Phrase, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -42,7 +43,12 @@ func Parse(text string) (*Phrase, error) {
 		}
 		seen[name] = true
 		p.Params = append(p.Params, name)
-		b.WriteString(`("[^"]*"|\S+)`)
+		if m[0] > 0 && text[m[0]-1] == '"' && m[1] < len(text) && text[m[1]] == '"' {
+			// `"{name}"`: the quotes are literal, the value is their content.
+			b.WriteString(`([^"]*)`)
+		} else {
+			b.WriteString(`("[^"]*"|\S+)`)
+		}
 		last = m[1]
 	}
 	if len(p.Params) > MaxParams {

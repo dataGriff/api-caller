@@ -74,10 +74,19 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	if env, err = sc.render(env); err != nil {
 		return ctx, err
 	}
-	next, err := sc.cfg.newScenario(env)
+	next, err := sc.cfg.scenarioWith(env, sc.r.Session)
 	if err != nil {
 		return ctx, sc.cfg.fail(err)
 	}
+	// The scenario's state survives the switch: variables set by steps,
+	// values captured so far and the last response.
+	for k, v := range sc.r.Opts.Vars {
+		next.r.SetVar(k, v)
+	}
+	for k, v := range sc.r.Captured() {
+		next.r.Capture(k, v)
+	}
+	next.last = sc.last
 	return context.WithValue(ctx, ctxKey{}, next), nil
 }
 

@@ -31,8 +31,10 @@ apic test --steps                           # the vocabulary and your phrases
 ## Phrases on requests
 
 Add `# @step` lines to a request. `{name}` placeholders become variables
-for that request; each matches a quoted string or a bare word. Placeholder
-names follow the variable grammar: letters, digits, `_`, `.` and `-`.
+for that request; each matches a quoted string or a bare word. A placeholder
+written in quotes (`I say "{text}"`) matches only quoted text, spaces
+included. Placeholder names follow the variable grammar: letters, digits,
+`_`, `.` and `-`.
 
 ```http
 ### Create a user
@@ -178,8 +180,11 @@ passed as `APIC_VAR_*` or `--var` are treated as secrets.
 
 ## For agents
 
-The MCP server exposes `run_features {paths?, tags?, env?, vars?}`, which
-returns a summary the agent can act on:
+The MCP server exposes `run_features {paths?, tags?, env?, vars?,
+use_session?}`, which returns a summary the agent can act on. Scenarios run
+in isolated sessions unless `use_session` is true, which shares
+`.apic/session.json` with `run_request` so captures flow between the tools
+the way `--use-session` does on the command line:
 
 ```json
 {"ok": false, "scenarios": 4, "passed": 3, "failed": 1, "undefined": 0,

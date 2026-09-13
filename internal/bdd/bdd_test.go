@@ -869,7 +869,7 @@ Feature: Structural
 	}
 	var out bytes.Buffer
 	code, err = Run(context.Background(), Options{
-		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"a": "testcase", "b": "testsuite", "c": "failure"}},
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"a": "testcase", "b": "testsuite", "c": "failure", "d": "failed"}},
 		Format: "junit", NoColors: true, Output: &out,
 		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(feature)}},
 	})
@@ -886,6 +886,9 @@ Feature: Structural
 	}
 	if err := xml.Unmarshal(out.Bytes(), &suites); err != nil || len(suites.Suites) != 1 || len(suites.Suites[0].Cases) != 1 || suites.Suites[0].Cases[0].Failure == nil {
 		t.Fatalf("the JUnit report must stay well-formed with its failure: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), `status="failed"`) || strings.Contains(out.String(), "stays failed") {
+		t.Fatalf("structural attributes stay, names are masked:\n%s", out.String())
 	}
 }
 
@@ -918,5 +921,23 @@ func TestMalformedTagExpressionIsUsageError(t *testing.T) {
 			Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  @smoke\n  Scenario: s\n    Given I am logged in\n")}}}); err != nil || code != ExitPassed {
 			t.Fatalf("%q: code=%d err=%v", good, code, err)
 		}
+	}
+}
+
+func TestEnvironmentSwitchKeepsScenarioState(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, `
+Feature: Switch
+  Scenario: Variables, captures and the last response survive an environment switch
+    Given I am logged in
+    And the variable "who" is "alice"
+    When the environment is "dev"
+    Then the variable "check" is "{{token}}-{{who}}"
+    And the variable "check" is "t-1-alice"
+    And the response status is 200
+`, "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
 	}
 }
