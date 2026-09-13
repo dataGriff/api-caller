@@ -14,7 +14,7 @@ func TestStatusOutOfRangeFallsBackTo200(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status code = %d, want %d", res.StatusCode, http.StatusOK)
