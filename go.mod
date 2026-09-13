@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/cucumber/gherkin/go/v42 v42.0.0
 	github.com/cucumber/godog v0.16.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
@@ -21,7 +22,6 @@ require (
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/cucumber/gherkin/go/v42 v42.0.0 // indirect
 	github.com/cucumber/messages/go/v34 v34.2.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect

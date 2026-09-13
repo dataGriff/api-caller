@@ -909,7 +909,7 @@ func TestUnnamedRequestFailureIsIdentified(t *testing.T) {
 func TestMalformedTagExpressionIsUsageError(t *testing.T) {
 	srv := server(t)
 	p := newProject(t, srv)
-	for _, bad := range []string{"@smoke && ", "@", ",", "~", "@a && ~", "@a b"} {
+	for _, bad := range []string{"@smoke && ", "@", ",", "~", "@a && ~", "@a b", "@smoke||@slow", "@smoke&@slow", "!@slow", "(@a)"} {
 		_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Tags: bad,
 			Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  @smoke\n  Scenario: s\n    Given I am logged in\n")}}})
 		if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "invalid tag expression") {
@@ -995,5 +995,21 @@ Feature: Auth cache across environments
 	must(t, json.Unmarshal(data, &saved))
 	if saved.Envs["alt"]["$oauth2:abc"] != "cached-token" || saved.Envs["alt"]["token"] != "t-1" {
 		t.Fatalf("the auth cache must be available under the new environment: %s", data)
+	}
+}
+
+func TestMalformedFeatureIsUsageErrorWithPosition(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard},
+		Features: []godog.Feature{{Name: "bad.feature", Contents: []byte("Feature: x\n  Scenario: s\n    Given I am logged in\nFeature: y\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "bad.feature") || !strings.Contains(err.Error(), "(4:1)") || sum != nil {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+	must(t, os.MkdirAll(filepath.Join(p.Root, "features"), 0o755))
+	must(t, os.WriteFile(filepath.Join(p.Root, "features", "broken.feature"), []byte("Feature: x\n  Scenario: s\n    Given I am logged in\n  Scenario Outline: o\n    Given I am logged in\n    Examples:\n      | a |\n      | 1 | 2 |\n"), 0o644))
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Stderr: io.Discard}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "broken.feature") {
+		t.Fatalf("code=%d err=%v", code, err)
 	}
 }

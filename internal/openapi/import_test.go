@@ -804,3 +804,35 @@ paths:
 		t.Fatalf("an external $ref must be reported, not silently dropped: %v", err)
 	}
 }
+
+func TestImportAvoidsReservedVariableNames(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: baseUrl, in: query, required: true, schema: {type: string}}
+        - {name: $filter, in: query, required: true, schema: {type: string}}
+        - {name: 1st, in: query, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	for _, want := range []string{"?baseUrl={{baseUrlParam}}", "&$filter={{filter}}", "&1st={{p1st}}"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "{{$filter}}") || strings.Contains(all, "={{baseUrl}}") {
+		t.Errorf("reserved names leaked:\n%s", all)
+	}
+}

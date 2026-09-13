@@ -519,7 +519,11 @@ func kebab(s string) string {
 	return s
 }
 
+// varName turns a parameter name into a template variable name: camelCase
+// letters and digits only, never `$`-prefixed (that is the built-in
+// namespace), never starting with a digit and never the reserved baseUrl.
 func varName(s string) string {
+	s = reVarJunk.ReplaceAllString(s, "")
 	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '-' || r == '_' || r == '.' || r == ' ' })
 	if len(parts) == 0 {
 		return "value"
@@ -528,8 +532,17 @@ func varName(s string) string {
 	for i := 1; i < len(parts); i++ {
 		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
-	return strings.Join(parts, "")
+	name := strings.Join(parts, "")
+	if name[0] >= '0' && name[0] <= '9' {
+		name = "p" + name
+	}
+	if strings.EqualFold(name, "baseUrl") {
+		name += "Param"
+	}
+	return name
 }
+
+var reVarJunk = regexp.MustCompile(`[^A-Za-z0-9_. -]`)
 
 func requestName(op *operation, method, path string) string {
 	if op.OperationID != "" {

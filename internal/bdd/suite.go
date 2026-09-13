@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	gherkin "github.com/cucumber/gherkin/go/v42"
 	"github.com/cucumber/godog"
 
 	"github.com/dataGriff/api-caller/internal/runner"
@@ -74,6 +75,9 @@ func Run(ctx context.Context, opts Options) (int, error) {
 		return ExitUsage, err
 	}
 	if err := checkTags(opts.Tags); err != nil {
+		return ExitUsage, err
+	}
+	if err := checkGherkin(opts); err != nil {
 		return ExitUsage, err
 	}
 	output := opts.Output
@@ -244,6 +248,40 @@ func (o *Options) resolvePaths() ([]string, error) {
 	return out, nil
 }
 
+// checkGherkin parses every selected feature up front so a syntax error is
+// reported as a usage error naming the file and position, rather than as
+// godog's generic non-zero status with the detail on the process stderr.
+func checkGherkin(o Options) error {
+	parse := func(name string, data []byte) error {
+		if _, err := gherkin.ParseGherkinDocument(bytes.NewReader(data), func() string { return "" }); err != nil {
+			return &runner.UsageError{Msg: fmt.Sprintf("%s: %v", name, err)}
+		}
+		return nil
+	}
+	for _, f := range o.Features {
+		if err := parse(f.Name, f.Contents); err != nil {
+			return err
+		}
+	}
+	if len(o.Features) > 0 && len(o.Paths) == 0 {
+		return nil
+	}
+	files, err := FeatureFiles(o)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return &runner.UsageError{Msg: err.Error()}
+		}
+		if err := parse(f, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // checkTags validates a tag expression before godog sees it: `,` is OR,
 // `&&` is AND, `~` negates, `@` is optional. godog indexes each operand
 // without checking for emptiness, so an expression such as `@smoke && `
@@ -259,7 +297,9 @@ func checkTags(expr string) error {
 		for _, operand := range strings.Split(or, "&&") {
 			tag := strings.TrimPrefix(strings.TrimSpace(operand), "~")
 			tag = strings.TrimPrefix(tag, "@")
-			if tag == "" || strings.ContainsAny(tag, "@~ \t") {
+			// Only `,` and `&&` combine tags; other operator characters
+			// would become part of a tag name and silently match nothing.
+			if tag == "" || strings.ContainsAny(tag, "@~ \t&|!()\"'") {
 				return bad()
 			}
 		}
