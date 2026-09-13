@@ -301,9 +301,13 @@ Scaffolds `.http` files from an OpenAPI 3 document:
 - a JSON body built from the request schema, using examples, defaults and
   enums when present, `{{$uuid}}` and `{{$isoTimestamp}}` for uuid and
   date-time strings;
-- `http-client.env.json` with `baseUrl` from the first server.
+- `http-client.env.json` with `baseUrl` from the first non-empty server, with server variables replaced by their defaults.
 
-Existing files are kept unless `--force` is given.
+Accepts OpenAPI 3.0 and 3.1 in YAML or JSON. Local `$ref` pointers
+(`#/components/...`) are resolved for parameters, request bodies and
+schemas; references to other files are not. Path-level parameters are
+merged into each operation. Swagger 2.0 documents are rejected with a
+message. Existing files are kept unless `--force` is given.
 
 | Flag | Meaning |
 |---|---|

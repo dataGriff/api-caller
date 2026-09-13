@@ -26,6 +26,13 @@ lands against the tools you might otherwise use.
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
 | GUI | no | the editor | VS Code extension | yes | no | no |
 
+## Size
+
+A stripped apic binary is about 13 MB, in the same range as `task` or `yq`
+and well below `gh`, `kubectl` or `terraform`. The largest pieces are the
+MCP SDK and the Gherkin runner; the OpenAPI importer and AWS signing are
+written in-tree to keep them small.
+
 ## Against Taskfile + curl
 
 This is what apic replaces. You keep Task if you like it

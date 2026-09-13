@@ -125,3 +125,79 @@ paths:
 		t.Fatalf("base url: %q", res.BaseURL)
 	}
 }
+
+func TestImportRefsPathParamsAndJSONInput(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.json")
+	if err := os.WriteFile(spec, []byte(`{
+  "openapi": "3.1.0",
+  "info": {"title": "t", "version": "1"},
+  "servers": [{"url": "https://api.example.com/v2/"}],
+  "paths": {
+    "/orgs/{orgId}/members": {
+      "parameters": [{"$ref": "#/components/parameters/OrgId"}],
+      "get": {
+        "operationId": "listMembers",
+        "tags": ["members"],
+        "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "array"}}}}}
+      },
+      "post": {
+        "operationId": "addMember",
+        "tags": ["members"],
+        "requestBody": {"$ref": "#/components/requestBodies/Member"},
+        "responses": {"201": {"description": "created"}}
+      }
+    }
+  },
+  "components": {
+    "parameters": {"OrgId": {"name": "orgId", "in": "path", "required": true, "schema": {"type": "string"}}},
+    "requestBodies": {"Member": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Member"}}}}},
+    "schemas": {
+      "Member": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "nickname": {"type": ["string", "null"]},
+          "roles": {"type": "array", "items": {"$ref": "#/components/schemas/Role"}},
+          "manager": {"$ref": "#/components/schemas/Member"}
+        }
+      },
+      "Role": {"type": "string", "enum": ["admin", "member"]}
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://api.example.com/v2" || res.Requests != 2 {
+		t.Fatalf("%+v", res)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "members.http"))
+	s := string(out)
+	for _, want := range []string{
+		"# @name list-members", "GET {{baseUrl}}/orgs/{{orgId}}/members\n", "    # ?limit={{limit}}  (optional)", "Accept: application/json",
+		"# @name add-member", "# @assert status == 201", "POST {{baseUrl}}/orgs/{{orgId}}/members\n", "Content-Type: application/json",
+		`"email": "user@example.com"`, `"nickname": "string"`, `"roles": [` + "\n    \"admin\"", `"manager": {`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("members.http missing %q\n%s", want, s)
+		}
+	}
+	// Property order follows the schema.
+	if strings.Index(s, `"email"`) > strings.Index(s, `"nickname"`) || strings.Index(s, `"nickname"`) > strings.Index(s, `"roles"`) {
+		t.Errorf("property order not preserved:\n%s", s)
+	}
+}
+
+func TestImportRejectsSwagger2(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte("swagger: '2.0'\ninfo: {title: t, version: '1'}\npaths: {}\n"), 0o644)
+	if _, err := Import(spec, Options{OutDir: dir}); err == nil || !strings.Contains(err.Error(), "Swagger 2.0") {
+		t.Fatalf("got %v", err)
+	}
+}

@@ -12,9 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
-	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"gopkg.in/yaml.v3"
 )
 
 // Result summarises what was generated.
@@ -26,18 +24,14 @@ type Result struct {
 	Skipped  []string `json:"skipped,omitempty"`
 }
 
-func resolveServerURL(s *v3.Server) (string, error) {
-	url := strings.TrimSpace(s.URL)
+func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
+	url := strings.TrimSpace(str(d.get(srv, "url")))
 	if url == "" {
 		return "", nil
 	}
 	defaults := map[string]string{}
-	if s.Variables != nil {
-		for name, v := range s.Variables.FromOldest() {
-			if v != nil {
-				defaults[name] = v.Default
-			}
-		}
+	for _, v := range d.entries(d.get(srv, "variables")) {
+		defaults[v.key] = str(d.get(v.value, "default"))
 	}
 	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
 		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
@@ -47,7 +41,7 @@ func resolveServerURL(s *v3.Server) (string, error) {
 		return match
 	})
 	if unresolved := reServerVar.FindStringSubmatch(out); unresolved != nil {
-		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", s.URL, unresolved[1])
+		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", url, unresolved[1])
 	}
 	return strings.TrimRight(out, "/"), nil
 }
@@ -65,16 +59,9 @@ func Import(specPath string, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc, err := libopenapi.NewDocument(data)
+	doc, err := parseDocument(data)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", specPath, err)
-	}
-	model, buildErr := doc.BuildV3Model()
-	if model == nil {
-		if buildErr != nil {
-			return nil, fmt.Errorf("build OpenAPI model: %w", buildErr)
-		}
-		return nil, fmt.Errorf("%s is not an OpenAPI 3 document", specPath)
+		return nil, fmt.Errorf("%s: %w", specPath, err)
 	}
 	if opts.EnvName == "" {
 		opts.EnvName = "dev"
@@ -87,37 +74,40 @@ func Import(specPath string, opts Options) (*Result, error) {
 	}
 
 	res := &Result{BaseURL: "https://example.com"}
-	if len(model.Model.Servers) > 0 {
-		for _, srv := range model.Model.Servers {
-			if strings.TrimSpace(srv.URL) == "" {
-				continue
-			}
-			baseURL, err := resolveServerURL(srv)
-			if err != nil {
-				return nil, err
-			}
-			res.BaseURL = baseURL
-			break
+	for _, srv := range doc.items(doc.get(doc.root, "servers")) {
+		if strings.TrimSpace(str(doc.get(srv, "url"))) == "" {
+			continue
 		}
+		baseURL, err := doc.resolveServerURL(srv)
+		if err != nil {
+			return nil, err
+		}
+		res.BaseURL = baseURL
+		break
 	}
 
 	byTag := map[string][]*operation{}
 	var tagOrder []string
 	seenNames := map[string]int{}
-	if model.Model.Paths != nil {
-		for path, item := range model.Model.Paths.PathItems.FromOldest() {
-			for method, op := range item.GetOperations().FromOldest() {
-				o := &operation{Path: path, Method: strings.ToUpper(method), Op: op}
-				o.Name = uniqueName(requestName(op, o.Method, path), seenNames)
-				tag := "api"
-				if len(op.Tags) > 0 {
-					tag = op.Tags[0]
-				}
-				if _, ok := byTag[tag]; !ok {
-					tagOrder = append(tagOrder, tag)
-				}
-				byTag[tag] = append(byTag[tag], o)
+	for _, pathEntry := range doc.entries(doc.get(doc.root, "paths")) {
+		path := pathEntry.key
+		item := doc.resolve(pathEntry.value)
+		shared := doc.parameters(doc.get(item, "parameters"))
+		for _, e := range doc.entries(item) {
+			if !httpMethods[e.key] {
+				continue
 			}
+			op := doc.resolve(e.value)
+			o := doc.operation(path, strings.ToUpper(e.key), op, shared)
+			o.Name = uniqueName(requestName(o, o.Method, path), seenNames)
+			tag := "api"
+			if tags := doc.items(doc.get(op, "tags")); len(tags) > 0 {
+				tag = str(tags[0])
+			}
+			if _, ok := byTag[tag]; !ok {
+				tagOrder = append(tagOrder, tag)
+			}
+			byTag[tag] = append(byTag[tag], o)
 		}
 	}
 	sort.Strings(tagOrder)
@@ -152,35 +142,97 @@ func Import(specPath string, opts Options) (*Result, error) {
 	return res, nil
 }
 
+var httpMethods = map[string]bool{"get": true, "put": true, "post": true, "delete": true, "options": true, "head": true, "patch": true, "trace": true}
+
+// operation is the subset of an OpenAPI operation the generator needs.
 type operation struct {
-	Path   string
-	Method string
-	Name   string
-	Op     *v3.Operation
+	Path        string
+	Method      string
+	Name        string
+	OperationID string
+	Summary     string
+	Description string
+	Params      []parameter
+	Body        string // example request body, "" when none
+	ContentType string
+	Success     string // first 2xx response code
+	WantsJSON   bool   // a response advertises a JSON content type
+}
+
+type parameter struct {
+	Name     string
+	In       string
+	Required bool
+}
+
+// parameters reads a parameter list ($ref-able entries), in order.
+func (d *document) parameters(n *yaml.Node) []parameter {
+	var out []parameter
+	for _, p := range d.items(n) {
+		name, in := str(d.get(p, "name")), str(d.get(p, "in"))
+		if name == "" || in == "" {
+			continue
+		}
+		out = append(out, parameter{Name: name, In: in, Required: in == "path" || boolean(d.get(p, "required"))})
+	}
+	return out
+}
+
+func (d *document) operation(path, method string, op *yaml.Node, shared []parameter) *operation {
+	o := &operation{Path: path, Method: method,
+		OperationID: str(d.get(op, "operationId")), Summary: str(d.get(op, "summary")), Description: str(d.get(op, "description"))}
+	// Operation parameters override path-level ones with the same name and location.
+	own := d.parameters(d.get(op, "parameters"))
+	for _, p := range shared {
+		overridden := false
+		for _, q := range own {
+			if q.Name == p.Name && q.In == p.In {
+				overridden = true
+			}
+		}
+		if !overridden {
+			o.Params = append(o.Params, p)
+		}
+	}
+	o.Params = append(o.Params, own...)
+	o.Body, o.ContentType = d.exampleBody(d.get(op, "requestBody"))
+	o.Success = "200"
+	responses := d.get(op, "responses")
+	for _, r := range d.entries(responses) {
+		if strings.HasPrefix(r.key, "2") {
+			o.Success = r.key
+			break
+		}
+	}
+	for _, r := range d.entries(responses) {
+		for _, ct := range d.entries(d.get(r.value, "content")) {
+			if strings.Contains(ct.key, "json") {
+				o.WantsJSON = true
+			}
+		}
+	}
+	return o
 }
 
 func (o *operation) render() string {
 	var b strings.Builder
-	title := o.Op.Summary
+	title := o.Summary
 	if title == "" {
 		title = o.Method + " " + o.Path
 	}
 	fmt.Fprintf(&b, "\n### %s\n", title)
 	fmt.Fprintf(&b, "# @name %s\n", o.Name)
-	if d := strings.TrimSpace(strings.SplitN(o.Op.Description, "\n", 2)[0]); d != "" && d != title {
+	if d := strings.TrimSpace(strings.SplitN(o.Description, "\n", 2)[0]); d != "" && d != title {
 		fmt.Fprintf(&b, "# @description %s\n", d)
 	}
-	fmt.Fprintf(&b, "# @assert status == %s\n", successStatus(o.Op))
+	fmt.Fprintf(&b, "# @assert status == %s\n", o.Success)
 
 	path := o.Path
 	var query []string
 	var headers []string
-	for _, p := range o.Op.Parameters {
-		if p == nil {
-			continue
-		}
+	for _, p := range o.Params {
 		v := "{{" + varName(p.Name) + "}}"
-		required := p.Required != nil && *p.Required
+		required := p.Required
 		switch p.In {
 		case "path":
 			path = strings.ReplaceAll(path, "{"+p.Name+"}", v)
@@ -198,7 +250,7 @@ func (o *operation) render() string {
 			headers = append(headers, line)
 		}
 	}
-	body, contentType := exampleBody(o.Op.RequestBody)
+	body, contentType := o.Body, o.ContentType
 	fmt.Fprintf(&b, "%s {{baseUrl}}%s\n", o.Method, path)
 	for i, q := range query {
 		sep := "&"
@@ -214,7 +266,7 @@ func (o *operation) render() string {
 	if contentType != "" {
 		fmt.Fprintf(&b, "Content-Type: %s\n", contentType)
 	}
-	if wantsJSON(o.Op) {
+	if o.WantsJSON {
 		b.WriteString("Accept: application/json\n")
 	}
 	for _, h := range headers {
@@ -226,55 +278,22 @@ func (o *operation) render() string {
 	return b.String()
 }
 
-func successStatus(op *v3.Operation) string {
-	if op.Responses == nil || op.Responses.Codes == nil {
-		return "200"
-	}
-	for code := range op.Responses.Codes.KeysFromOldest() {
-		if strings.HasPrefix(code, "2") {
-			return code
-		}
-	}
-	return "200"
-}
-
-func wantsJSON(op *v3.Operation) bool {
-	if op.Responses == nil || op.Responses.Codes == nil {
-		return false
-	}
-	for r := range op.Responses.Codes.ValuesFromOldest() {
-		if r != nil && r.Content != nil {
-			for ct := range r.Content.KeysFromOldest() {
-				if strings.Contains(ct, "json") {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func exampleBody(rb *v3.RequestBody) (string, string) {
-	if rb == nil || rb.Content == nil {
-		return "", ""
-	}
-	for ct, mt := range rb.Content.FromOldest() {
-		if mt == nil {
-			continue
-		}
+// exampleBody builds a request body from the first media type: its
+// example, first named example, or a value derived from the schema.
+func (d *document) exampleBody(rb *yaml.Node) (string, string) {
+	if mts := d.entries(d.get(rb, "content")); len(mts) > 0 {
+		mt := mts[0]
+		ct := mt.key
+		media := d.resolve(mt.value)
 		var v any
 		switch {
-		case mt.Example != nil:
-			_ = mt.Example.Decode(&v)
-		case mt.Examples != nil && mt.Examples.Len() > 0:
-			for ex := range mt.Examples.ValuesFromOldest() {
-				if ex != nil && ex.Value != nil {
-					_ = ex.Value.Decode(&v)
-					break
-				}
-			}
-		case mt.Schema != nil:
-			v = exampleFromSchema(mt.Schema.Schema(), 0)
+		case d.get(media, "example") != nil:
+			v = decode(d.get(media, "example"))
+		case len(d.entries(d.get(media, "examples"))) > 0:
+			first := d.entries(d.get(media, "examples"))[0]
+			v = decode(d.get(first.value, "value"))
+		case d.get(media, "schema") != nil:
+			v = d.exampleFromSchema(d.get(media, "schema"), 0)
 		}
 		if v == nil {
 			return "", ct
@@ -292,58 +311,42 @@ func exampleBody(rb *v3.RequestBody) (string, string) {
 	return "", ""
 }
 
-func exampleFromSchema(s *base.Schema, depth int) any {
+func (d *document) exampleFromSchema(s *yaml.Node, depth int) any {
+	s = d.resolve(s)
 	if s == nil || depth > 6 {
 		return nil
 	}
-	if s.Example != nil {
-		var v any
-		if err := s.Example.Decode(&v); err == nil {
-			return v
+	for _, key := range []string{"example", "default"} {
+		if n := d.get(s, key); n != nil {
+			return decode(n)
 		}
 	}
-	if len(s.Examples) > 0 {
-		var v any
-		if err := s.Examples[0].Decode(&v); err == nil {
-			return v
+	if ex := d.items(d.get(s, "examples")); len(ex) > 0 {
+		return decode(ex[0])
+	}
+	if en := d.items(d.get(s, "enum")); len(en) > 0 {
+		return decode(en[0])
+	}
+	for _, key := range []string{"allOf", "oneOf", "anyOf"} {
+		if sub := d.items(d.get(s, key)); len(sub) > 0 {
+			return d.exampleFromSchema(sub[0], depth+1)
 		}
 	}
-	if s.Default != nil {
-		var v any
-		if err := s.Default.Decode(&v); err == nil {
-			return v
-		}
-	}
-	if len(s.Enum) > 0 {
-		var v any
-		if err := s.Enum[0].Decode(&v); err == nil {
-			return v
-		}
-	}
-	for _, sub := range [][]*base.SchemaProxy{s.AllOf, s.OneOf, s.AnyOf} {
-		if len(sub) > 0 {
-			return exampleFromSchema(sub[0].Schema(), depth+1)
-		}
-	}
-	typ := ""
-	if len(s.Type) > 0 {
-		typ = s.Type[0]
-	}
-	if typ == "" && s.Properties != nil && s.Properties.Len() > 0 {
+	typ := schemaType(d, s)
+	props := d.entries(d.get(s, "properties"))
+	if typ == "" && len(props) > 0 {
 		typ = "object"
 	}
 	switch typ {
 	case "object":
 		obj := &orderedObject{}
-		if s.Properties != nil {
-			for name, prop := range s.Properties.FromOldest() {
-				obj.set(name, exampleFromSchema(prop.Schema(), depth+1))
-			}
+		for _, p := range props {
+			obj.set(p.key, d.exampleFromSchema(p.value, depth+1))
 		}
 		return obj
 	case "array":
-		if s.Items != nil && s.Items.IsA() {
-			return []any{exampleFromSchema(s.Items.A.Schema(), depth+1)}
+		if items := d.get(s, "items"); items != nil {
+			return []any{d.exampleFromSchema(items, depth+1)}
 		}
 		return []any{}
 	case "integer":
@@ -353,7 +356,7 @@ func exampleFromSchema(s *base.Schema, depth int) any {
 	case "boolean":
 		return true
 	case "string":
-		switch s.Format {
+		switch str(d.get(s, "format")) {
 		case "date-time":
 			return "{{$isoTimestamp}}"
 		case "date":
@@ -368,6 +371,24 @@ func exampleFromSchema(s *base.Schema, depth int) any {
 		return "string"
 	}
 	return nil
+}
+
+// schemaType returns the schema type, taking the first non-null entry of an
+// OpenAPI 3.1 type array.
+func schemaType(d *document, s *yaml.Node) string {
+	t := d.get(s, "type")
+	if t == nil {
+		return ""
+	}
+	if t.Kind == yaml.SequenceNode {
+		for _, n := range d.items(t) {
+			if v := str(n); v != "" && v != "null" {
+				return v
+			}
+		}
+		return ""
+	}
+	return str(t)
 }
 
 var reNonWord = regexp.MustCompile(`[^A-Za-z0-9]+`)
@@ -394,9 +415,9 @@ func varName(s string) string {
 	return strings.Join(parts, "")
 }
 
-func requestName(op *v3.Operation, method, path string) string {
-	if op.OperationId != "" {
-		return kebab(splitCamel(op.OperationId))
+func requestName(op *operation, method, path string) string {
+	if op.OperationID != "" {
+		return kebab(splitCamel(op.OperationID))
 	}
 	p := strings.NewReplacer("{", "by-", "}", "").Replace(path)
 	return kebab(strings.ToLower(method) + " " + p)
