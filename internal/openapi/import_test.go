@@ -1330,3 +1330,62 @@ paths:
 		t.Errorf("request missing:\n%s", all)
 	}
 }
+
+func TestImportKeepsNumbersExact(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// Numbers beyond the machine range must not be rounded, quoted or
+	// dropped; quoted digits stay strings; YAML-only spellings decode.
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            example:
+              big: 9223372036854775808
+              huge: 18446744073709551616
+              tiny: -9223372036854775809
+              exp: 1e400
+              frac: 0.10
+              str: "12"
+              hex: 0x1F
+              inf: .inf
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            example: 9223372036854775808
+      responses: {"200": {description: ok}}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	for _, want := range []string{
+		`"big": 9223372036854775808`,
+		`"huge": 18446744073709551616`,
+		`"tiny": -9223372036854775809`,
+		`"exp": 1e400`,
+		`"frac": 0.10`,
+		`"str": "12"`,
+		`"hex": 31`,
+		`"inf": ".inf"`,
+		"\n9223372036854775808\n",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s in:\n%s", want, all)
+		}
+	}
+}

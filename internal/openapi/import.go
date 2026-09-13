@@ -481,7 +481,7 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		switch v.(type) {
 		case nil:
 			return "null", ct, false // an explicit null example is a body
-		case int, int64, float64, bool, json.Number:
+		case int, int64, uint64, float64, bool, json.Number:
 			return fmt.Sprint(v), ct, false // a scalar serialises the same under any media type
 		}
 		if strings.EqualFold(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]), "application/x-www-form-urlencoded") {

@@ -1,8 +1,11 @@
 package openapi
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -240,6 +243,9 @@ func decode(n *yaml.Node) any {
 	return decodeGuarded(n, map[*yaml.Node]bool{})
 }
 
+// reJSONNumber is the JSON number grammar (RFC 8259 §6).
+var reJSONNumber = regexp.MustCompile(`^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$`)
+
 func decodeGuarded(n *yaml.Node, path map[*yaml.Node]bool) any {
 	if n == nil || path[n] {
 		return nil
@@ -265,9 +271,18 @@ func decodeGuarded(n *yaml.Node, path map[*yaml.Node]bool) any {
 		if n.ShortTag() == "!!timestamp" {
 			return n.Value // keep `2025-01-01` as written, not as time.Time
 		}
+		if n.Style == 0 && reJSONNumber.MatchString(n.Value) {
+			// A plain scalar spelt as a JSON number keeps its exact text:
+			// decoding would round 18446744073709551616 to a float and
+			// turn 1e400 into a string. Quoted or tagged text is not a number.
+			return json.Number(n.Value)
+		}
 		var v any
 		if err := n.Decode(&v); err != nil {
 			return n.Value
+		}
+		if f, ok := v.(float64); ok && (math.IsInf(f, 0) || math.IsNaN(f)) {
+			return n.Value // JSON has no .inf or .nan; keep the spelling as text
 		}
 		return v
 	}
