@@ -702,3 +702,34 @@ components:
 		t.Fatalf("a self-referential $ref with siblings must be reported as cyclic: %v", err)
 	}
 }
+
+func TestImportMediaTypesAreCaseInsensitive(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/JSON:
+            schema: {type: string, example: plain}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/problem+JSON: {schema: {type: object}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "Accept: application/json") || !strings.Contains(all, "\n\"plain\"\n") {
+		t.Errorf("media types are case-insensitive:\n%s", all)
+	}
+}

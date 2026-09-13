@@ -219,7 +219,7 @@ func (d *document) operation(path, method string, op *yaml.Node, shared []parame
 	}
 	for _, r := range d.entries(responses) {
 		for _, ct := range d.entries(d.get(r.value, "content")) {
-			if strings.Contains(ct.key, "json") {
+			if isJSON(ct.key) {
 				o.WantsJSON = true
 			}
 		}
@@ -356,7 +356,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		if !selected {
 			continue
 		}
-		if strings.Contains(ct, "json") {
+		if isJSON(ct) {
 			data, _ := json.MarshalIndent(v, "", "  ")
 			return string(data), ct
 		}
@@ -367,6 +367,12 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		return string(data), ct
 	}
 	return "", mts[0].key
+}
+
+// isJSON reports whether a media type carries JSON; names are
+// case-insensitive, so application/JSON and application/problem+JSON count.
+func isJSON(mediaType string) bool {
+	return strings.Contains(strings.ToLower(mediaType), "json")
 }
 
 // firstExampleValue returns the `value` of the first named example that has one.

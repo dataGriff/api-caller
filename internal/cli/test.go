@@ -234,6 +234,12 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 			return refuse()
 		}
 	}
+	// Fixed project files, for an output that aliases them from elsewhere.
+	for _, name := range []string{project.ConfigFile, env.PublicFile, env.PrivateFile, env.DotEnvFile, filepath.Join(session.Dir, session.File)} {
+		if sameAs(filepath.Join(p.Root, name)) {
+			return refuse()
+		}
+	}
 	var found bool
 	_ = filepath.WalkDir(p.Root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || found {

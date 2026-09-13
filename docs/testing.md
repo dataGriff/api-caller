@@ -80,7 +80,7 @@ scenario, and built-ins such as `{{$uuid}}`.
 
 | Step | Effect |
 |---|---|
-| `Given the environment is "staging"` | Switch this scenario to another environment (fresh state). |
+| `Given the environment is "staging"` | Switch this scenario to another environment. Variables set by steps, values captured so far, the last response and the session carry over; environment variables come from the new environment. |
 | `Given the variable "userId" is "42"` | Set a variable. Highest precedence. |
 | `Given the variables:` + table | Set several. Two columns; a `name | value` header row is optional. |
 

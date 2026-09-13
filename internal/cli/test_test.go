@@ -156,3 +156,25 @@ func TestRealPathResolvesMissingLeaves(t *testing.T) {
 		t.Fatalf("existing path: got %s want %s", got, real)
 	}
 }
+
+func TestOutputAliasingProjectConfigFromOutsideIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte("env: dev\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name ping\nGET {{baseUrl}}/ping\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
+	must(t, os.MkdirAll(filepath.Join(dir, "features"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "features", "p.feature"), []byte("Feature: p\n  Scenario: s\n    When I run \"ping\"\n"), 0o644))
+	alias := filepath.Join(t.TempDir(), "report.xml")
+	if err := os.Link(filepath.Join(dir, "apic.yaml"), alias); err != nil {
+		t.Skip("hard links not supported here")
+	}
+	a := New()
+	var out, errb bytes.Buffer
+	a.Stdout, a.Stderr = &out, &errb
+	if code := a.Execute(context.Background(), []string{"test", "-C", dir, "--output", alias}); code != 2 || !strings.Contains(errb.String(), "would overwrite") {
+		t.Fatalf("code=%d stderr=%s", code, errb.String())
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "apic.yaml")); !strings.Contains(string(data), "env: dev") {
+		t.Fatalf("apic.yaml was damaged: %q", data)
+	}
+}
