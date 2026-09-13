@@ -1122,11 +1122,16 @@ paths:
 		t.Fatal(err)
 	}
 	all := mustRead(t, res.Files[0])
-	if strings.Count(all, "###") != 1 || strings.Contains(all, "@auth") || strings.Contains(all, "\nInjected") {
+	if strings.Count(all, "\n###") != 1 || strings.Contains(all, "\n# @auth") || strings.Contains(all, "\nInjected") {
 		t.Errorf("spec text must not add lines to the generated file:\n%s", all)
 	}
 	f, diags, err := httpfile.ParseFile(res.Files[0])
-	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 {
-		t.Fatalf("generated file must hold exactly the declared request: %v %v %+v", err, diags, f.Requests)
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X-TraceInjectedyes" {
+		t.Fatalf("generated file must hold exactly the declared request with a token header name: %v %v %+v", err, diags, f.Requests)
+	}
+	for _, d := range f.Requests[0].Directives {
+		if d.Key == "auth" {
+			t.Fatal("an injected directive must not survive")
+		}
 	}
 }

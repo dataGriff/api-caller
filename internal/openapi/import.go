@@ -280,8 +280,12 @@ func (o *operation) render() string {
 		v := "{{" + names[p.In+":"+p.Name] + "}}"
 		required := p.Required
 		// A spec is untrusted input: a name with a line break must not be
-		// able to add lines (headers, directives) to the generated file.
+		// able to add lines (headers, directives) to the generated file, and
+		// a header name must stay a single RFC 7230 token.
 		p.Name = strings.Join(strings.Fields(p.Name), "")
+		if p.In == "header" {
+			p.Name = reHeaderJunk.ReplaceAllString(p.Name, "")
+		}
 		switch p.In {
 		case "cookie":
 			if required {
@@ -672,6 +676,9 @@ func varName(s string) string {
 }
 
 var reVarJunk = regexp.MustCompile(`[^A-Za-z0-9_. -]`)
+
+// reHeaderJunk matches anything that is not an RFC 7230 token character.
+var reHeaderJunk = regexp.MustCompile("[^!#$%&'*+.^_`|~0-9A-Za-z-]")
 
 func requestName(op *operation, method, path string) string {
 	if op.OperationID != "" {
