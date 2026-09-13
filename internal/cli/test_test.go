@@ -110,3 +110,28 @@ func TestLazyFileReportsWriteErrorsOnClose(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOutputOntoRequestFileOutsideRootIsRefused(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "proj")
+	api := filepath.Join(base, "api")
+	must(t, os.MkdirAll(filepath.Join(dir, "features"), 0o755))
+	must(t, os.MkdirAll(api, 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte("dir: ../api\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(api, "x.http"), []byte("### a\n# @name ping\nGET {{baseUrl}}/ping\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "features", "p.feature"), []byte("Feature: p\n  Scenario: s\n    When I run \"ping\"\n"), 0o644))
+	alias := filepath.Join(dir, "report.xml")
+	if err := os.Link(filepath.Join(api, "x.http"), alias); err != nil {
+		t.Skip("hard links not supported here")
+	}
+	a := New()
+	var out, errb bytes.Buffer
+	a.Stdout, a.Stderr = &out, &errb
+	if code := a.Execute(context.Background(), []string{"test", "-C", dir, "--env", "dev", "--output", alias}); code != 2 || !strings.Contains(errb.String(), "would overwrite") {
+		t.Fatalf("code=%d stderr=%s", code, errb.String())
+	}
+	if data, _ := os.ReadFile(filepath.Join(api, "x.http")); !strings.Contains(string(data), "@name ping") {
+		t.Fatalf("request file was damaged: %q", data)
+	}
+}

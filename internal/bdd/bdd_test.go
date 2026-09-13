@@ -902,3 +902,21 @@ func TestUnnamedRequestFailureIsIdentified(t *testing.T) {
 		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
 	}
 }
+
+func TestMalformedTagExpressionIsUsageError(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	for _, bad := range []string{"@smoke && ", "@", ",", "~", "@a && ~", "@a b"} {
+		_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Tags: bad,
+			Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  @smoke\n  Scenario: s\n    Given I am logged in\n")}}})
+		if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "invalid tag expression") {
+			t.Fatalf("%q: code=%d err=%v", bad, code, err)
+		}
+	}
+	for _, good := range []string{"@smoke", "smoke", "~@slow", "@smoke && ~@slow", "@smoke,@other", " @smoke , ~slow "} {
+		if _, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Tags: good,
+			Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  @smoke\n  Scenario: s\n    Given I am logged in\n")}}}); err != nil || code != ExitPassed {
+			t.Fatalf("%q: code=%d err=%v", good, code, err)
+		}
+	}
+}

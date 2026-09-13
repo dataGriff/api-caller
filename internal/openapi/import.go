@@ -169,7 +169,7 @@ type operation struct {
 	Params      []parameter
 	Body        string // example request body, "" when none
 	ContentType string
-	Success     string // first 2xx response code
+	Success     string // first 2xx response code; empty when none is declared
 	WantsJSON   bool   // a response advertises a JSON content type
 }
 
@@ -210,7 +210,6 @@ func (d *document) operation(path, method string, op *yaml.Node, shared []parame
 	}
 	o.Params = append(o.Params, own...)
 	o.Body, o.ContentType = d.exampleBody(d.get(op, "requestBody"))
-	o.Success = "200"
 	responses := d.get(op, "responses")
 	for _, r := range d.entries(responses) {
 		if strings.HasPrefix(r.key, "2") {
@@ -239,10 +238,13 @@ func (o *operation) render() string {
 	if d := strings.TrimSpace(strings.SplitN(o.Description, "\n", 2)[0]); d != "" && d != title {
 		fmt.Fprintf(&b, "# @description %s\n", d)
 	}
-	if strings.HasSuffix(o.Success, "XX") && len(o.Success) == 3 {
+	switch {
+	case o.Success == "":
+		// No 2xx declared (only `default` or error codes): nothing to assert.
+	case strings.HasSuffix(o.Success, "XX") && len(o.Success) == 3:
 		// Patterned key such as 2XX: assert the range instead of a literal.
 		fmt.Fprintf(&b, "# @assert status >= %s00\n# @assert status < %s00\n", o.Success[:1], string(o.Success[0]+1))
-	} else {
+	default:
 		fmt.Fprintf(&b, "# @assert status == %s\n", o.Success)
 	}
 

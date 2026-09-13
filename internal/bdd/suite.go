@@ -73,6 +73,9 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	if err != nil {
 		return ExitUsage, err
 	}
+	if err := checkTags(opts.Tags); err != nil {
+		return ExitUsage, err
+	}
 	output := opts.Output
 	var masker *maskWriter
 	if opts.Redact {
@@ -239,6 +242,29 @@ func (o *Options) resolvePaths() ([]string, error) {
 		out = append(out, real)
 	}
 	return out, nil
+}
+
+// checkTags validates a tag expression before godog sees it: `,` is OR,
+// `&&` is AND, `~` negates, `@` is optional. godog indexes each operand
+// without checking for emptiness, so an expression such as `@smoke && `
+// would otherwise panic the process.
+func checkTags(expr string) error {
+	if strings.TrimSpace(expr) == "" {
+		return nil
+	}
+	bad := func() error {
+		return &runner.UsageError{Msg: fmt.Sprintf("invalid tag expression %q: use tags joined by `,` (or) and `&&` (and), `~` to negate, e.g. \"@smoke && ~@slow\"", expr)}
+	}
+	for _, or := range strings.Split(expr, ",") {
+		for _, operand := range strings.Split(or, "&&") {
+			tag := strings.TrimPrefix(strings.TrimSpace(operand), "~")
+			tag = strings.TrimPrefix(tag, "@")
+			if tag == "" || strings.ContainsAny(tag, "@~ \t") {
+				return bad()
+			}
+		}
+	}
+	return nil
 }
 
 // FeatureFiles lists every .feature file the run would read, after the

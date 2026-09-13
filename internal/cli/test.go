@@ -194,6 +194,12 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 			return refuse()
 		}
 	}
+	// Request files can live outside the root (`dir: ../api` in apic.yaml).
+	for _, f := range p.Files {
+		if sameAs(filepath.Join(p.Root, filepath.FromSlash(f.Path))) {
+			return refuse()
+		}
+	}
 	var found bool
 	_ = filepath.WalkDir(p.Root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || found {

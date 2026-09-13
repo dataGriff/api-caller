@@ -653,3 +653,27 @@ components:
 		t.Errorf("a media type without a body must not win over one with an example:\n%s", all)
 	}
 }
+
+func TestImportWithoutSuccessResponseHasNoStatusAssert(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        default: {description: anything}
+        "404": {description: missing}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); strings.Contains(all, "@assert status") {
+		t.Errorf("no 2xx response declared, so no status assertion:\n%s", all)
+	}
+}

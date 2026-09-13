@@ -297,7 +297,8 @@ Scaffolds `.http` files from an OpenAPI 3 document:
 - one file per tag (`pets.http`), operations without tags go to `api.http`;
 - one request per operation named from `operationId` in kebab-case, else
   from method and path;
-- `# @assert status == <first 2xx code>`;
+- `# @assert status == <first 2xx code>` (a `2XX` key becomes a range check;
+  an operation that declares no 2xx response gets no status assertion);
 - path parameters as `{{param}}`; required query and header parameters as
   `{{vars}}`, optional ones as commented lines;
 - a JSON body built from the request schema, using examples, defaults and
