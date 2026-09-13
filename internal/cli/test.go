@@ -39,7 +39,7 @@ phrase) · 3 a server could not be reached.`,
   apic test --format junit --output report.xml
   apic test --json | jq '.[].elements[].steps[].result.status'
   apic test --steps`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (retErr error) {
 			if listSteps {
 				return a.printSteps()
 			}
@@ -75,7 +75,12 @@ phrase) · 3 a server could not be reached.`,
 				// Created on first write, which happens only after the features
 				// have been read, so a report path can never truncate its input.
 				lf := &lazyFile{path: output}
-				defer func() { _ = lf.Close() }()
+				defer func() {
+					// A close failure means the report was not fully written.
+					if cerr := lf.Close(); cerr != nil && retErr == nil {
+						retErr = &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", output, cerr)}
+					}
+				}()
 				opts.Output = lf
 			}
 			code, err := bdd.Run(cmd.Context(), opts)

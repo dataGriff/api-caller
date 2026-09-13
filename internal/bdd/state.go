@@ -364,7 +364,7 @@ func tableVars(t *godog.Table) (map[string]string, error) {
 	out := map[string]string{}
 	for i, row := range t.Rows {
 		if len(row.Cells) != 2 {
-			return nil, fmt.Errorf("table row %d must have two cells: name | value", i+1)
+			return nil, &runner.UsageError{Msg: fmt.Sprintf("table row %d must have two cells: name | value", i+1)}
 		}
 		k, v := row.Cells[0].Value, row.Cells[1].Value
 		if i == 0 && strings.EqualFold(k, "name") && strings.EqualFold(v, "value") {

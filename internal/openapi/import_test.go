@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
@@ -471,8 +472,13 @@ components:
 	for _, f := range res.Files {
 		all += mustRead(t, f)
 	}
-	if !strings.Contains(all, "    # ?opt={{opt}}  (optional)\n    ?req={{req}}\n") {
-		t.Errorf("the first active query parameter must use ?:\n%s", all)
+	if !strings.Contains(all, "    ?req={{req}}\n    # &opt={{opt}}  (optional)\n") {
+		t.Errorf("active query parameters must precede optional comments:\n%s", all)
+	}
+	for _, f := range res.Files {
+		if _, diags, err := httpfile.ParseFile(f); err != nil || len(diags) > 0 {
+			t.Errorf("generated file must parse: %v %v", err, diags)
+		}
 	}
 	if !strings.Contains(all, `"name": "from-ref"`) || strings.Contains(all, "ignored-in-3.0") {
 		t.Errorf("3.0 must ignore keys next to $ref:\n%s", all)

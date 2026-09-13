@@ -771,3 +771,13 @@ func TestShortSecretsMaskedInErrors(t *testing.T) {
 		t.Fatalf("short secret must be masked in error text: code=%d err=%v", code, err)
 	}
 }
+
+func TestMalformedVariableTableIsUsageError(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    Given the variables:\n      | only |\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "two cells") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+}

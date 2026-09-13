@@ -279,15 +279,11 @@ func (o *operation) render() string {
 	}
 	body, contentType := o.Body, o.ContentType
 	fmt.Fprintf(&b, "%s {{baseUrl}}%s\n", o.Method, path)
+	// Active continuation lines first: the parser stops reading query
+	// continuations at the first comment, so optional parameters follow.
 	active := 0
 	for _, q := range query {
 		if strings.HasPrefix(q, "# ") {
-			// Commented parameters are not sent; show the separator a caller would add.
-			sep := "&"
-			if active == 0 {
-				sep = "?"
-			}
-			fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 			continue
 		}
 		sep := "&"
@@ -296,6 +292,17 @@ func (o *operation) render() string {
 		}
 		active++
 		fmt.Fprintf(&b, "    %s%s\n", sep, q)
+	}
+	for _, q := range query {
+		if !strings.HasPrefix(q, "# ") {
+			continue
+		}
+		// Commented parameters are not sent; show the separator a caller would add.
+		sep := "&"
+		if active == 0 {
+			sep = "?"
+		}
+		fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 	}
 	if contentType != "" {
 		fmt.Fprintf(&b, "Content-Type: %s\n", contentType)
