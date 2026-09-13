@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -31,8 +32,7 @@ func server(t *testing.T) *httptest.Server {
 		id := next
 		next++
 		in["id"] = id
-		users[http.StatusText(id)] = in
-		users[strings.TrimSpace(json.Number(itoa(id)).String())] = in
+		users[strconv.Itoa(id)] = in
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(201)
 		_ = json.NewEncoder(w).Encode(in)

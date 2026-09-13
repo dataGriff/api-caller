@@ -93,7 +93,7 @@ func TestValidateDuplicatePhraseByMatcher(t *testing.T) {
 	}
 	found := false
 	for _, d := range p.Validate() {
-		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do {y}" matches the same text as @step "I do {x}"`) {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do {y}" matches the same text as @step "I do {x}" on a (api.http:3)`) {
 			found = true
 		}
 	}

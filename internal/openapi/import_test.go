@@ -536,4 +536,7 @@ components:
 	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out2")}); err == nil || !strings.Contains(err.Error(), "cyclic") {
 		t.Fatalf("cyclic $ref should be reported: %v", err)
 	}
+	if entries, _ := os.ReadDir(filepath.Join(dir, "out2")); len(entries) != 0 {
+		t.Fatalf("no files may be written when the document is broken: %v", entries)
+	}
 }

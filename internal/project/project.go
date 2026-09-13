@@ -226,8 +226,9 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 		}
 	}
 	type declared struct {
-		req *httpfile.Request
-		ph  *phrase.Phrase
+		req  *httpfile.Request
+		ph   *phrase.Phrase
+		line int // line of the # @step directive
 	}
 	var phrases []declared
 	for _, r := range p.Requests() {
@@ -246,10 +247,10 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			for _, other := range phrases {
 				if ph.ConflictsWith(other.ph) {
 					diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
-						Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.req.Line)})
+						Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.line)})
 				}
 			}
-			phrases = append(phrases, declared{r, ph})
+			phrases = append(phrases, declared{r, ph, d.Line})
 		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {

@@ -136,6 +136,8 @@ type maskWriter struct {
 	whole bool // buffer everything and mask as JSON at flush
 }
 
+// Write accepts p into the buffer (so it always reports len(p) consumed)
+// and forwards complete lines; a downstream failure is returned alongside.
 func (m *maskWriter) Write(p []byte) (int, error) {
 	m.buf.Write(p)
 	if m.whole {
@@ -148,7 +150,7 @@ func (m *maskWriter) Write(p []byte) (int, error) {
 		}
 		line := string(m.buf.Next(i + 1))
 		if _, err := io.WriteString(m.w, m.cfg.mask(line)); err != nil {
-			return 0, err
+			return len(p), err
 		}
 	}
 }

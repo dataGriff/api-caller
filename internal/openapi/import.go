@@ -113,6 +113,11 @@ func Import(specPath string, opts Options) (*Result, error) {
 		}
 	}
 	sort.Strings(tagOrder)
+	// Everything that resolves references has run by now; stop before
+	// writing any file if the document was structurally broken.
+	if doc.err != nil {
+		return nil, fmt.Errorf("%s: %w", specPath, doc.err)
+	}
 
 	usedFiles := map[string]bool{}
 	for _, tag := range tagOrder {
@@ -137,10 +142,6 @@ func Import(specPath string, opts Options) (*Result, error) {
 			return nil, err
 		}
 		res.Files = append(res.Files, file)
-	}
-
-	if doc.err != nil {
-		return nil, fmt.Errorf("%s: %w", specPath, doc.err)
 	}
 
 	envFile := filepath.Join(opts.OutDir, "http-client.env.json")
