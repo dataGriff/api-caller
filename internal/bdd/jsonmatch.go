@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"reflect"
 	"sort"
@@ -17,7 +18,9 @@ func decodeJSON(data []byte, v *any) error {
 	if err := dec.Decode(v); err != nil {
 		return err
 	}
-	if dec.More() {
+	// Exactly one value: a second value or trailing syntax is an error.
+	var rest any
+	if err := dec.Decode(&rest); err != io.EOF {
 		return fmt.Errorf("unexpected data after the JSON value")
 	}
 	return nil

@@ -177,28 +177,41 @@ func outputOverlapsSources(output, root string) error {
 	return nil
 }
 
-// lazyFile opens its path on the first write.
+// lazyFile opens its path on the first write. The first create or write
+// error is kept and reported by Close, since formatters may ignore it.
 type lazyFile struct {
 	path string
 	f    *os.File
+	err  error
 }
 
 func (l *lazyFile) Write(p []byte) (int, error) {
+	if l.err != nil {
+		return 0, l.err
+	}
 	if l.f == nil {
 		f, err := os.Create(l.path)
 		if err != nil {
+			l.err = err
 			return 0, err
 		}
 		l.f = f
 	}
-	return l.f.Write(p)
+	n, err := l.f.Write(p)
+	if err != nil {
+		l.err = err
+	}
+	return n, err
 }
 
 func (l *lazyFile) Close() error {
 	if l.f == nil {
-		return nil
+		return l.err
 	}
-	return l.f.Close()
+	if err := l.f.Close(); err != nil && l.err == nil {
+		l.err = err
+	}
+	return l.err
 }
 
 func (a *App) printSteps() error {

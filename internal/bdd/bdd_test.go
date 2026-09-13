@@ -819,4 +819,33 @@ func TestJSONMatchComparesNumbersExactly(t *testing.T) {
 	if ok, why := jsonEqual([]byte(`[1]`), []byte(`["1"]`)); ok || !strings.Contains(why, "expected \"1\", got 1") {
 		t.Fatalf("a number is not a string: ok=%v why=%s", ok, why)
 	}
+	for _, bad := range []string{"{}]", "{} {}", "[1],", "{}}"} {
+		if ok, _ := jsonEqual([]byte(bad), []byte(`{}`)); ok {
+			t.Fatalf("trailing data must be rejected: %q", bad)
+		}
+	}
+	if ok, why := jsonEqual([]byte(" {} \n"), []byte(`{}`)); !ok {
+		t.Fatalf("surrounding whitespace is fine: %s", why)
+	}
+}
+
+func TestRedactMasksXMLEscapedSecretsInJUnit(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	var out bytes.Buffer
+	code, err := Run(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"token": "amp&secret<1>"}},
+		Format: "junit", NoColors: true, Output: &out,
+		Features: []godog.Feature{{Name: "x.feature", Contents: []byte(`
+Feature: Escaped
+  Scenario: The name mentions amp&secret<1> and the formatter escapes it
+    Given I am logged in
+`)}},
+	})
+	if err != nil || code != ExitPassed {
+		t.Fatalf("code=%d err=%v\n%s", code, err, out.String())
+	}
+	if strings.Contains(out.String(), "amp&amp;secret") || strings.Contains(out.String(), "amp&secret") || !strings.Contains(out.String(), "***") {
+		t.Fatalf("the XML-escaped secret leaked:\n%s", out.String())
+	}
 }

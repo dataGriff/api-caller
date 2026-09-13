@@ -78,3 +78,20 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func TestLazyFileReportsWriteErrorsOnClose(t *testing.T) {
+	lf := &lazyFile{path: filepath.Join(t.TempDir(), "missing", "report.xml")}
+	if _, err := lf.Write([]byte("x")); err == nil {
+		t.Fatal("writing into a missing directory must fail")
+	}
+	if err := lf.Close(); err == nil {
+		t.Fatal("Close must report the earlier write failure")
+	}
+	ok := &lazyFile{path: filepath.Join(t.TempDir(), "report.xml")}
+	if _, err := ok.Write([]byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	if err := ok.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

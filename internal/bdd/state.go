@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -166,8 +167,20 @@ func (c *Config) mask(s string) string {
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
 	for _, k := range keys {
 		s = strings.ReplaceAll(s, k, runner.Masked)
+		// The JUnit formatter XML-escapes text, so a&b appears as a&amp;b.
+		if esc := xmlEscape(k); esc != k {
+			s = strings.ReplaceAll(s, esc, runner.Masked)
+		}
 	}
 	return s
+}
+
+func xmlEscape(s string) string {
+	var b bytes.Buffer
+	if err := xml.EscapeText(&b, []byte(s)); err != nil {
+		return s
+	}
+	return b.String()
 }
 
 // scenario is the per-scenario state carried in the context.
