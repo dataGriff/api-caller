@@ -143,3 +143,16 @@ func TestOutputOntoRequestFileOutsideRootIsRefused(t *testing.T) {
 		t.Fatalf("request file was damaged: %q", data)
 	}
 }
+
+func TestRealPathResolvesMissingLeaves(t *testing.T) {
+	dir := t.TempDir()
+	real, err := filepath.EvalSymlinks(dir)
+	must(t, err)
+	got := realPath(filepath.Join(dir, "missing", "deeper", "report.xml"))
+	if got != filepath.Join(real, "missing", "deeper", "report.xml") {
+		t.Fatalf("got %s", got)
+	}
+	if got := realPath(dir); got != real {
+		t.Fatalf("existing path: got %s want %s", got, real)
+	}
+}

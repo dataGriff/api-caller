@@ -125,6 +125,29 @@ func isTerminal(w io.Writer) bool {
 	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
 
+// realPath returns path in absolute, symlink-free, canonical form even when
+// it (or some of its parent directories) does not exist yet: the nearest
+// existing ancestor is resolved and the remainder appended. On Windows this
+// also turns 8.3 short names such as RUNNER~1 into their long form.
+func realPath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	rest := ""
+	for cur := abs; ; {
+		if real, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(real, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
 // describeOutcome words the run result for the report-failure message.
 func describeOutcome(err error) string {
 	if err == nil {
@@ -151,22 +174,10 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 			bodyFiles[filepath.Clean(abs)] = true
 		}
 	}
-	rootReal := p.Root
-	if real, err := filepath.EvalSymlinks(p.Root); err == nil {
-		rootReal = real
-	}
+	rootReal := realPath(p.Root)
 	// underRoot reports whether path (existing or not) lies in the project.
 	underRoot := func(path string) bool {
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			return false
-		}
-		if real, err := filepath.EvalSymlinks(abs); err == nil {
-			abs = real
-		} else if dirReal, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
-			abs = filepath.Join(dirReal, filepath.Base(abs))
-		}
-		rel, err := filepath.Rel(rootReal, abs)
+		rel, err := filepath.Rel(rootReal, realPath(path))
 		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 	}
 	// isInput recognises project inputs by name only inside the project;
