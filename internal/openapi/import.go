@@ -293,15 +293,18 @@ func (o *operation) render() string {
 		active++
 		fmt.Fprintf(&b, "    %s%s\n", sep, q)
 	}
+	shown := active
 	for _, q := range query {
 		if !strings.HasPrefix(q, "# ") {
 			continue
 		}
-		// Commented parameters are not sent; show the separator a caller would add.
+		// Commented parameters are not sent; show the separator a caller
+		// would add when uncommenting them in order.
 		sep := "&"
-		if active == 0 {
+		if shown == 0 {
 			sep = "?"
 		}
+		shown++
 		fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 	}
 	if contentType != "" {

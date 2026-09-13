@@ -1,26 +1,41 @@
 package bdd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"reflect"
 	"sort"
 	"strings"
 )
 
+// decodeJSON keeps numbers as json.Number so large integers compare exactly.
+func decodeJSON(data []byte, v *any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	if dec.More() {
+		return fmt.Errorf("unexpected data after the JSON value")
+	}
+	return nil
+}
+
 // jsonEqual reports whether two JSON documents are semantically equal.
 func jsonEqual(actual, expected []byte) (bool, string) {
 	var a, e any
-	if err := json.Unmarshal(actual, &a); err != nil {
+	if err := decodeJSON(actual, &a); err != nil {
 		return false, "response body is not JSON"
 	}
-	if err := json.Unmarshal(expected, &e); err != nil {
+	if err := decodeJSON(expected, &e); err != nil {
 		return false, "expected document is not JSON: " + err.Error()
 	}
-	if reflect.DeepEqual(a, e) {
-		return true, ""
+	if why := diff("$", a, e, true); why != "" {
+		return false, why
 	}
-	return false, diff("$", a, e, true)
+	return true, ""
 }
 
 // jsonContains reports whether expected is a subset of actual: every key in
@@ -28,10 +43,10 @@ func jsonEqual(actual, expected []byte) (bool, string) {
 // length and match element by element; scalars must be equal.
 func jsonContains(actual, expected []byte) (bool, string) {
 	var a, e any
-	if err := json.Unmarshal(actual, &a); err != nil {
+	if err := decodeJSON(actual, &a); err != nil {
 		return false, "response body is not JSON"
 	}
-	if err := json.Unmarshal(expected, &e); err != nil {
+	if err := decodeJSON(expected, &e); err != nil {
 		return false, "expected document is not JSON: " + err.Error()
 	}
 	if why := diff("$", a, e, false); why != "" {
@@ -81,12 +96,28 @@ func diff(path string, a, e any, exact bool) string {
 				return why
 			}
 		}
+	case json.Number:
+		an, ok := a.(json.Number)
+		if !ok || !numberEqual(an, ev) {
+			return fmt.Sprintf("%s: expected %s, got %s", path, show(e), show(a))
+		}
 	default:
 		if !reflect.DeepEqual(a, e) {
 			return fmt.Sprintf("%s: expected %s, got %s", path, show(e), show(a))
 		}
 	}
 	return ""
+}
+
+// numberEqual compares JSON numbers exactly, so 1.0 equals 1 and
+// 9007199254740993 differs from 9007199254740992.
+func numberEqual(a, b json.Number) bool {
+	x, ok1 := new(big.Rat).SetString(a.String())
+	y, ok2 := new(big.Rat).SetString(b.String())
+	if !ok1 || !ok2 {
+		return a == b
+	}
+	return x.Cmp(y) == 0
 }
 
 func kind(v any) string {
@@ -99,7 +130,7 @@ func kind(v any) string {
 		return "an array"
 	case string:
 		return "a string"
-	case float64:
+	case json.Number:
 		return "a number"
 	case bool:
 		return "a boolean"

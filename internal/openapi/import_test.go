@@ -546,3 +546,29 @@ components:
 		t.Fatalf("no files may be written when the document is broken: %v", entries)
 	}
 }
+
+func TestImportOptionalOnlyQuerySeparators(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: first, in: query, schema: {type: string}}
+        - {name: second, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "    # ?first={{first}}  (optional)\n    # &second={{second}}  (optional)\n") {
+		t.Errorf("only the first optional parameter may use ?:\n%s", all)
+	}
+}

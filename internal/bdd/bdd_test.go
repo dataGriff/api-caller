@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -779,5 +780,43 @@ func TestMalformedVariableTableIsUsageError(t *testing.T) {
 		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    Given the variables:\n      | only |\n")}}})
 	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "two cells") {
 		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestRedactMasksValuesCapturedAfterTheyAppear(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	var out bytes.Buffer
+	code, err := Run(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard},
+		Format: "pretty", NoColors: true, Output: &out,
+		Features: []godog.Feature{{Name: "late.feature", Contents: []byte(`
+Feature: Late capture
+  Scenario: The literal appears before the capture registers it
+    Given I am logged in
+    Then the response body "$.token" is "t-1"
+    When I capture the response body "$.token" as "kept"
+`)}},
+	})
+	if err != nil || code != ExitPassed {
+		t.Fatalf("code=%d err=%v\n%s", code, err, out.String())
+	}
+	if strings.Contains(out.String(), "t-1") || !strings.Contains(out.String(), "***") {
+		t.Fatalf("a value captured later must be masked in earlier lines:\n%s", out.String())
+	}
+}
+
+func TestJSONMatchComparesNumbersExactly(t *testing.T) {
+	if ok, _ := jsonEqual([]byte(`{"id": 9007199254740993}`), []byte(`{"id": 9007199254740992}`)); ok {
+		t.Fatal("large integers must not be rounded to the same value")
+	}
+	if ok, why := jsonEqual([]byte(`{"n": 1.0, "big": 12345678901234567890}`), []byte(`{"n": 1, "big": 12345678901234567890}`)); !ok {
+		t.Fatalf("1.0 and 1 are the same number: %s", why)
+	}
+	if ok, why := jsonContains([]byte(`{"n": 1e2, "s": "x"}`), []byte(`{"n": 100}`)); !ok {
+		t.Fatalf("1e2 and 100 are the same number: %s", why)
+	}
+	if ok, why := jsonEqual([]byte(`[1]`), []byte(`["1"]`)); ok || !strings.Contains(why, "expected \"1\", got 1") {
+		t.Fatalf("a number is not a string: ok=%v why=%s", ok, why)
 	}
 }

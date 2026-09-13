@@ -40,6 +40,12 @@ func TestTestCommandExitCodes(t *testing.T) {
 	if data, _ := os.ReadFile(feature); !strings.Contains(string(data), "Feature: p") {
 		t.Fatalf("feature file was damaged: %q", data)
 	}
+	// Environment files, the project config and the session are inputs too.
+	for _, name := range []string{"http-client.env.json", "apic.yaml", ".env", filepath.Join(".apic", "session.json")} {
+		if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", filepath.Join(dir, name)); code != 2 || !strings.Contains(stderr, "would overwrite") {
+			t.Fatalf("output onto %s: code=%d stderr=%s", name, code, stderr)
+		}
+	}
 	// A symlink alias of a feature is refused too.
 	alias := filepath.Join(dir, "report.xml")
 	if err := os.Symlink(feature, alias); err == nil {

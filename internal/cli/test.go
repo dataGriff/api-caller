@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/bdd"
+	"github.com/dataGriff/api-caller/internal/env"
+	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
+	"github.com/dataGriff/api-caller/internal/session"
 )
 
 func (a *App) testCmd() *cobra.Command {
@@ -118,26 +121,31 @@ func isTerminal(w io.Writer) bool {
 }
 
 // outputOverlapsSources refuses a report path that is, or aliases through a
-// symlink or hard link, a request or feature file under the project.
+// symlink or hard link, a file the test command reads or writes: request and
+// feature files, the project config, environment files and the session.
 func outputOverlapsSources(output, root string) error {
 	refuse := func() error {
-		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a source file; write the report elsewhere", output)}
+		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write the report elsewhere", output)}
 	}
-	isSource := func(name string) bool {
-		switch strings.ToLower(filepath.Ext(name)) {
+	isInput := func(path string) bool {
+		switch strings.ToLower(filepath.Ext(path)) {
 		case ".feature", ".http", ".rest":
 			return true
 		}
-		return false
+		switch filepath.Base(path) {
+		case project.ConfigFile, env.PublicFile, env.PrivateFile, env.DotEnvFile:
+			return true
+		}
+		return filepath.Base(filepath.Dir(path)) == session.Dir
 	}
-	if isSource(output) {
+	if isInput(output) {
 		return refuse()
 	}
 	real, err := filepath.EvalSymlinks(output)
 	if err != nil {
 		return nil // does not exist yet: nothing to alias
 	}
-	if isSource(real) {
+	if isInput(real) {
 		return refuse()
 	}
 	target, err := os.Stat(real)
@@ -150,12 +158,12 @@ func outputOverlapsSources(output, root string) error {
 			return nil
 		}
 		if d.IsDir() {
-			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor") {
+			if path != root && d.Name() != session.Dir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !isSource(d.Name()) {
+		if !isInput(path) {
 			return nil
 		}
 		if info, err := os.Stat(path); err == nil && os.SameFile(info, target) {

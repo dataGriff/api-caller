@@ -76,10 +76,11 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	output := opts.Output
 	var masker *maskWriter
 	if opts.Redact {
-		// The cucumber report is JSON: mask its string values after the run
-		// so a numeric-looking secret cannot break the structure. Text
-		// formats are masked line by line as they stream.
-		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, whole: opts.Format == "cucumber"}
+		// The whole report is held back until the run completes, so values
+		// captured late in the run are masked in lines written earlier.
+		// The cucumber report is JSON: only its string values are masked so a
+		// numeric-looking secret cannot break the structure.
+		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, json: opts.Format == "cucumber"}
 		output = masker
 	}
 	suite := godog.TestSuite{
@@ -127,41 +128,28 @@ func Run(ctx context.Context, opts Options) (int, error) {
 }
 
 // maskWriter hides registered secret values in whatever the formatter
-// writes (step text, tables, doc strings, error messages). Formatters
-// write in small pieces, so it buffers and masks whole lines.
+// writes (step text, tables, doc strings, error messages). Secrets are
+// discovered while the run progresses (captures), so the report is
+// buffered and masked once at flush rather than streamed.
 type maskWriter struct {
-	w     io.Writer
-	cfg   *Config
-	buf   bytes.Buffer
-	whole bool // buffer everything and mask as JSON at flush
+	w    io.Writer
+	cfg  *Config
+	buf  bytes.Buffer
+	json bool // mask string values only, keeping the JSON structure
 }
 
-// Write accepts p into the buffer (so it always reports len(p) consumed)
-// and forwards complete lines; a downstream failure is returned alongside.
+// Write buffers p; nothing reaches the destination before flush.
 func (m *maskWriter) Write(p []byte) (int, error) {
-	m.buf.Write(p)
-	if m.whole {
-		return len(p), nil
-	}
-	for {
-		i := bytes.IndexByte(m.buf.Bytes(), '\n')
-		if i < 0 {
-			return len(p), nil
-		}
-		line := string(m.buf.Next(i + 1))
-		if _, err := io.WriteString(m.w, m.cfg.mask(line)); err != nil {
-			return len(p), err
-		}
-	}
+	return m.buf.Write(p)
 }
 
-// flush writes any trailing partial line, or the whole masked JSON report.
+// flush writes the masked report.
 func (m *maskWriter) flush() error {
 	if m.buf.Len() == 0 {
 		return nil
 	}
 	defer m.buf.Reset()
-	if m.whole {
+	if m.json {
 		if out, err := m.cfg.maskJSON(m.buf.Bytes()); err == nil {
 			_, werr := m.w.Write(out)
 			return werr
