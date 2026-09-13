@@ -836,3 +836,61 @@ paths:
 		t.Errorf("reserved names leaked:\n%s", all)
 	}
 }
+
+func TestImportNonJSONBodies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /form:
+    post:
+      operationId: form
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                user: {type: string, example: "a b"}
+                count: {type: integer}
+                tags: {type: array, items: {type: string, example: x}}
+      responses: {"200": {description: ok}}
+  /xml:
+    post:
+      operationId: xml
+      requestBody:
+        content:
+          application/xml:
+            schema: {type: object, properties: {id: {type: integer}}}
+      responses: {"200": {description: ok}}
+  /either:
+    post:
+      operationId: either
+      requestBody:
+        content:
+          application/xml:
+            schema: {type: object, properties: {id: {type: integer}}}
+          application/json:
+            schema: {type: object, properties: {id: {type: integer}}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "Content-Type: application/x-www-form-urlencoded\n\nuser=a+b&count=1&tags=%5B%22x%22%5D\n") {
+		t.Errorf("form bodies are form-encoded in property order:\n%s", all)
+	}
+	xmlPart := all[strings.Index(all, "# @name xml"):strings.Index(all, "# @name either")]
+	if !strings.Contains(xmlPart, "Content-Type: application/xml") || strings.Contains(xmlPart, `"id"`) {
+		t.Errorf("an XML body must not be rendered as JSON:\n%s", xmlPart)
+	}
+	eitherPart := all[strings.Index(all, "# @name either"):]
+	if !strings.Contains(eitherPart, "Content-Type: application/json") || !strings.Contains(eitherPart, `"id": 1`) {
+		t.Errorf("a JSON media type is preferred over one that cannot be rendered:\n%s", eitherPart)
+	}
+}

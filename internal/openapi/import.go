@@ -6,6 +6,7 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -363,10 +364,38 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		if s, ok := v.(string); ok {
 			return s, ct
 		}
-		data, _ := json.Marshal(v)
-		return string(data), ct
+		if strings.EqualFold(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]), "application/x-www-form-urlencoded") {
+			if obj, ok := v.(*orderedObject); ok {
+				return formEncode(obj), ct
+			}
+		}
+		// XML, multipart and other structured non-JSON bodies cannot be
+		// rendered faithfully from a schema: try the next media type rather
+		// than emit JSON under a misleading content type.
 	}
 	return "", mts[0].key
+}
+
+// formEncode renders an object as application/x-www-form-urlencoded, in
+// property order; nested values are JSON-encoded.
+func formEncode(obj *orderedObject) string {
+	var parts []string
+	for _, k := range obj.keys {
+		var val string
+		switch v := obj.vals[k].(type) {
+		case string:
+			val = v
+		case nil:
+			val = ""
+		case *orderedObject, []any:
+			data, _ := json.Marshal(v)
+			val = string(data)
+		default:
+			val = fmt.Sprint(v)
+		}
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(val))
+	}
+	return strings.Join(parts, "&")
 }
 
 // isJSON reports whether a media type carries JSON; names are
