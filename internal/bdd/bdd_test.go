@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -847,5 +848,43 @@ Feature: Escaped
 	}
 	if strings.Contains(out.String(), "amp&amp;secret") || strings.Contains(out.String(), "amp&secret") || !strings.Contains(out.String(), "***") {
 		t.Fatalf("the XML-escaped secret leaked:\n%s", out.String())
+	}
+}
+
+func TestRedactKeepsReportStructureWhenSecretsLookStructural(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	feature := `
+Feature: Structural
+  Scenario: A failing scenario stays failed
+    Given I am logged in
+    Then the response status is 500
+`
+	sum, report, code, err := RunSummary(context.Background(), Options{
+		Config:   Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"a": "failed", "b": "scenario", "c": "Given "}},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(feature)}},
+	})
+	if err != nil || code != ExitFailed || sum.Failed != 1 || sum.OK {
+		t.Fatalf("a secret equal to a status must not hide the failure: code=%d err=%v sum=%+v\n%s", code, err, sum, report)
+	}
+	var out bytes.Buffer
+	code, err = Run(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"a": "testcase", "b": "testsuite", "c": "failure"}},
+		Format: "junit", NoColors: true, Output: &out,
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(feature)}},
+	})
+	if err != nil || code != ExitFailed {
+		t.Fatalf("code=%d err=%v\n%s", code, err, out.String())
+	}
+	var suites struct {
+		Suites []struct {
+			Cases []struct {
+				Name    string    `xml:"name,attr"`
+				Failure *struct{} `xml:"failure"`
+			} `xml:"testcase"`
+		} `xml:"testsuite"`
+	}
+	if err := xml.Unmarshal(out.Bytes(), &suites); err != nil || len(suites.Suites) != 1 || len(suites.Suites[0].Cases) != 1 || suites.Suites[0].Cases[0].Failure == nil {
+		t.Fatalf("the JUnit report must stay well-formed with its failure: %v\n%s", err, out.String())
 	}
 }

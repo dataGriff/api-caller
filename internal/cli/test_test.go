@@ -46,6 +46,12 @@ func TestTestCommandExitCodes(t *testing.T) {
 			t.Fatalf("output onto %s: code=%d stderr=%s", name, code, stderr)
 		}
 	}
+	// A request body file is an input as well.
+	must(t, os.WriteFile(filepath.Join(dir, "payload.json"), []byte(`{"a":1}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "post.http"), []byte("### b\n# @name post\nPOST {{baseUrl}}/p\nContent-Type: application/json\n\n< ./payload.json\n"), 0o644))
+	if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", filepath.Join(dir, "payload.json")); code != 2 || !strings.Contains(stderr, "would overwrite") {
+		t.Fatalf("output onto a body file: code=%d stderr=%s", code, stderr)
+	}
 	// A symlink alias of a feature is refused too.
 	alias := filepath.Join(dir, "report.xml")
 	if err := os.Symlink(feature, alias); err == nil {

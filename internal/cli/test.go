@@ -72,16 +72,17 @@ phrase) · 3 a server could not be reached.`,
 				opts.Format = "cucumber"
 			}
 			if output != "" {
-				if err := outputOverlapsSources(output, p.Root); err != nil {
+				if err := outputOverlapsSources(output, p); err != nil {
 					return err
 				}
 				// Created on first write, which happens only after the features
 				// have been read, so a report path can never truncate its input.
 				lf := &lazyFile{path: output}
 				defer func() {
-					// A close failure means the report was not fully written.
-					if cerr := lf.Close(); cerr != nil && retErr == nil {
-						retErr = &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", output, cerr)}
+					// A report that was not fully written fails the command
+					// whatever the scenarios did: CI must not lose it silently.
+					if cerr := lf.Close(); cerr != nil {
+						retErr = &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v (run result: %v)", output, cerr, describeOutcome(retErr))}
 					}
 				}()
 				opts.Output = lf
@@ -120,12 +121,31 @@ func isTerminal(w io.Writer) bool {
 	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
 
+// describeOutcome words the run result for the report-failure message.
+func describeOutcome(err error) string {
+	if err == nil {
+		return "scenarios passed"
+	}
+	return err.Error()
+}
+
 // outputOverlapsSources refuses a report path that is, or aliases through a
-// symlink or hard link, a file the test command reads or writes: request and
-// feature files, the project config, environment files and the session.
-func outputOverlapsSources(output, root string) error {
+// symlink or hard link, a file the test command reads or writes: request,
+// feature and body files, the project config, environment files and the
+// session.
+func outputOverlapsSources(output string, p *project.Project) error {
 	refuse := func() error {
 		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write the report elsewhere", output)}
+	}
+	bodyFiles := map[string]bool{}
+	for _, req := range p.Requests() {
+		if req.BodyFile == "" {
+			continue
+		}
+		path := filepath.Join(p.Root, filepath.Dir(req.File.Path), req.BodyFile)
+		if abs, err := filepath.Abs(path); err == nil {
+			bodyFiles[filepath.Clean(abs)] = true
+		}
 	}
 	isInput := func(path string) bool {
 		switch strings.ToLower(filepath.Ext(path)) {
@@ -134,6 +154,9 @@ func outputOverlapsSources(output, root string) error {
 		}
 		switch filepath.Base(path) {
 		case project.ConfigFile, env.PublicFile, env.PrivateFile, env.DotEnvFile:
+			return true
+		}
+		if abs, err := filepath.Abs(path); err == nil && bodyFiles[filepath.Clean(abs)] {
 			return true
 		}
 		return filepath.Base(filepath.Dir(path)) == session.Dir
@@ -152,21 +175,27 @@ func outputOverlapsSources(output, root string) error {
 	if err != nil {
 		return nil
 	}
+	sameAs := func(path string) bool {
+		info, err := os.Stat(path)
+		return err == nil && os.SameFile(info, target)
+	}
+	for bf := range bodyFiles {
+		if sameAs(bf) {
+			return refuse()
+		}
+	}
 	var found bool
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(p.Root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || found {
 			return nil
 		}
 		if d.IsDir() {
-			if path != root && d.Name() != session.Dir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor") {
+			if path != p.Root && d.Name() != session.Dir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !isInput(path) {
-			return nil
-		}
-		if info, err := os.Stat(path); err == nil && os.SameFile(info, target) {
+		if isInput(path) && sameAs(path) {
 			found = true
 		}
 		return nil

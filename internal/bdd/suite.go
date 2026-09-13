@@ -80,7 +80,7 @@ func Run(ctx context.Context, opts Options) (int, error) {
 		// captured late in the run are masked in lines written earlier.
 		// The cucumber report is JSON: only its string values are masked so a
 		// numeric-looking secret cannot break the structure.
-		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, json: opts.Format == "cucumber"}
+		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, format: opts.Format}
 		output = masker
 	}
 	suite := godog.TestSuite{
@@ -132,10 +132,10 @@ func Run(ctx context.Context, opts Options) (int, error) {
 // discovered while the run progresses (captures), so the report is
 // buffered and masked once at flush rather than streamed.
 type maskWriter struct {
-	w    io.Writer
-	cfg  *Config
-	buf  bytes.Buffer
-	json bool // mask string values only, keeping the JSON structure
+	w      io.Writer
+	cfg    *Config
+	buf    bytes.Buffer
+	format string // cucumber and junit are masked structurally
 }
 
 // Write buffers p; nothing reaches the destination before flush.
@@ -149,8 +149,18 @@ func (m *maskWriter) flush() error {
 		return nil
 	}
 	defer m.buf.Reset()
-	if m.json {
-		if out, err := m.cfg.maskJSON(m.buf.Bytes()); err == nil {
+	// Structured reports are masked value by value so a secret that
+	// happens to equal a status, element or attribute name cannot change
+	// the report's meaning; plain-text substitution is the fallback.
+	var structured func([]byte) ([]byte, error)
+	switch m.format {
+	case "cucumber":
+		structured = m.cfg.maskJSON
+	case "junit":
+		structured = m.cfg.maskXML
+	}
+	if structured != nil {
+		if out, err := structured(m.buf.Bytes()); err == nil {
 			_, werr := m.w.Write(out)
 			return werr
 		}

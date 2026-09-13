@@ -131,11 +131,58 @@ func (c *Config) maskValue(v any) any {
 		return t
 	case map[string]any:
 		for k, val := range t {
+			if _, structural := cukeStructural[k]; structural {
+				if _, isString := val.(string); isString {
+					continue
+				}
+			}
 			t[k] = c.maskValue(val)
 		}
 		return t
 	}
 	return v
+}
+
+// cukeStructural lists cucumber JSON fields whose string values carry
+// structure (result statuses, element types, step keywords, locations)
+// rather than user text; masking them would change what the report means.
+var cukeStructural = map[string]struct{}{"status": {}, "type": {}, "keyword": {}, "uri": {}, "location": {}, "line": {}}
+
+// maskXML masks the text and attribute values of an XML report (JUnit)
+// while leaving element and attribute names untouched.
+func (c *Config) maskXML(data []byte) ([]byte, error) {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	var out bytes.Buffer
+	enc := xml.NewEncoder(&out)
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			el := xml.StartElement{Name: t.Name, Attr: make([]xml.Attr, len(t.Attr))}
+			for i, a := range t.Attr {
+				el.Attr[i] = xml.Attr{Name: a.Name, Value: c.mask(a.Value)}
+			}
+			tok = el
+		case xml.CharData:
+			tok = xml.CharData(c.mask(string(t)))
+		default:
+			tok = xml.CopyToken(tok)
+		}
+		if err := enc.EncodeToken(tok); err != nil {
+			return nil, err
+		}
+	}
+	if err := enc.Flush(); err != nil {
+		return nil, err
+	}
+	out.WriteByte('\n')
+	return out.Bytes(), nil
 }
 
 // maskError masks an error message: every registered secret regardless of
@@ -167,20 +214,8 @@ func (c *Config) mask(s string) string {
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
 	for _, k := range keys {
 		s = strings.ReplaceAll(s, k, runner.Masked)
-		// The JUnit formatter XML-escapes text, so a&b appears as a&amp;b.
-		if esc := xmlEscape(k); esc != k {
-			s = strings.ReplaceAll(s, esc, runner.Masked)
-		}
 	}
 	return s
-}
-
-func xmlEscape(s string) string {
-	var b bytes.Buffer
-	if err := xml.EscapeText(&b, []byte(s)); err != nil {
-		return s
-	}
-	return b.String()
 }
 
 // scenario is the per-scenario state carried in the context.

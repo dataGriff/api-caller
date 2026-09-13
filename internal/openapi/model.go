@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -173,6 +174,10 @@ func (d *document) fail(err error) {
 func (d *document) pointer(path string) *yaml.Node {
 	cur := d.root
 	for _, seg := range strings.Split(path, "/") {
+		// Fragments are URI-encoded before JSON Pointer escaping applies.
+		if dec, err := url.PathUnescape(seg); err == nil {
+			seg = dec
+		}
 		seg = strings.ReplaceAll(strings.ReplaceAll(seg, "~1", "/"), "~0", "~")
 		if cur.Kind == yaml.AliasNode {
 			cur = cur.Alias

@@ -572,3 +572,32 @@ paths:
 		t.Errorf("only the first optional parameter may use ?:\n%s", all)
 	}
 }
+
+func TestImportPercentEncodedRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /p:
+    post:
+      operationId: p
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/User%20Profile"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    User Profile: {type: object, properties: {name: {type: string, example: percent}}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, `"name": "percent"`) {
+		t.Errorf("a percent-encoded $ref must resolve:\n%s", all)
+	}
+}
