@@ -1075,9 +1075,21 @@ func TestPhraseRunsRequestFromFileNameWithHash(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
 	p, err := project.Load(dir)
 	must(t, err)
-	sum, code := run(t, p, "Feature: h\n  Scenario: s\n    Given I log in oddly\n    Then the response status is 200\n    And the variable \"check\" is \"{{token}}\"\n", "dev")
+	sum, code := run(t, p, "Feature: h\n  Scenario: s\n    Given I log in oddly\n    Then the response status is 200\n    And the variable \"check\" is \"{{token}}\"\n    When I run the file \"odd#name.http\"\n    Then the response status is 200\n", "dev")
 	if code != ExitPassed || !sum.OK {
 		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestVariableNamesCannotLookLikeResponseReferences(t *testing.T) {
+	if err := checkVarName("foo.response.bar"); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("expected a usage error: %v", err)
+	}
+	if err := checkVarName("foo.bar"); err != nil {
+		t.Fatalf("dots are otherwise fine: %v", err)
+	}
+	if err := checkVarName("a;b"); err == nil || strings.Contains(err.Error(), "- ;") {
+		t.Fatalf("the message must not advertise characters the grammar rejects: %v", err)
 	}
 }
 

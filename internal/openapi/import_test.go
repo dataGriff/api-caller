@@ -1151,6 +1151,8 @@ paths:
       parameters:
         - {name: "a&b", in: query, required: true, schema: {type: string}}
         - {name: "c+d", in: query, required: true, schema: {type: string}}
+        - {name: "first name", in: query, required: true, schema: {type: string}}
+        - {name: "x;y", in: query, required: true, schema: {type: string}}
         - {name: "x;y", in: cookie, required: true, schema: {type: string}}
         - {name: ":", in: header, required: true, schema: {type: string}}
       requestBody:
@@ -1177,7 +1179,7 @@ paths:
 		t.Fatalf("exactly one request must come out: %v %v\n%s", err, diags, all)
 	}
 	r := f.Requests[0]
-	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}&c%2Bd={{cd}}" {
+	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}&c%2Bd={{cd}}&first%20name={{firstName}}&x%3By={{xy}}" {
 		t.Errorf("path and query names are kept on one line and encoded: %s", r.URL)
 	}
 	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "\n# @auth") {
@@ -1200,7 +1202,7 @@ paths:
 	if len(f.Vars) != 0 {
 		t.Errorf("no file-level variables may come from the preamble: %+v", f.Vars)
 	}
-	if !strings.Contains(all, "Cookie: xy={{xy}}\n") {
+	if !strings.Contains(all, "Cookie: xy={{xyCookie}}\n") {
 		t.Errorf("cookie names are tokens:\n%s", all)
 	}
 	if r.BodyFile == "" || r.BodyFileTemplated || !strings.Contains(mustRead(t, filepath.Join(dir, "out", r.BodyFile)), "### not a new request") {

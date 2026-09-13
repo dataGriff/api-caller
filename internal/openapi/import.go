@@ -287,10 +287,10 @@ func (o *operation) render() string {
 		// A spec is untrusted input: a name is written in the form its
 		// location allows, so it can neither add lines to the generated
 		// file nor change the request's meaning (`a&b`, `x;y`).
-		name := strings.Join(strings.Fields(p.Name), "")
+		name := strings.Join(strings.Fields(p.Name), " ") // no line breaks; spaces are encoded or dropped per location
 		switch p.In {
 		case "cookie":
-			name = reHeaderJunk.ReplaceAllString(name, "") // cookie names are tokens
+			name = reHeaderJunk.ReplaceAllString(name, "") // cookie names are tokens (spaces included)
 			if name == "" {
 				headers = append(headers, fmt.Sprintf("# skipped cookie parameter %q: not a valid cookie name", p.Name))
 				continue
@@ -495,7 +495,7 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 
 // queryNameEscaper encodes the characters that would let a parameter name
 // change the structure of the generated query string.
-var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23", "+", "%2B")
+var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23", "+", "%2B", ";", "%3B", " ", "%20")
 
 // reStatusKey is the OpenAPI responses key grammar: a status code or a
 // class pattern such as 2XX.

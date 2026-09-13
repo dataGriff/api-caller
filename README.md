@@ -106,7 +106,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | Command | What it does |
 |---|---|
 | `apic run <id \| file.http \| file.http#id>...` | Send a request, or a file in order as a flow. `--json`, `--body-only`, `-v` headers, `--var k=v`, `--env`, `--keep-going`, `--no-session`, `--redact`. |
-| `apic test [paths...]` | Run Gherkin features with the built-in vocabulary and `# @step` phrases. `--format junit\|cucumber`, `--tags`, `--steps`. |
+| `apic test [paths...]` | Run Gherkin features with the built-in vocabulary and `# @step` phrases. `--format pretty\|progress\|junit\|cucumber`, `--tags`, `--steps`. |
 | `apic list` | Every request: id, method, URL template, file:line, description. |
 | `apic describe <id>` | Variables the request needs and where each comes from, captures, asserts, and whether it is ready. |
 | `apic env` | Environments found and the variables in effect (secrets masked). |

@@ -174,6 +174,11 @@ func (p *Project) Resolve(target string) ([]*httpfile.Request, error) {
 	return nil, fmt.Errorf("no request named %q in %s", frag, f.Path)
 }
 
+// File returns the request file at path (relative to the root, or
+// absolute), or nil. The whole path is the file name: a `#` in it is not
+// a fragment.
+func (p *Project) File(path string) *httpfile.File { return p.fileFor(path) }
+
 func (p *Project) fileFor(name string) *httpfile.File {
 	if !strings.HasSuffix(name, ".http") && !strings.HasSuffix(name, ".rest") {
 		return nil

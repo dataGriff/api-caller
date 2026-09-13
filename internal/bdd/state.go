@@ -474,7 +474,12 @@ var reVarName = regexp.MustCompile(`^[A-Za-z_][\w.-]*$`)
 // set from a feature can be referenced as {{name}}.
 func checkVarName(name string) error {
 	if !reVarName.MatchString(name) {
-		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q (letters, digits, _ . - ; must start with a letter or _)", name)}
+		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q: letters, digits, underscore, dot and dash, starting with a letter or underscore", name)}
+	}
+	if strings.Contains(name, ".response.") {
+		// {{name.response.…}} always means a named response, so such a
+		// variable could never be read back.
+		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q: \".response.\" is reserved for response references", name)}
 	}
 	return nil
 }

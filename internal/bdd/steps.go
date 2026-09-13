@@ -170,6 +170,11 @@ func stepRunFile(ctx context.Context, target string) error {
 	if target, err = sc.render(target); err != nil {
 		return err
 	}
+	// The whole target is a file name first (odd#name.http is a file);
+	// only then is a `#` read as a fragment, which this step refuses.
+	if f := sc.r.Project.File(target); f != nil {
+		return sc.runRequests(ctx, f.Requests, nil)
+	}
 	lower := strings.ToLower(target)
 	isFile := strings.HasSuffix(lower, ".http") || strings.HasSuffix(lower, ".rest")
 	if strings.Contains(target, "#") || !isFile {
