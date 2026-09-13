@@ -93,6 +93,16 @@ func TestConflicts(t *testing.T) {
 	if !affixed.ConflictsWith(lit) || affixed.ConflictsWith(nolit) {
 		t.Error("a placeholder with a suffix only meets words carrying that suffix")
 	}
+	foo, _ := Parse("I say {x}foo")
+	bar, _ := Parse("I say {y}bar")
+	ofoo, _ := Parse("I say {y}ofoo")
+	freeY, _ := Parse("I say {y}")
+	if foo.ConflictsWith(bar) {
+		t.Error("{x}foo and {y}bar cannot match the same word")
+	}
+	if !foo.ConflictsWith(ofoo) || !foo.ConflictsWith(freeY) {
+		t.Error("compatible affixes still overlap")
+	}
 	quotedOnly, _ := Parse(`I say "{a}"`)
 	bare, _ := Parse("I say hello")
 	free, _ := Parse("I say {b}")

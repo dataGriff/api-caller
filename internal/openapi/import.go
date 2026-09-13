@@ -145,7 +145,7 @@ func Import(specPath string, opts Options) (*Result, error) {
 					ext = ".json"
 				}
 				side := name + "." + o.Name + ".body" + ext
-				if err := os.WriteFile(filepath.Join(opts.OutDir, side), []byte(o.Body+"\n"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(opts.OutDir, side), []byte(o.Body), 0o644); err != nil { // verbatim: no added newline
 					return nil, err
 				}
 				o.BodyFile = "./" + side
@@ -441,6 +441,10 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		}
 		if p, ok := v.(placeholder); ok {
 			return string(p), ct, false
+		}
+		switch v.(type) {
+		case int, int64, float64, bool, json.Number:
+			return fmt.Sprint(v), ct, false // a scalar serialises the same under any media type
 		}
 		if strings.EqualFold(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]), "application/x-www-form-urlencoded") {
 			if obj, ok := v.(*orderedObject); ok {

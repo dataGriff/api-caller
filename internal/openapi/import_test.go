@@ -858,6 +858,14 @@ paths:
                 count: {type: integer}
                 tags: {type: array, items: {type: string, example: x}}
       responses: {"200": {description: ok}}
+  /plain:
+    post:
+      operationId: plain
+      requestBody:
+        content:
+          text/plain:
+            example: 42
+      responses: {"200": {description: ok}}
   /xml:
     post:
       operationId: xml
@@ -884,6 +892,10 @@ paths:
 	all := mustRead(t, res.Files[0])
 	if !strings.Contains(all, "Content-Type: application/x-www-form-urlencoded\n\nuser=a+b&count=1&tags=%5B%22x%22%5D\n") {
 		t.Errorf("form bodies are form-encoded in property order:\n%s", all)
+	}
+	plainPart := all[strings.Index(all, "# @name plain"):strings.Index(all, "# @name xml")]
+	if !strings.Contains(plainPart, "Content-Type: text/plain\n\n42\n") {
+		t.Errorf("a scalar example is a body under any media type:\n%s", plainPart)
 	}
 	xmlPart := all[strings.Index(all, "# @name xml"):strings.Index(all, "# @name either")]
 	if !strings.Contains(xmlPart, "Content-Type: application/xml") || strings.Contains(xmlPart, `"id"`) {
@@ -1017,8 +1029,8 @@ paths:
 	if !strings.Contains(all, "< ./api.tpl.body.json\n") || strings.Contains(all, "hello {{name}}") {
 		t.Errorf("a body with literal braces must be referenced as a raw body file:\n%s", all)
 	}
-	if side := mustRead(t, filepath.Join(dir, "out", "api.tpl.body.json")); !strings.Contains(side, `"greeting": "hello {{name}}"`) {
-		t.Errorf("body file must hold the literal example: %s", side)
+	if side := mustRead(t, filepath.Join(dir, "out", "api.tpl.body.json")); !strings.Contains(side, `"greeting": "hello {{name}}"`) || strings.HasSuffix(side, "\n") {
+		t.Errorf("body file must hold the literal example verbatim: %q", side)
 	}
 	f, diags, err := httpfile.ParseFile(httpFile)
 	if err != nil || len(diags) > 0 || f.Requests[0].BodyFile != "./api.tpl.body.json" || f.Requests[0].BodyFileTemplated {

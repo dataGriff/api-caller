@@ -177,7 +177,13 @@ func meet(x, y token) bool {
 		if y.kind == anyToken && x.kind != anyToken {
 			return affixesFit(y, x.kind)
 		}
-		return x.kind == anyToken || y.kind == anyToken || x.kind == y.kind
+		if x.kind == anyToken && y.kind == anyToken {
+			// Both free: a common word needs compatible affixes, e.g.
+			// {x}foo and {y}bar can never match the same word.
+			return (strings.HasPrefix(x.prefix, y.prefix) || strings.HasPrefix(y.prefix, x.prefix)) &&
+				(strings.HasSuffix(x.suffix, y.suffix) || strings.HasSuffix(y.suffix, x.suffix))
+		}
+		return x.kind == y.kind
 	case y.param:
 		x, y = y, x
 	}
