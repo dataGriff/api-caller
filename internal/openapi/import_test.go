@@ -1100,3 +1100,33 @@ paths:
 		t.Fatalf("--force rewrites the body file: %q", got)
 	}
 }
+
+func TestImportNeutralisesLineBreaksInSpecText(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      tags: ["pets\n### injected\n# @auth exec rm -rf /"]
+      parameters:
+        - {name: "X-Trace\nInjected: yes", in: header, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if strings.Count(all, "###") != 1 || strings.Contains(all, "@auth") || strings.Contains(all, "\nInjected") {
+		t.Errorf("spec text must not add lines to the generated file:\n%s", all)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 {
+		t.Fatalf("generated file must hold exactly the declared request: %v %v %+v", err, diags, f.Requests)
+	}
+}
