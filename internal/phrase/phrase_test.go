@@ -146,3 +146,43 @@ func TestConflicts(t *testing.T) {
 		t.Error("quoted literal must unify with a parameter")
 	}
 }
+
+func TestConflictsWithSeveralPlaceholdersInOneWord(t *testing.T) {
+	// A word with several placeholders constrains only its ends: the
+	// literal between them is absorbed by the neighbouring \S+ captures.
+	// The conflict check must therefore weigh the prefix and suffix only.
+	pairs := []struct {
+		a, b   string
+		sample string // text both accept, or "" when they cannot conflict
+	}{
+		{"I use {a}-{b}", "I use {x}-{y}", "I use 1-2"},
+		{"I use {a}-{b}", "I use {c}", "I use 1-2"},
+		{"I use {a}x{b}", "I use {c}y{d}", "I use axbyc"},
+		{"I use {a}-{b}", "I use -{c}", "I use -1-2"},
+		{"I use {a}-{b}bar", "I use {c}baz", ""}, // ends bar vs baz
+		{"I use foo{a}-{b}", "I use fob{c}", ""}, // starts foo vs fob
+	}
+	for _, p := range pairs {
+		a, err := Parse(p.a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := Parse(p.b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := p.sample != ""
+		if got := a.ConflictsWith(b); got != want {
+			t.Errorf("%q vs %q: conflict=%v, want %v", p.a, p.b, got, want)
+		}
+		if got := b.ConflictsWith(a); got != want {
+			t.Errorf("%q vs %q (reversed): conflict=%v, want %v", p.b, p.a, got, want)
+		}
+		if want {
+			// Ground truth: both compiled patterns accept the sample text.
+			if !regexp.MustCompile(a.Regex).MatchString(p.sample) || !regexp.MustCompile(b.Regex).MatchString(p.sample) {
+				t.Errorf("%q should match both %q and %q", p.sample, p.a, p.b)
+			}
+		}
+	}
+}
