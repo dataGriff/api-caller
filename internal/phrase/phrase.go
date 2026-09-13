@@ -41,6 +41,9 @@ func Parse(text string) (*Phrase, error) {
 		if seen[name] {
 			return nil, fmt.Errorf("@step %q: parameter {%s} appears twice", text, name)
 		}
+		if strings.Contains(name, ".response.") {
+			return nil, fmt.Errorf("@step %q: parameter {%s} uses \".response.\", which is reserved for response references", text, name)
+		}
 		seen[name] = true
 		p.Params = append(p.Params, name)
 		if m[0] > 0 && text[m[0]-1] == '"' && m[1] < len(text) && text[m[1]] == '"' {

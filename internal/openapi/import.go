@@ -218,8 +218,13 @@ func (d *document) parameters(n *yaml.Node) []parameter {
 }
 
 func (d *document) operation(path, method string, op *yaml.Node, shared []parameter) *operation {
-	// The path lands on the request line: it must not carry line breaks.
-	path = strings.Join(strings.Fields(path), "")
+	// The path lands on the request line, which the runner renders as a
+	// template: no line breaks, no template markers, and always rooted so a
+	// key such as `@evil.example` cannot rewrite the host.
+	path = noTemplate(strings.Join(strings.Fields(path), ""), "%7B", "%7D")
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
 	o := &operation{Path: path, Method: method,
 		OperationID: str(d.get(op, "operationId")), Summary: str(d.get(op, "summary")), Description: str(d.get(op, "description"))}
 	// Operation parameters override path-level ones with the same name and location.
@@ -437,7 +442,7 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		return "", "", false
 	}
 	for _, mt := range mts {
-		ct := oneLine(mt.key) // it becomes a header value
+		ct := noTemplate(oneLine(mt.key), "", "") // a header value the runner renders
 		media := d.resolve(mt.value)
 		var v any
 		selected := true
@@ -491,12 +496,20 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		// rendered faithfully from a schema: try the next media type rather
 		// than emit JSON under a misleading content type.
 	}
-	return "", oneLine(mts[0].key), false
+	return "", noTemplate(oneLine(mts[0].key), "", ""), false
 }
 
 // queryNameEscaper encodes the characters that would let a parameter name
 // change the structure of the generated query string.
-var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23", "+", "%2B", ";", "%3B", " ", "%20")
+var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23", "+", "%2B", ";", "%3B", " ", "%20", "{", "%7B", "}", "%7D")
+
+// noTemplate neutralises {{ and }} in spec text that ends up where the
+// runner renders templates, so a spec cannot make a generated request read
+// local variables. Braces become open/close, or vanish when empty.
+func noTemplate(s, open, close string) string {
+	s = strings.ReplaceAll(s, "{{", open+open)
+	return strings.ReplaceAll(s, "}}", close+close)
+}
 
 // reStatusKey is the OpenAPI responses key grammar: a status code or a
 // class pattern such as 2XX.

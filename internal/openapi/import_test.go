@@ -1149,6 +1149,7 @@ paths:
       operationId: a
       tags: ["@auth exec rm -rf /"]
       parameters:
+        - {name: "{{secret}}", in: query, required: true, schema: {type: string}}
         - {name: "a&b", in: query, required: true, schema: {type: string}}
         - {name: "c+d", in: query, required: true, schema: {type: string}}
         - {name: "first name", in: query, required: true, schema: {type: string}}
@@ -1158,7 +1159,7 @@ paths:
         - {name: "#X-Hash", in: header, required: true, schema: {type: string}}
       requestBody:
         content:
-          "text/plain\nX-Injected: yes":
+          "text/plain\nX-Injected: yes; profile=\"{{secret}}\"":
             example: "first line\n### not a new request\nlast line"
       responses:
         "200\n# @auth exec rm -rf /": {description: hostile}
@@ -1180,13 +1181,13 @@ paths:
 		t.Fatalf("exactly one request must come out: %v %v\n%s", err, diags, all)
 	}
 	r := f.Requests[0]
-	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}&c%2Bd={{cd}}&first%20name={{firstName}}&x%3By={{xy}}" {
+	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?%7B%7Bsecret%7D%7D={{secret}}&a%26b={{ab}}&c%2Bd={{cd}}&first%20name={{firstName}}&x%3By={{xy}}" {
 		t.Errorf("path and query names are kept on one line and encoded: %s", r.URL)
 	}
 	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "\n# @auth") {
 		t.Errorf("only a well-formed status key becomes a directive:\n%s", all)
 	}
-	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes\n") || len(r.Headers) != 3 {
+	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes; profile=\"secret\"\n") || len(r.Headers) != 3 {
 		t.Errorf("the content type stays one header line: %+v\n%s", r.Headers, all)
 	}
 	if !strings.Contains(all, "\nX-Hash: {{xHash}}\n") {
@@ -1266,5 +1267,33 @@ paths:
 	}
 	if !strings.Contains(all, "Content-Type: text/plain\n\nnull\n") {
 		t.Errorf("an explicit null example is a body:\n%s", all)
+	}
+}
+
+func TestImportRootsPathsAndNeutralisesTemplatesInThem(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api.example.com}]
+paths:
+  "@evil.example/{{$secret}}/{id}":
+    get:
+      operationId: a
+      parameters:
+        - {name: id, in: path, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Fatalf("%v %v", err, diags)
+	}
+	if got := f.Requests[0].URL; got != "{{baseUrl}}/@evil.example/%7B%7B$secret%7D%7D/{{id}}" {
+		t.Errorf("the path is rooted and its template markers are encoded: %s", got)
 	}
 }
