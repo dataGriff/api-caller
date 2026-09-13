@@ -1,0 +1,70 @@
+### List todos
+# @name list-todos
+# @assert status == 200
+# @assert body.$.# >= 1
+GET {{baseUrl}}/todos
+Authorization: Bearer {{token}}
+
+### Create a todo
+# @name create-todo
+# @assert status == 201
+# @assert body.$.title == "Write docs"
+# @capture todoId = body.$.id
+POST {{baseUrl}}/todos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": "Write docs"}
+
+### Fetch the todo just created
+# @name get-todo
+# @assert status == 200
+# @assert body.$.title == "Write docs"
+GET {{baseUrl}}/todos/{{todoId}}
+Authorization: Bearer {{token}}
+
+### Mark it done
+# @name update-todo
+# @assert status == 200
+# @assert body.$.done == true
+PUT {{baseUrl}}/todos/{{todoId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"done": true}
+
+### Confirm the update stuck
+# @name get-updated
+# @assert status == 200
+# @assert body.$.done == true
+GET {{baseUrl}}/todos/{{todoId}}
+Authorization: Bearer {{token}}
+
+### Delete it
+# @name delete-todo
+# @assert status == 204
+DELETE {{baseUrl}}/todos/{{todoId}}
+Authorization: Bearer {{token}}
+
+### Confirm the delete stuck
+# @name get-deleted
+# @assert status == 404
+GET {{baseUrl}}/todos/{{todoId}}
+Authorization: Bearer {{token}}
+
+### A request that will fail its assertion
+# @name not-found
+# @assert status == 200
+GET {{baseUrl}}/status/404
+
+### Redirects are followed by default
+# @name redirect-followed
+# @assert status == 200
+GET {{baseUrl}}/redirect
+
+### ...unless you opt out
+# @name redirect-raw
+# @no-redirect
+# @assert status == 302
+# @assert header.location contains status/200
+GET {{baseUrl}}/redirect

@@ -76,7 +76,7 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	root.SetErr(a.Stderr)
 
 	root.AddCommand(a.runCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(),
-		a.validateCmd(), a.importCmd(), a.mcpCmd(), a.versionCmd())
+		a.validateCmd(), a.importCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
 	a.Root = root
 	return a
 }

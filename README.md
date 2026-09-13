@@ -45,6 +45,52 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 # Windows and everything else: download from GitHub Releases
 ```
 
+## Try it now
+
+No account, no API key, no git clone — `apic demo` scaffolds a small
+example project and serves the fake API it targets, so you can see apic
+work before authoring a single `.http` file of your own:
+
+```sh
+# terminal 1 (leave running)
+apic demo        # writes ./apic-demo and serves its fake API on :8089
+
+# terminal 2
+apic list -C apic-demo
+apic run login whoami -C apic-demo --env local
+```
+
+```
+POST http://localhost:8089/auth/login
+200 OK · 4 ms · 30 B
+{ "access_token": "mock-token" }
+✓ status == 200
+↳ token = mock-token
+
+GET http://localhost:8089/me
+200 OK · 1 ms · 30 B
+{ "email": "alice@example.com" }
+✓ status == 200
+✓ body.$.email endsWith @example.com
+
+2 passed
+```
+
+It's a full CRUD API too, not just auth demos — `apic-demo/todos.http`
+creates, reads, updates and deletes a resource in one flow:
+
+```sh
+apic run list-todos create-todo get-todo update-todo delete-todo \
+  -C apic-demo --env local --keep-going
+# 5 passed
+```
+
+Read `apic-demo/auth.http` and `apic-demo/todos.http` (written by the
+command above) to see the `.http` files behind those commands.
+`examples/httpbin` in this repo is the same idea against a real API
+instead of the bundled demo, if you'd rather see live network behaviour
+(needs outbound HTTPS and a git clone).
+
 ## 60-second tour
 
 ```http
@@ -115,6 +161,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
 | `apic validate` | Parse every file and report problems; non-zero exit on errors. Use it in CI. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
+| `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`) — see [Try it now](#try-it-now). |
 
 All commands take `--json` and `-C <dir>`. Colour is disabled when output is
 not a terminal or `NO_COLOR` is set.
@@ -175,10 +222,11 @@ tasks:
 ## Development
 
 ```sh
-task build && ./bin/apic list -C examples/httpbin
+task build
+task example:demo   # run the built-in demo project end to end
 task test
 task lint
 ```
 
 Tests run against local `httptest` servers; no network is needed. The
-`examples/httpbin` project targets httpbin.org for a live demo.
+`examples/httpbin` project targets httpbin.org for a live demo instead.

@@ -16,7 +16,9 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 # Windows: download the zip from GitHub Releases and put apic.exe on your PATH
 ```
 
-Check it: `apic version`.
+Check it: `apic version`. Want something to point it at right away, with no
+setup? Run `apic demo` — see the [README's "Try it now"](https://github.com/dataGriff/api-caller#try-it-now)
+section, which scaffolds a fake API and example `.http` files for you.
 
 ## 2. Create a project
 
