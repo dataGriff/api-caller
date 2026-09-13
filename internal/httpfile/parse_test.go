@@ -83,3 +83,19 @@ func TestParseCRLFAndImplicitGet(t *testing.T) {
 		t.Fatalf("%+v", f.Requests[0])
 	}
 }
+
+func TestParseTokenHeaderNames(t *testing.T) {
+	f, diags := Parse("t.http", "### a\nGET http://x\nX.Correlation-ID: abc\nX-Api_Key: k\n")
+	if len(diags) != 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 2 {
+		t.Fatalf("header names may use any RFC 7230 token character: %v %+v", diags, f.Requests)
+	}
+	if f.Requests[0].Headers[0].Name != "X.Correlation-ID" {
+		t.Fatalf("%+v", f.Requests[0].Headers)
+	}
+	// `#` is a token character too, but a line starting with one is a
+	// comment in this dialect; elsewhere in a name it is fine.
+	f, diags = Parse("t.http", "### a\nGET http://x\n#X-Trace: v\nX#Y: 1\n")
+	if len(diags) != 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X#Y" {
+		t.Fatalf("a leading # is a comment, an inner # is part of the name: %v %+v", diags, f.Requests[0].Headers)
+	}
+}

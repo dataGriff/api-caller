@@ -17,6 +17,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/httpfile"
+	"github.com/dataGriff/api-caller/internal/phrase"
 )
 
 // ConfigFile is the optional per-project configuration file name.
@@ -28,6 +29,12 @@ type Config struct {
 	Dir     string     `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string     `yaml:"timeout"` // default request timeout, e.g. "30s"
 	Auth    AuthConfig `yaml:"auth"`
+	Test    TestConfig `yaml:"test"`
+}
+
+// TestConfig is the `test:` section of apic.yaml.
+type TestConfig struct {
+	Paths []string `yaml:"paths"` // feature files or directories, relative to the root (default: features)
 }
 
 // AuthConfig is the `auth:` section of apic.yaml.
@@ -167,6 +174,11 @@ func (p *Project) Resolve(target string) ([]*httpfile.Request, error) {
 	return nil, fmt.Errorf("no request named %q in %s", frag, f.Path)
 }
 
+// File returns the request file at path (relative to the root, or
+// absolute), or nil. The whole path is the file name: a `#` in it is not
+// a fragment.
+func (p *Project) File(path string) *httpfile.File { return p.fileFor(path) }
+
 func (p *Project) fileFor(name string) *httpfile.File {
 	if !strings.HasSuffix(name, ".http") && !strings.HasSuffix(name, ".rest") {
 		return nil
@@ -218,7 +230,33 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "warning", Message: "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"})
 		}
 	}
+	type declared struct {
+		req  *httpfile.Request
+		ph   *phrase.Phrase
+		line int // line of the # @step directive
+	}
+	var phrases []declared
 	for _, r := range p.Requests() {
+		for _, d := range r.Directives {
+			if d.Key != "step" {
+				continue
+			}
+			ph, err := phrase.Parse(d.Value)
+			if err != nil {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+				continue
+			}
+			if err := ph.ConflictsWithBuiltin(); err != nil {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+			}
+			for _, other := range phrases {
+				if ph.ConflictsWith(other.ph) {
+					diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
+						Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.line)})
+				}
+			}
+			phrases = append(phrases, declared{r, ph, d.Line})
+		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {
 				continue

@@ -27,6 +27,7 @@ var KnownDirectives = map[string]string{
 	"capture":     "store a response value: `# @capture name = selector`",
 	"assert":      "assert on the response: `# @assert selector op value`",
 	"auth":        "authentication: `# @auth bearer|basic|aws|oauth2|exec|none ...`",
+	"step":        "Gherkin phrase that runs this request: `# @step a user named {name} exists`",
 	"no-redirect": "do not follow redirects",
 	"no-session":  "do not persist captures from this request",
 	"timeout":     "per-request timeout, e.g. `10s`",
@@ -40,8 +41,11 @@ var (
 	reComment     = regexp.MustCompile(`^(?:#|//)\s?(.*)$`)
 	reDirective   = regexp.MustCompile(`^@([A-Za-z][\w-]*)(?:\s+(.*))?$`)
 	reRequestLine = regexp.MustCompile(`^([A-Z]+)\s+(\S.*?)(?:\s+(HTTP/[\d.]+))?\s*$`)
-	reHeader      = regexp.MustCompile(`^([\w-]+):\s*(.*)$`)
-	reCapture     = regexp.MustCompile(`^([A-Za-z_][\w.-]*)\s*=\s*(.+)$`)
+	// Header names are RFC 7230 tokens, so X.Correlation-ID is valid. A
+	// leading `#` is the one exception: that line is a comment in this
+	// dialect, so the pattern does not claim it either.
+	reHeader  = regexp.MustCompile("^([!$%&'*+.^_`|~0-9A-Za-z-][!#$%&'*+.^_`|~0-9A-Za-z-]*):\\s*(.*)$")
+	reCapture = regexp.MustCompile(`^([A-Za-z_][\w.-]*)\s*=\s*(.+)$`)
 )
 
 // ParseFile reads and parses a .http file from disk.

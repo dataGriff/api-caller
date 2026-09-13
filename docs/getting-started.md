@@ -220,7 +220,42 @@ project config and apic handles it at send time:
 AWS uses your existing credentials (environment, profiles, SSO via the AWS
 CLI); OAuth2 tokens are cached and refreshed. See [auth.md](auth.md).
 
-## 8. Hand it to an agent
+## 8. Describe behaviour in Gherkin
+
+Add phrases to requests and write features; apic runs them with no
+Cucumber runtime:
+
+```http
+### Create a user
+# @name create-user
+# @step a user named {name} exists
+POST {{baseUrl}}/users
+...
+
+### Fetch a user
+# @name get-user
+# @step I fetch the user
+GET {{baseUrl}}/users/{{userId}}
+```
+
+```gherkin
+Feature: Users
+  Scenario: Fetch a user by id
+    Given I run "login"
+    And a user named "alice" exists
+    When I fetch the user
+    Then the response status is 200
+    And the response body "$.name" is "alice"
+```
+
+```sh
+apic test                                  # features/ under the project
+apic test --format junit --output report.xml
+```
+
+See [testing.md](testing.md) for the full vocabulary.
+
+## 9. Hand it to an agent
 
 Add to your project's `AGENTS.md` or `CLAUDE.md`:
 

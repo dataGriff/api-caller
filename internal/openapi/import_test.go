@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
@@ -123,5 +124,1268 @@ paths:
 	}
 	if res.BaseURL != "https://api.example.com" {
 		t.Fatalf("base url: %q", res.BaseURL)
+	}
+}
+
+func TestImportRefsPathParamsAndJSONInput(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.json")
+	if err := os.WriteFile(spec, []byte(`{
+  "openapi": "3.1.0",
+  "info": {"title": "t", "version": "1"},
+  "servers": [{"url": "https://api.example.com/v2/"}],
+  "paths": {
+    "/orgs/{orgId}/members": {
+      "parameters": [{"$ref": "#/components/parameters/OrgId"}],
+      "get": {
+        "operationId": "listMembers",
+        "tags": ["members"],
+        "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "array"}}}}}
+      },
+      "post": {
+        "operationId": "addMember",
+        "tags": ["members"],
+        "requestBody": {"$ref": "#/components/requestBodies/Member"},
+        "responses": {"201": {"description": "created"}}
+      }
+    }
+  },
+  "components": {
+    "parameters": {"OrgId": {"name": "orgId", "in": "path", "required": true, "schema": {"type": "string"}}},
+    "requestBodies": {"Member": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Member"}}}}},
+    "schemas": {
+      "Member": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "nickname": {"type": ["string", "null"]},
+          "roles": {"type": "array", "items": {"$ref": "#/components/schemas/Role"}},
+          "manager": {"$ref": "#/components/schemas/Member"}
+        }
+      },
+      "Role": {"type": "string", "enum": ["admin", "member"]}
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://api.example.com/v2" || res.Requests != 2 {
+		t.Fatalf("%+v", res)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "members.http"))
+	s := string(out)
+	for _, want := range []string{
+		"# @name list-members", "GET {{baseUrl}}/orgs/{{orgId}}/members\n", "    # ?limit={{limit}}  (optional)", "Accept: application/json",
+		"# @name add-member", "# @assert status == 201", "POST {{baseUrl}}/orgs/{{orgId}}/members\n", "Content-Type: application/json",
+		`"email": "user@example.com"`, `"nickname": "string"`, `"roles": [` + "\n    \"admin\"", `"manager": {`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("members.http missing %q\n%s", want, s)
+		}
+	}
+	// Property order follows the schema.
+	if strings.Index(s, `"email"`) > strings.Index(s, `"nickname"`) || strings.Index(s, `"nickname"`) > strings.Index(s, `"roles"`) {
+		t.Errorf("property order not preserved:\n%s", s)
+	}
+}
+
+func TestImportRejectsSwagger2(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte("swagger: '2.0'\ninfo: {title: t, version: '1'}\npaths: {}\n"), 0o644)
+	if _, err := Import(spec, Options{OutDir: dir}); err == nil || !strings.Contains(err.Error(), "Swagger 2.0") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestImportExamplesAndBoolCase(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /things:
+    post:
+      operationId: makeThing
+      parameters:
+        - name: X-Req
+          in: header
+          required: True
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            examples:
+              summaryOnly:
+                summary: no value here
+              real:
+                value: {"name": "from-example"}
+            schema: {type: object, properties: {name: {type: string}}}
+      responses:
+        "201": {description: created}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	if !strings.Contains(s, `"name": "from-example"`) {
+		t.Errorf("should use the first example with a value:\n%s", s)
+	}
+	if !strings.Contains(s, "\nX-Req: {{xReq}}\n") {
+		t.Errorf("required: True should be treated as required:\n%s", s)
+	}
+}
+
+func TestImportExplicitNullExample(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /reset:
+    post:
+      operationId: reset
+      requestBody:
+        content:
+          application/json:
+            example: null
+      responses:
+        "204": {description: done}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	if !strings.Contains(string(out), "Content-Type: application/json\n\nnull\n") {
+		t.Errorf("explicit null example should produce a null body:\n%s", out)
+	}
+}
+
+func TestImportSchemaPrecedenceNullAndPointerIndex(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pick: {type: string, default: from-default, examples: [from-examples]}
+                nothing: {type: "null"}
+                first: {$ref: "#/components/schemas/Envelope/allOf/0"}
+      responses:
+        "200": {description: ok}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            schema: {type: "null"}
+      responses:
+        "200": {description: ok}
+components:
+  schemas:
+    Envelope:
+      allOf:
+        - type: object
+          properties: {id: {type: integer}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{`"pick": "from-examples"`, `"nothing": null`, `"first": {` + "\n    \"id\": 1", "# @name b\n# @assert status == 200\nPOST {{baseUrl}}/b\nContent-Type: application/json\n\nnull\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}
+
+func TestImportPatternedStatusAndRefSiblings(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /pets:
+    post:
+      operationId: createPet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Pet"
+              example: {"name": "inline-wins"}
+      responses:
+        "2XX": {description: any success}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties: {name: {type: string, example: from-ref}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"# @assert status >= 200\n# @assert status < 300\n", `"name": "inline-wins"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "2XX") {
+		t.Errorf("patterned status must not be emitted literally:\n%s", s)
+	}
+}
+
+func TestImportDisambiguatesCollidingParamNames(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /u/{user-id}:
+    get:
+      operationId: getU
+      parameters:
+        - {name: user-id, in: path, required: true, schema: {type: string}}
+        - {name: user_id, in: query, required: true, schema: {type: string}}
+        - {name: userId, in: header, required: true, schema: {type: string}}
+      responses:
+        "200": {description: ok}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"GET {{baseUrl}}/u/{{userId}}\n", "?user_id={{userIdQuery}}", "userId: {{userIdHeader}}"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}
+
+func TestImportEmptyServerDefaultAndCookies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers:
+  - url: https://api.example.com/{base}
+    variables:
+      base: {default: ""}
+paths:
+  /me:
+    get:
+      operationId: me
+      parameters:
+        - {name: session, in: cookie, required: true, schema: {type: string}}
+        - {name: theme, in: cookie, schema: {type: string}}
+        - {name: csrf, in: cookie, required: true, schema: {type: string}}
+      responses:
+        "200": {description: ok}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != "https://api.example.com" {
+		t.Fatalf("empty default should substitute: %q", res.BaseURL)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"Cookie: session={{session}}; csrf={{csrf}}\n", "# Cookie: theme={{theme}}  (optional)\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}
+
+func TestImportTagFileCollisionsOptionalFirstQueryAndRefSiblings30(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers:
+  - url: https://api/{region}
+    variables:
+      region: {}
+paths:
+  /a:
+    get:
+      operationId: a
+      tags: ["foo/bar"]
+      parameters:
+        - {name: opt, in: query, schema: {type: string}}
+        - {name: req, in: query, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      tags: ["foo-bar"]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Pet"
+              example: {"name": "ignored-in-3.0"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pet: {type: object, properties: {name: {type: string, example: from-ref}}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err == nil || !strings.Contains(err.Error(), "unresolved variable {region}") {
+		t.Fatalf("a server variable without a default must stay unresolved: %v", err)
+	}
+	_ = os.WriteFile(spec, []byte(strings.Replace(mustRead(t, spec), "region: {}", "region: {default: eu}", 1)), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Files) != 2 || !strings.HasSuffix(res.Files[0], "foo-bar-2.http") && !strings.HasSuffix(res.Files[1], "foo-bar-2.http") {
+		t.Fatalf("colliding tags must get distinct files: %v", res.Files)
+	}
+	all := ""
+	for _, f := range res.Files {
+		all += mustRead(t, f)
+	}
+	if !strings.Contains(all, "    ?req={{req}}\n    # &opt={{opt}}  (optional)\n") {
+		t.Errorf("active query parameters must precede optional comments:\n%s", all)
+	}
+	for _, f := range res.Files {
+		if _, diags, err := httpfile.ParseFile(f); err != nil || len(diags) > 0 {
+			t.Errorf("generated file must parse: %v %v", err, diags)
+		}
+	}
+	if !strings.Contains(all, `"name": "from-ref"`) || strings.Contains(all, "ignored-in-3.0") {
+		t.Errorf("3.0 must ignore keys next to $ref:\n%s", all)
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestImportCyclesAndLiteralRefInExamples(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// A recursive anchor inside an example must not recurse forever.
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            example: &loop {"self": *loop, "$ref": "#/components/schemas/Pet", "name": "literal"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pet: {type: object, properties: {name: {type: string, example: from-schema}}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out := mustRead(t, filepath.Join(dir, "out", "api.http"))
+	if !strings.Contains(out, `"$ref": "#/components/schemas/Pet"`) || !strings.Contains(out, `"name": "literal"`) || strings.Contains(out, "from-schema") {
+		t.Errorf("example data must be kept literal, including a $ref key:\n%s", out)
+	}
+	// A cyclic $ref chain is an error, not a silently empty schema.
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/A"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    A: {$ref: "#/components/schemas/B"}
+    B: {$ref: "#/components/schemas/A"}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out2")}); err == nil || !strings.Contains(err.Error(), "cyclic") {
+		t.Fatalf("cyclic $ref should be reported: %v", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(dir, "out2")); len(entries) != 0 {
+		t.Fatalf("no files may be written when the document is broken: %v", entries)
+	}
+}
+
+func TestImportOptionalOnlyQuerySeparators(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: first, in: query, schema: {type: string}}
+        - {name: second, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "    # ?first={{first}}  (optional)\n    # &second={{second}}  (optional)\n") {
+		t.Errorf("only the first optional parameter may use ?:\n%s", all)
+	}
+}
+
+func TestImportPercentEncodedRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /p:
+    post:
+      operationId: p
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/User%20Profile"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    User Profile: {type: object, properties: {name: {type: string, example: percent}}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, `"name": "percent"`) {
+		t.Errorf("a percent-encoded $ref must resolve:\n%s", all)
+	}
+}
+
+func TestImportAllOfMergeAndLaterMediaType(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/Base"
+                - type: object
+                  properties: {extra: {type: string, example: more}}
+              properties: {own: {type: boolean}}
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          text/plain: {}
+          application/json:
+            example: {"from": "second"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Base: {type: object, properties: {id: {type: integer}}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := ""
+	for _, f := range res.Files {
+		all += mustRead(t, f)
+	}
+	for _, want := range []string{`"id": 1`, `"extra": "more"`, `"own": true`, `"from": "second"`, "Content-Type: application/json"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "Content-Type: text/plain") {
+		t.Errorf("a media type without a body must not win over one with an example:\n%s", all)
+	}
+}
+
+func TestImportWithoutSuccessResponseHasNoStatusAssert(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        default: {description: anything}
+        "404": {description: missing}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); strings.Contains(all, "@assert status") {
+		t.Errorf("no 2xx response declared, so no status assertion:\n%s", all)
+	}
+}
+
+func TestImportSelfReferentialRefWithSiblingsIsCyclic(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/A"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    A: {$ref: "#/components/schemas/A", description: loops}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err == nil || !strings.Contains(err.Error(), "cyclic") {
+		t.Fatalf("a self-referential $ref with siblings must be reported as cyclic: %v", err)
+	}
+}
+
+func TestImportMediaTypesAreCaseInsensitive(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/JSON:
+            schema: {type: string, example: plain}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/problem+JSON: {schema: {type: object}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "Accept: application/json") || !strings.Contains(all, "\n\"plain\"\n") {
+		t.Errorf("media types are case-insensitive:\n%s", all)
+	}
+}
+
+func TestImportMultilineSummaryStaysOneHeading(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      summary: |
+        List things
+        GET /evil
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "### List things GET /evil\n") {
+		t.Errorf("summary must collapse to one heading line:\n%s", all)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Errorf("generated file must parse as one request: %v %v", err, diags)
+	}
+}
+
+func TestImportAllOfObjectWithoutPropertiesAndExternalRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf: [{type: object}]
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, "\n{}\n") || strings.Contains(all, "null") {
+		t.Errorf("an allOf of a bare object is an empty object:\n%s", all)
+	}
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /b:
+    post:
+      operationId: b
+      requestBody: {$ref: "shared.yaml#/components/requestBodies/Body"}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out2")}); err == nil || !strings.Contains(err.Error(), "external $ref") {
+		t.Fatalf("an external $ref must be reported, not silently dropped: %v", err)
+	}
+}
+
+func TestImportAvoidsReservedVariableNames(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: baseUrl, in: query, required: true, schema: {type: string}}
+        - {name: $filter, in: query, required: true, schema: {type: string}}
+        - {name: 1st, in: query, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	for _, want := range []string{"?baseUrl={{baseUrlParam}}", "&$filter={{filter}}", "&1st={{p1st}}"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "{{$filter}}") || strings.Contains(all, "={{baseUrl}}") {
+		t.Errorf("reserved names leaked:\n%s", all)
+	}
+}
+
+func TestImportNonJSONBodies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /form:
+    post:
+      operationId: form
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                user: {type: string, example: "a b"}
+                count: {type: integer}
+                tags: {type: array, items: {type: string, example: x}}
+                id: {type: string, format: uuid}
+      responses: {"200": {description: ok}}
+  /plain:
+    post:
+      operationId: plain
+      requestBody:
+        content:
+          text/plain:
+            example: 42
+      responses: {"200": {description: ok}}
+  /xml:
+    post:
+      operationId: xml
+      requestBody:
+        content:
+          application/xml:
+            schema: {type: object, properties: {id: {type: integer}}}
+      responses: {"200": {description: ok}}
+  /either:
+    post:
+      operationId: either
+      requestBody:
+        content:
+          application/xml:
+            schema: {type: object, properties: {id: {type: integer}}}
+          application/json:
+            schema: {type: object, properties: {id: {type: integer}}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "Content-Type: application/x-www-form-urlencoded\n\nuser=a+b&count=1&tags=%5B%22x%22%5D&id=00000000-0000-4000-8000-000000000000\n") || strings.Contains(all, "%7B") {
+		t.Errorf("form bodies are form-encoded in property order with concrete sample values:\n%s", all)
+	}
+	plainPart := all[strings.Index(all, "# @name plain"):strings.Index(all, "# @name xml")]
+	if !strings.Contains(plainPart, "Content-Type: text/plain\n\n42\n") {
+		t.Errorf("a scalar example is a body under any media type:\n%s", plainPart)
+	}
+	xmlPart := all[strings.Index(all, "# @name xml"):strings.Index(all, "# @name either")]
+	if !strings.Contains(xmlPart, "Content-Type: application/xml") || strings.Contains(xmlPart, `"id"`) {
+		t.Errorf("an XML body must not be rendered as JSON:\n%s", xmlPart)
+	}
+	eitherPart := all[strings.Index(all, "# @name either"):]
+	if !strings.Contains(eitherPart, "Content-Type: application/json") || !strings.Contains(eitherPart, `"id": 1`) {
+		t.Errorf("a JSON media type is preferred over one that cannot be rendered:\n%s", eitherPart)
+	}
+}
+
+func TestImportPropertyNamedRef(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                $ref: {type: boolean}
+                name: {type: string, example: n}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatalf("a property named $ref is data, not a reference: %v", err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, `"$ref": true`) || !strings.Contains(all, `"name": "n"`) {
+		t.Errorf("body must keep the $ref property:\n%s", all)
+	}
+}
+
+func TestImportHeaderWithDotParses(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters:
+        - {name: X.Correlation-ID, in: header, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X.Correlation-ID" {
+		t.Fatalf("generated header must parse: %v %v %+v", err, diags, f)
+	}
+}
+
+func TestImportLiteralBracesAndTimestamps(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /tpl:
+    post:
+      operationId: tpl
+      requestBody:
+        content:
+          application/json:
+            example: {"greeting": "hello {{name}}"}
+      responses: {"200": {description: ok}}
+  /when:
+    post:
+      operationId: when
+      requestBody:
+        content:
+          application/json:
+            example: {"day": 2025-01-01, "at": 2025-01-01T10:00:00Z}
+      responses: {"200": {description: ok}}
+  /mixed:
+    post:
+      operationId: mixed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, format: uuid}
+                text: {type: string, example: "keep {{this}}"}
+      responses: {"200": {description: ok}}
+  /fake:
+    post:
+      operationId: fake
+      requestBody:
+        content:
+          application/json:
+            example: {"note": "{{$uuid}}"}
+      responses: {"200": {description: ok}}
+  /gen:
+    post:
+      operationId: gen
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {id: {type: string, format: uuid}}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	if !strings.Contains(all, "< ./api.tpl.body.json\n") || strings.Contains(all, "hello {{name}}") {
+		t.Errorf("a body with literal braces must be referenced as a raw body file:\n%s", all)
+	}
+	if side := mustRead(t, filepath.Join(dir, "out", "api.tpl.body.json")); !strings.Contains(side, `"greeting": "hello {{name}}"`) || strings.HasSuffix(side, "\n") {
+		t.Errorf("body file must hold the literal example verbatim: %q", side)
+	}
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || f.Requests[0].BodyFile != "./api.tpl.body.json" || f.Requests[0].BodyFileTemplated {
+		t.Fatalf("generated file must reference the body file verbatim: %v %v %+v", err, diags, f.Requests[0])
+	}
+	if !strings.Contains(all, `"day": "2025-01-01"`) || !strings.Contains(all, `"at": "2025-01-01T10:00:00Z"`) {
+		t.Errorf("timestamps keep their written form:\n%s", all)
+	}
+	// Mixed: a literal marker forces a verbatim body, so the generated
+	// placeholder becomes a fixed sample instead of an unrendered template.
+	mixed := mustRead(t, filepath.Join(dir, "out", "api.mixed.body.json"))
+	if strings.Contains(mixed, "{{$uuid}}") || !strings.Contains(mixed, `"id": "00000000-0000-4000-8000-000000000000"`) || !strings.Contains(mixed, "keep {{this}}") {
+		t.Errorf("mixed body: %s", mixed)
+	}
+	// Spec text that happens to spell a built-in placeholder is still literal.
+	if fake := mustRead(t, filepath.Join(dir, "out", "api.fake.body.json")); !strings.Contains(fake, `"note": "{{$uuid}}"`) {
+		t.Errorf("fake placeholder body: %s", fake)
+	}
+	if !strings.Contains(all, "< ./api.fake.body.json") {
+		t.Errorf("an example spelling a placeholder must be sent verbatim:\n%s", all)
+	}
+	// Purely generated placeholders stay inline and rendered.
+	genPart := all[strings.Index(all, "# @name gen"):]
+	if !strings.Contains(genPart, `"id": "{{$uuid}}"`) || strings.Contains(genPart, "api.gen.body") {
+		t.Errorf("generated placeholders stay inline:\n%s", genPart)
+	}
+}
+
+func TestImportKeepsExistingBodyFileWithoutForce(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /tpl:
+    post:
+      operationId: tpl
+      requestBody:
+        content:
+          application/json:
+            example: {"greeting": "hello {{name}}"}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	out := filepath.Join(dir, "out")
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(out, 0o755))
+	side := filepath.Join(out, "api.tpl.body.json")
+	must(os.WriteFile(side, []byte("edited by hand"), 0o644))
+	res, err := Import(spec, Options{OutDir: out})
+	must(err)
+	if got := mustRead(t, side); got != "edited by hand" {
+		t.Fatalf("an existing body file must be kept without --force: %q", got)
+	}
+	if len(res.Skipped) != 1 || res.Skipped[0] != side {
+		t.Fatalf("the kept file is reported as skipped: %+v", res)
+	}
+	_, err = Import(spec, Options{OutDir: out, Force: true})
+	must(err)
+	if got := mustRead(t, side); !strings.Contains(got, "hello {{name}}") {
+		t.Fatalf("--force rewrites the body file: %q", got)
+	}
+}
+
+func TestImportNeutralisesLineBreaksInSpecText(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      tags: ["pets\n### injected\n# @auth exec rm -rf /"]
+      parameters:
+        - {name: "X-Trace\nInjected: yes", in: header, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if strings.Count(all, "\n###") != 1 || strings.Contains(all, "\n# @auth") || strings.Contains(all, "\nInjected") {
+		t.Errorf("spec text must not add lines to the generated file:\n%s", all)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X-TraceInjectedyes" {
+		t.Fatalf("generated file must hold exactly the declared request with a token header name: %v %v %+v", err, diags, f.Requests)
+	}
+	for _, d := range f.Requests[0].Directives {
+		if d.Key == "auth" {
+			t.Fatal("an injected directive must not survive")
+		}
+	}
+}
+
+func TestImportHardensAgainstHostileSpecValues(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  "/a\n### injected\nGET https://evil":
+    post:
+      operationId: a
+      tags: ["@auth exec rm -rf /"]
+      parameters:
+        - {name: "{{secret}}", in: query, required: true, schema: {type: string}}
+        - {name: "a&b", in: query, required: true, schema: {type: string}}
+        - {name: "c+d", in: query, required: true, schema: {type: string}}
+        - {name: "first name", in: query, required: true, schema: {type: string}}
+        - {name: "x;y", in: query, required: true, schema: {type: string}}
+        - {name: "x;y", in: cookie, required: true, schema: {type: string}}
+        - {name: ":", in: header, required: true, schema: {type: string}}
+        - {name: "#X-Hash", in: header, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          "text/plain\nX-Injected: yes; profile=\"{{secret}}\"":
+            example: "first line\n### not a new request\nlast line"
+      responses:
+        "200\n# @auth exec rm -rf /": {description: hostile}
+        "201": {description: ok}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Fatalf("exactly one request must come out: %v %v\n%s", err, diags, all)
+	}
+	r := f.Requests[0]
+	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?%7B%7Bsecret%7D%7D={{secret}}&a%26b={{ab}}&c%2Bd={{cd}}&first%20name={{firstName}}&x%3By={{xy}}" {
+		t.Errorf("path and query names are kept on one line and encoded: %s", r.URL)
+	}
+	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "\n# @auth") {
+		t.Errorf("only a well-formed status key becomes a directive:\n%s", all)
+	}
+	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes; profile=\"secret\"\n") || len(r.Headers) != 3 {
+		t.Errorf("the content type stays one header line: %+v\n%s", r.Headers, all)
+	}
+	if !strings.Contains(all, "\nX-Hash: {{xHash}}\n") {
+		t.Errorf("a leading # would turn the header into a comment:\n%s", all)
+	}
+	if !strings.Contains(all, `# skipped header parameter ":"`) || strings.Contains(all, "\n: {{") {
+		t.Errorf("a name that sanitises to nothing is skipped with a note:\n%s", all)
+	}
+	if !strings.HasPrefix(all, "# Tag \"@auth exec rm -rf /\"") {
+		t.Errorf("the preamble is labelled so a tag cannot read as a directive:\n%s", all)
+	}
+	for _, d := range r.Directives {
+		if d.Key == "auth" {
+			t.Fatalf("a tag must not become a directive: %+v", r.Directives)
+		}
+	}
+	if len(f.Vars) != 0 {
+		t.Errorf("no file-level variables may come from the preamble: %+v", f.Vars)
+	}
+	if !strings.Contains(all, "Cookie: xy={{xyCookie}}\n") {
+		t.Errorf("cookie names are tokens:\n%s", all)
+	}
+	if r.BodyFile == "" || r.BodyFileTemplated || !strings.Contains(mustRead(t, filepath.Join(dir, "out", r.BodyFile)), "### not a new request") {
+		t.Errorf("a body with a ### line goes to a body file: %+v", r)
+	}
+}
+
+func TestImportSidecarJSONConcretisesPlaceholdersAndNullBodies(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /split:
+    post:
+      operationId: split
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, format: uuid}
+                note: {type: string, example: "line\n### looks like a block"}
+      responses: {"200": {description: ok}}
+  /nul:
+    post:
+      operationId: nul
+      requestBody:
+        content:
+          text/plain:
+            example: null
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var httpFile string
+	for _, f := range res.Files {
+		if strings.HasSuffix(f, ".http") {
+			httpFile = f
+		}
+	}
+	all := mustRead(t, httpFile)
+	f, diags, err := httpfile.ParseFile(httpFile)
+	if err != nil || len(diags) > 0 || len(f.Requests) != 2 {
+		t.Fatalf("two requests must come out: %v %v\n%s", err, diags, all)
+	}
+	// JSON encoding escapes the line break, so the ### never starts a line:
+	// the body stays inline with its placeholder rendered at run time.
+	split := f.Requests[0]
+	if split.BodyFile != "" || !strings.Contains(split.Body, `"id": "{{$uuid}}"`) || !strings.Contains(split.Body, `line\n### looks`) {
+		t.Errorf("a JSON body keeps its placeholder inline: %+v", split)
+	}
+	if !strings.Contains(all, "Content-Type: text/plain\n\nnull\n") {
+		t.Errorf("an explicit null example is a body:\n%s", all)
+	}
+}
+
+func TestImportRootsPathsAndNeutralisesTemplatesInThem(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api.example.com}]
+paths:
+  "@evil.example/{{$secret}}/{id}":
+    get:
+      operationId: a
+      parameters:
+        - {name: id, in: path, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Fatalf("%v %v", err, diags)
+	}
+	if got := f.Requests[0].URL; got != "{{baseUrl}}/@evil.example/%7B%7B$secret%7D%7D/{{id}}" {
+		t.Errorf("the path is rooted and its template markers are encoded: %s", got)
+	}
+}
+
+func TestImportResolvesRootReference(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// `$ref: "#"` is the whole document (an empty JSON pointer), not an
+	// external file; a Reference Object pointing at it must resolve.
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                doc: {$ref: "#"}
+      responses: {"200": {description: ok}}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatalf("a root $ref must resolve: %v", err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, "POST {{baseUrl}}/a") {
+		t.Errorf("request missing:\n%s", all)
+	}
+}
+
+func TestImportKeepsNumbersExact(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// Numbers beyond the machine range must not be rounded, quoted or
+	// dropped; quoted digits stay strings; YAML-only spellings decode.
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            example:
+              big: 9223372036854775808
+              huge: 18446744073709551616
+              tiny: -9223372036854775809
+              exp: 1e400
+              frac: 0.10
+              str: "12"
+              hex: 0x1F
+              inf: .inf
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            example: 9223372036854775808
+      responses: {"200": {description: ok}}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	for _, want := range []string{
+		`"big": 9223372036854775808`,
+		`"huge": 18446744073709551616`,
+		`"tiny": -9223372036854775809`,
+		`"exp": 1e400`,
+		`"frac": 0.10`,
+		`"str": "12"`,
+		`"hex": 31`,
+		`"inf": ".inf"`,
+		"\n9223372036854775808\n",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s in:\n%s", want, all)
+		}
 	}
 }

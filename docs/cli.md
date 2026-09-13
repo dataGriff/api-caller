@@ -115,6 +115,32 @@ apic run get-user --body-only | jq .email
   error goes to stderr and the exit code is 2 or 3; in a flow, the earlier
   results are still printed.
 
+## apic test
+
+```
+apic test [path|file.feature]... [--format f] [--output file] [--tags expr] [--stop-on-failure] [--use-session] [--steps]
+```
+
+Runs Gherkin feature files against the project's requests with a built-in
+step vocabulary and the `# @step` phrases declared on requests. Default
+path is `features/` under the project root, or `test.paths` in `apic.yaml`.
+Each scenario gets an isolated in-memory session. See [testing.md](testing.md)
+for the vocabulary.
+
+| Flag | Meaning |
+|---|---|
+| `-f, --format` | `pretty` (default), `progress`, `cucumber`, `junit`. `--json` selects `cucumber`. |
+| `-o, --output <file>` | Write the report to a file. |
+| `-t, --tags <expr>` | Tag expression, e.g. `"@smoke && ~@slow"`. |
+| `--stop-on-failure` | Stop after the first failed scenario; the remaining scenarios are reported as skipped. |
+| `--use-session` | Share `.apic/session.json` instead of isolating each scenario. |
+| `--steps` | Print the vocabulary and this project's phrases (`--json` for machine form) and exit. |
+
+Exit codes: `0` all passed · `1` failures or undefined steps · `2` no
+features, a feature path outside the project, unknown environment, unknown
+request, missing variable, bad phrase or bad flag · `3` a server could not
+be reached. Feature paths must lie inside the project root.
+
 ## apic list
 
 ```
@@ -137,7 +163,8 @@ Every request in the project in file order: id, method, URL template,
 }
 ```
 
-`name` is omitted for unnamed requests; `id` is then `file.http#N`.
+`name` is omitted for unnamed requests; `id` is then `file.http#N`. `steps`
+lists the request's `# @step` phrases when it has any.
 
 ## apic describe
 
@@ -270,15 +297,20 @@ Scaffolds `.http` files from an OpenAPI 3 document:
 - one file per tag (`pets.http`), operations without tags go to `api.http`;
 - one request per operation named from `operationId` in kebab-case, else
   from method and path;
-- `# @assert status == <first 2xx code>`;
+- `# @assert status == <first 2xx code>` (a `2XX` key becomes a range check;
+  an operation that declares no 2xx response gets no status assertion);
 - path parameters as `{{param}}`; required query and header parameters as
   `{{vars}}`, optional ones as commented lines;
 - a JSON body built from the request schema, using examples, defaults and
   enums when present, `{{$uuid}}` and `{{$isoTimestamp}}` for uuid and
   date-time strings;
-- `http-client.env.json` with `baseUrl` from the first server.
+- `http-client.env.json` with `baseUrl` from the first non-empty server, with server variables replaced by their defaults.
 
-Existing files are kept unless `--force` is given.
+Accepts OpenAPI 3.0 and 3.1 in YAML or JSON. Local `$ref` pointers
+(`#/components/...`) are resolved for parameters, request bodies and
+schemas; references to other files are not. Path-level parameters are
+merged into each operation. Swagger 2.0 documents are rejected with a
+message. Existing files are kept unless `--force` is given.
 
 | Flag | Meaning |
 |---|---|
@@ -296,8 +328,8 @@ apic mcp [--dir <path>] [--env <name>]
 
 Serves the project over the Model Context Protocol on stdin/stdout until
 the client disconnects. Tools: `list_requests`, `describe_request`,
-`run_request`, `run_file`, `list_environments`, `clear_session`. Each `.http`
-file is a resource. `--env` sets the default environment for calls that do
+`run_request`, `run_file`, `run_features`, `list_environments`,
+`clear_session`. Each `.http` file is a resource. `--env` sets the default environment for calls that do
 not pass one. See [agents.md](agents.md).
 
 ```sh
@@ -353,6 +385,8 @@ timeout: 30s    # default request timeout
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
   allowExec: false                # permit # @auth exec
+test:
+  paths: [features, smoke.feature] # what `apic test` runs by default
 ```
 
 ## Files apic reads and writes
@@ -360,6 +394,7 @@ auth:
 | File | Purpose |
 |---|---|
 | `*.http`, `*.rest` | Request definitions. |
+| `*.feature` | Gherkin specs for `apic test`. |
 | `apic.yaml` | Defaults. |
 | `http-client.env.json` | Public per-environment variables. |
 | `http-client.private.env.json` | Secret per-environment variables. Gitignore it. |

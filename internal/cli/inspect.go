@@ -43,6 +43,7 @@ type listEntry struct {
 	Description string   `json:"description,omitempty"`
 	Captures    []string `json:"captures,omitempty"`
 	Asserts     int      `json:"asserts,omitempty"`
+	Steps       []string `json:"steps,omitempty"`
 }
 
 func (a *App) listCmd() *cobra.Command {
@@ -56,7 +57,7 @@ func (a *App) listCmd() *cobra.Command {
 			}
 			var entries []listEntry
 			for _, r := range p.Requests() {
-				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts)}
+				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps()}
 				for _, c := range r.Captures {
 					e.Captures = append(e.Captures, c.Name)
 				}
@@ -73,9 +74,23 @@ func (a *App) listCmd() *cobra.Command {
 				return nil
 			}
 			tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(tw, styleBold.Render("ID")+"\t"+styleBold.Render("METHOD")+"\t"+styleBold.Render("URL")+"\t"+styleBold.Render("FILE")+"\t"+styleBold.Render("DESCRIPTION"))
+			hasSteps := false
 			for _, e := range entries {
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Method, e.URL, fmt.Sprintf("%s:%d", e.File, e.Line), e.Description)
+				if len(e.Steps) > 0 {
+					hasSteps = true
+				}
+			}
+			header := styleBold.Render("ID") + "\t" + styleBold.Render("METHOD") + "\t" + styleBold.Render("URL") + "\t" + styleBold.Render("FILE") + "\t" + styleBold.Render("DESCRIPTION")
+			if hasSteps {
+				header += "\t" + styleBold.Render("PHRASES")
+			}
+			fmt.Fprintln(tw, header)
+			for _, e := range entries {
+				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", e.ID, e.Method, e.URL, fmt.Sprintf("%s:%d", e.File, e.Line), e.Description)
+				if hasSteps {
+					line += "\t" + strings.Join(e.Steps, " | ")
+				}
+				fmt.Fprintln(tw, line)
 			}
 			return tw.Flush()
 		},
@@ -138,6 +153,12 @@ func (a *App) describeCmd() *cobra.Command {
 				}
 			}
 			tw.Flush()
+			if steps := req.Steps(); len(steps) > 0 {
+				section(a.Stdout, "steps")
+				for _, st := range steps {
+					fmt.Fprintf(a.Stdout, "  %s\n", st)
+				}
+			}
 			if len(d.Captures) > 0 {
 				section(a.Stdout, "captures")
 				for _, c := range d.Captures {

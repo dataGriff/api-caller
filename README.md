@@ -7,6 +7,7 @@ an AI agent, on any platform, with one static binary.
 apic run login                      # POST, capture the token
 apic run get-user --env staging     # reuse the token, check assertions
 apic run smoke.http --json | jq     # whole file as a flow, one JSON line per request
+apic test                           # run Gherkin features against the same requests
 claude mcp add api -- apic mcp      # let an agent call the same requests as tools
 ```
 
@@ -23,6 +24,7 @@ terminal and agents need:
 - **Captured variables that persist.** `# @capture token = body.$.access_token` in `login` means the next `apic run get-user`, in a new shell or a new agent call, has `{{token}}`.
 - **Assertions** with `# @assert status == 200`, and files that run as ordered flows with a pass/fail summary and exit code.
 - **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out. Set a project default once in `apic.yaml`.
+- **Gherkin without Cucumber.** `apic test` runs `.feature` files with a built-in step vocabulary; `# @step a user named {name} exists` on a request makes features read as behaviour. JUnit and cucumber JSON reports.
 - **Safe to log.** Sensitive headers are masked in output; `--redact` masks everything for stored CI logs.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
@@ -150,6 +152,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | Command | What it does |
 |---|---|
 | `apic run <id \| file.http \| file.http#id>...` | Send a request, or a file in order as a flow. `--json`, `--body-only`, `-v` headers, `--var k=v`, `--env`, `--keep-going`, `--no-session`, `--redact`. |
+| `apic test [paths...]` | Run Gherkin features with the built-in vocabulary and `# @step` phrases. `--format pretty\|progress\|junit\|cucumber`, `--tags`, `--steps`. |
 | `apic list` | Every request: id, method, URL template, file:line, description. |
 | `apic describe <id>` | Variables the request needs and where each comes from, captures, asserts, and whether it is ready. |
 | `apic env` | Environments found and the variables in effect (secrets masked). |
@@ -175,6 +178,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [CLI reference](docs/cli.md) | Every command, flag, JSON shape and exit code |
 | [The `.http` format](docs/format.md) | Directives, variables, selectors, assertions |
 | [Authentication](docs/auth.md) | AWS SigV4, OAuth2, basic, bearer, exec |
+| [Testing with Gherkin](docs/testing.md) | `.feature` files, the step vocabulary, reports |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |
@@ -193,9 +197,15 @@ directives, variable precedence, built-ins, selectors and assertion
 operators. Short version: standard `.http`, plus
 
 ```
-# @name id                      # @capture name = selector
-# @description one line         # @assert selector op value
-# @auth aws|oauth2|basic|...    # @no-redirect  # @no-session  # @timeout 10s
+# @name id
+# @description one line
+# @capture name = selector
+# @assert selector op value
+# @auth aws|oauth2|basic|...
+# @step a user named {name} exists
+# @no-redirect
+# @no-session
+# @timeout 10s
 ```
 
 ## Keeping a Taskfile

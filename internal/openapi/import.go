@@ -6,15 +6,14 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
-	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"gopkg.in/yaml.v3"
 )
 
 // Result summarises what was generated.
@@ -26,28 +25,26 @@ type Result struct {
 	Skipped  []string `json:"skipped,omitempty"`
 }
 
-func resolveServerURL(s *v3.Server) (string, error) {
-	url := strings.TrimSpace(s.URL)
-	if url == "" {
+func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
+	rawURL := strings.TrimSpace(str(d.get(srv, "url")))
+	if rawURL == "" {
 		return "", nil
 	}
 	defaults := map[string]string{}
-	if s.Variables != nil {
-		for name, v := range s.Variables.FromOldest() {
-			if v != nil {
-				defaults[name] = v.Default
-			}
+	for _, v := range d.entries(d.get(srv, "variables")) {
+		if def := d.get(v.value, "default"); def != nil { // absent default stays unresolved
+			defaults[v.key] = str(def)
 		}
 	}
-	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
+	out := reServerVar.ReplaceAllStringFunc(rawURL, func(match string) string {
 		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
-		if v, ok := defaults[name]; ok && v != "" {
+		if v, ok := defaults[name]; ok { // an empty default is a valid value
 			return v
 		}
 		return match
 	})
 	if unresolved := reServerVar.FindStringSubmatch(out); unresolved != nil {
-		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", s.URL, unresolved[1])
+		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", rawURL, unresolved[1])
 	}
 	return strings.TrimRight(out, "/"), nil
 }
@@ -65,16 +62,9 @@ func Import(specPath string, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc, err := libopenapi.NewDocument(data)
+	doc, err := parseDocument(data)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", specPath, err)
-	}
-	model, buildErr := doc.BuildV3Model()
-	if model == nil {
-		if buildErr != nil {
-			return nil, fmt.Errorf("build OpenAPI model: %w", buildErr)
-		}
-		return nil, fmt.Errorf("%s is not an OpenAPI 3 document", specPath)
+		return nil, fmt.Errorf("%s: %w", specPath, err)
 	}
 	if opts.EnvName == "" {
 		opts.EnvName = "dev"
@@ -87,50 +77,87 @@ func Import(specPath string, opts Options) (*Result, error) {
 	}
 
 	res := &Result{BaseURL: "https://example.com"}
-	if len(model.Model.Servers) > 0 {
-		for _, srv := range model.Model.Servers {
-			if strings.TrimSpace(srv.URL) == "" {
-				continue
-			}
-			baseURL, err := resolveServerURL(srv)
-			if err != nil {
-				return nil, err
-			}
-			res.BaseURL = baseURL
-			break
+	for _, srv := range doc.items(doc.get(doc.root, "servers")) {
+		if strings.TrimSpace(str(doc.get(srv, "url"))) == "" {
+			continue
 		}
+		baseURL, err := doc.resolveServerURL(srv)
+		if err != nil {
+			return nil, err
+		}
+		res.BaseURL = baseURL
+		break
 	}
 
 	byTag := map[string][]*operation{}
 	var tagOrder []string
 	seenNames := map[string]int{}
-	if model.Model.Paths != nil {
-		for path, item := range model.Model.Paths.PathItems.FromOldest() {
-			for method, op := range item.GetOperations().FromOldest() {
-				o := &operation{Path: path, Method: strings.ToUpper(method), Op: op}
-				o.Name = uniqueName(requestName(op, o.Method, path), seenNames)
-				tag := "api"
-				if len(op.Tags) > 0 {
-					tag = op.Tags[0]
-				}
-				if _, ok := byTag[tag]; !ok {
-					tagOrder = append(tagOrder, tag)
-				}
-				byTag[tag] = append(byTag[tag], o)
+	for _, pathEntry := range doc.entries(doc.get(doc.root, "paths")) {
+		path := pathEntry.key
+		item := doc.resolve(pathEntry.value)
+		shared := doc.parameters(doc.get(item, "parameters"))
+		for _, e := range doc.entries(item) {
+			if !httpMethods[e.key] {
+				continue
 			}
+			op := doc.resolve(e.value)
+			o := doc.operation(path, strings.ToUpper(e.key), op, shared)
+			o.Name = uniqueName(requestName(o, o.Method, path), seenNames)
+			tag := "api"
+			if tags := doc.items(doc.get(op, "tags")); len(tags) > 0 {
+				tag = str(tags[0])
+			}
+			if _, ok := byTag[tag]; !ok {
+				tagOrder = append(tagOrder, tag)
+			}
+			byTag[tag] = append(byTag[tag], o)
 		}
 	}
 	sort.Strings(tagOrder)
+	// Everything that resolves references has run by now; stop before
+	// writing any file if the document was structurally broken.
+	if doc.err != nil {
+		return nil, fmt.Errorf("%s: %w", specPath, doc.err)
+	}
 
+	usedFiles := map[string]bool{}
 	for _, tag := range tagOrder {
-		file := filepath.Join(opts.OutDir, kebab(tag)+".http")
+		base := kebab(tag)
+		name := base
+		for i := 2; usedFiles[name]; i++ { // foo/bar and foo-bar both kebab to foo-bar
+			name = fmt.Sprintf("%s-%d", base, i)
+		}
+		usedFiles[name] = true
+		file := filepath.Join(opts.OutDir, name+".http")
 		if _, err := os.Stat(file); err == nil && !opts.Force {
 			res.Skipped = append(res.Skipped, file)
 			continue
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "# %s — generated by `apic import` from %s. Edit freely.\n", tag, filepath.Base(specPath))
+		// A label first, so a tag spelled like a directive (`@auth ...`)
+		// stays a comment; the file name is spec-controlled too.
+		fmt.Fprintf(&b, "# Tag %q — generated by `apic import` from %q. Edit freely.\n", oneLine(tag), oneLine(filepath.Base(specPath)))
 		for _, o := range byTag[tag] {
+			if o.BodyRaw {
+				// The runner renders inline bodies as templates; a literal
+				// {{...}} in an example must stay literal, so it goes into a
+				// body file read verbatim (`< file`, not `<@ file`).
+				ext := ".txt"
+				if isJSON(o.ContentType) {
+					ext = ".json"
+				}
+				side := name + "." + o.Name + ".body" + ext
+				sidePath := filepath.Join(opts.OutDir, side)
+				o.BodyFile = "./" + side
+				if _, err := os.Stat(sidePath); err == nil && !opts.Force {
+					res.Skipped = append(res.Skipped, sidePath) // kept, like an existing .http file
+				} else {
+					if err := os.WriteFile(sidePath, []byte(o.Body), 0o644); err != nil { // verbatim: no added newline
+						return nil, err
+					}
+					res.Files = append(res.Files, sidePath)
+				}
+			}
 			b.WriteString(o.render())
 			res.Requests++
 		}
@@ -152,222 +179,523 @@ func Import(specPath string, opts Options) (*Result, error) {
 	return res, nil
 }
 
+var httpMethods = map[string]bool{"get": true, "put": true, "post": true, "delete": true, "options": true, "head": true, "patch": true, "trace": true}
+
+// operation is the subset of an OpenAPI operation the generator needs.
 type operation struct {
-	Path   string
-	Method string
-	Name   string
-	Op     *v3.Operation
+	Path        string
+	Method      string
+	Name        string
+	OperationID string
+	Summary     string
+	Description string
+	Params      []parameter
+	Body        string // example request body, "" when none
+	ContentType string
+	Success     string // first 2xx response code; empty when none is declared
+	BodyRaw     bool   // Body holds literal {{ from the spec and must not be rendered as a template
+	BodyFile    string // `< file` reference used instead of Body when BodyRaw
+	WantsJSON   bool   // a response advertises a JSON content type
+}
+
+type parameter struct {
+	Name     string
+	In       string
+	Required bool
+}
+
+// parameters reads a parameter list ($ref-able entries), in order.
+func (d *document) parameters(n *yaml.Node) []parameter {
+	var out []parameter
+	for _, p := range d.items(n) {
+		name, in := str(d.get(p, "name")), str(d.get(p, "in"))
+		if name == "" || in == "" {
+			continue
+		}
+		out = append(out, parameter{Name: name, In: in, Required: in == "path" || boolean(d.get(p, "required"))})
+	}
+	return out
+}
+
+func (d *document) operation(path, method string, op *yaml.Node, shared []parameter) *operation {
+	// The path lands on the request line, which the runner renders as a
+	// template: no line breaks, no template markers, and always rooted so a
+	// key such as `@evil.example` cannot rewrite the host.
+	path = noTemplate(strings.Join(strings.Fields(path), ""), "%7B", "%7D")
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	o := &operation{Path: path, Method: method,
+		OperationID: str(d.get(op, "operationId")), Summary: str(d.get(op, "summary")), Description: str(d.get(op, "description"))}
+	// Operation parameters override path-level ones with the same name and location.
+	own := d.parameters(d.get(op, "parameters"))
+	for _, p := range shared {
+		overridden := false
+		for _, q := range own {
+			if q.Name == p.Name && q.In == p.In {
+				overridden = true
+			}
+		}
+		if !overridden {
+			o.Params = append(o.Params, p)
+		}
+	}
+	o.Params = append(o.Params, own...)
+	o.Body, o.ContentType, o.BodyRaw = d.exampleBody(d.get(op, "requestBody"))
+	responses := d.get(op, "responses")
+	for _, r := range d.entries(responses) {
+		// Only a well-formed status key may become a directive value.
+		if strings.HasPrefix(r.key, "2") && reStatusKey.MatchString(r.key) {
+			o.Success = r.key
+			break
+		}
+	}
+	for _, r := range d.entries(responses) {
+		for _, ct := range d.entries(d.get(r.value, "content")) {
+			if isJSON(ct.key) {
+				o.WantsJSON = true
+			}
+		}
+	}
+	return o
 }
 
 func (o *operation) render() string {
 	var b strings.Builder
-	title := o.Op.Summary
+	title := oneLine(o.Summary) // one line: it is the ### heading
 	if title == "" {
 		title = o.Method + " " + o.Path
 	}
 	fmt.Fprintf(&b, "\n### %s\n", title)
 	fmt.Fprintf(&b, "# @name %s\n", o.Name)
-	if d := strings.TrimSpace(strings.SplitN(o.Op.Description, "\n", 2)[0]); d != "" && d != title {
+	if d := strings.TrimSpace(strings.SplitN(o.Description, "\n", 2)[0]); d != "" && d != title {
 		fmt.Fprintf(&b, "# @description %s\n", d)
 	}
-	fmt.Fprintf(&b, "# @assert status == %s\n", successStatus(o.Op))
+	switch {
+	case o.Success == "":
+		// No 2xx declared (only `default` or error codes): nothing to assert.
+	case strings.HasSuffix(o.Success, "XX") && len(o.Success) == 3:
+		// Patterned key such as 2XX: assert the range instead of a literal.
+		fmt.Fprintf(&b, "# @assert status >= %s00\n# @assert status < %s00\n", o.Success[:1], string(o.Success[0]+1))
+	default:
+		fmt.Fprintf(&b, "# @assert status == %s\n", o.Success)
+	}
 
 	path := o.Path
 	var query []string
 	var headers []string
-	for _, p := range o.Op.Parameters {
-		if p == nil {
-			continue
-		}
-		v := "{{" + varName(p.Name) + "}}"
-		required := p.Required != nil && *p.Required
+	names := paramVarNames(o.Params)
+	var cookies, optionalCookies []string
+	for _, p := range o.Params {
+		v := "{{" + names[p.In+":"+p.Name] + "}}"
+		required := p.Required
+		// A spec is untrusted input: a name is written in the form its
+		// location allows, so it can neither add lines to the generated
+		// file nor change the request's meaning (`a&b`, `x;y`).
+		name := strings.Join(strings.Fields(p.Name), " ") // no line breaks; spaces are encoded or dropped per location
 		switch p.In {
-		case "path":
-			path = strings.ReplaceAll(path, "{"+p.Name+"}", v)
-		case "query":
+		case "cookie":
+			name = reHeaderJunk.ReplaceAllString(name, "") // cookie names are tokens (spaces included)
+			if name == "" {
+				headers = append(headers, fmt.Sprintf("# skipped cookie parameter %q: not a valid cookie name", p.Name))
+				continue
+			}
 			if required {
-				query = append(query, p.Name+"="+v)
+				cookies = append(cookies, name+"="+v)
 			} else {
-				query = append(query, "# "+p.Name+"="+v)
+				optionalCookies = append(optionalCookies, name+"="+v)
+			}
+		case "path":
+			path = strings.ReplaceAll(path, "{"+p.Name+"}", v) // the spec's own spelling
+		case "query":
+			name = queryNameEscaper.Replace(name) // only what would change the query's shape
+			if required {
+				query = append(query, name+"="+v)
+			} else {
+				query = append(query, "# "+name+"="+v)
 			}
 		case "header":
-			line := p.Name + ": " + v
+			// `#` is a token character but opens a comment in .http files.
+			name = strings.TrimLeft(reHeaderJunk.ReplaceAllString(name, ""), "#")
+			if name == "" {
+				headers = append(headers, fmt.Sprintf("# skipped header parameter %q: not a valid header name", p.Name))
+				continue
+			}
+			line := name + ": " + v
 			if !required {
 				line = "# " + line
 			}
 			headers = append(headers, line)
 		}
 	}
-	body, contentType := exampleBody(o.Op.RequestBody)
+	body, contentType := o.Body, o.ContentType
 	fmt.Fprintf(&b, "%s {{baseUrl}}%s\n", o.Method, path)
-	for i, q := range query {
-		sep := "&"
-		if i == 0 {
-			sep = "?"
-		}
+	// Active continuation lines first: the parser stops reading query
+	// continuations at the first comment, so optional parameters follow.
+	active := 0
+	for _, q := range query {
 		if strings.HasPrefix(q, "# ") {
-			fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 			continue
 		}
+		sep := "&"
+		if active == 0 {
+			sep = "?"
+		}
+		active++
 		fmt.Fprintf(&b, "    %s%s\n", sep, q)
+	}
+	shown := active
+	for _, q := range query {
+		if !strings.HasPrefix(q, "# ") {
+			continue
+		}
+		// Commented parameters are not sent; show the separator a caller
+		// would add when uncommenting them in order.
+		sep := "&"
+		if shown == 0 {
+			sep = "?"
+		}
+		shown++
+		fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 	}
 	if contentType != "" {
 		fmt.Fprintf(&b, "Content-Type: %s\n", contentType)
 	}
-	if wantsJSON(o.Op) {
+	if o.WantsJSON {
 		b.WriteString("Accept: application/json\n")
 	}
 	for _, h := range headers {
 		b.WriteString(h + "\n")
 	}
-	if body != "" {
+	if len(cookies) > 0 {
+		fmt.Fprintf(&b, "Cookie: %s\n", strings.Join(cookies, "; "))
+	}
+	for _, c := range optionalCookies {
+		fmt.Fprintf(&b, "# Cookie: %s  (optional)\n", c)
+	}
+	switch {
+	case o.BodyFile != "":
+		b.WriteString("\n< " + o.BodyFile + "\n")
+	case body != "":
 		b.WriteString("\n" + body + "\n")
 	}
 	return b.String()
 }
 
-func successStatus(op *v3.Operation) string {
-	if op.Responses == nil || op.Responses.Codes == nil {
-		return "200"
-	}
-	for code := range op.Responses.Codes.KeysFromOldest() {
-		if strings.HasPrefix(code, "2") {
-			return code
-		}
-	}
-	return "200"
-}
+// placeholder is a template expression the importer generates itself
+// ({{$uuid}}, {{$isoTimestamp}}); unlike spec text it is meant to render.
+type placeholder string
 
-func wantsJSON(op *v3.Operation) bool {
-	if op.Responses == nil || op.Responses.Codes == nil {
-		return false
-	}
-	for r := range op.Responses.Codes.ValuesFromOldest() {
-		if r != nil && r.Content != nil {
-			for ct := range r.Content.KeysFromOldest() {
-				if strings.Contains(ct, "json") {
-					return true
-				}
+func (p placeholder) MarshalJSON() ([]byte, error) { return json.Marshal(string(p)) }
+
+// hasLiteralBraces reports whether spec-provided text in v contains a
+// template marker, which the runner would otherwise try to render.
+func hasLiteralBraces(v any) bool {
+	switch t := v.(type) {
+	case string:
+		return strings.Contains(t, "{{") || strings.Contains(t, "}}")
+	case *orderedObject:
+		for _, k := range t.keys {
+			if strings.Contains(k, "{{") || hasLiteralBraces(t.vals[k]) {
+				return true
+			}
+		}
+	case []any:
+		for _, e := range t {
+			if hasLiteralBraces(e) {
+				return true
 			}
 		}
 	}
 	return false
 }
 
-func exampleBody(rb *v3.RequestBody) (string, string) {
-	if rb == nil || rb.Content == nil {
-		return "", ""
+// concretize replaces generated placeholders with fixed sample values, for
+// bodies that must be written verbatim because they contain literal {{.
+func concretize(v any) any {
+	switch t := v.(type) {
+	case placeholder:
+		if t == "{{$uuid}}" {
+			return "00000000-0000-4000-8000-000000000000"
+		}
+		return "2024-01-01T00:00:00Z"
+	case *orderedObject:
+		for _, k := range t.keys {
+			t.vals[k] = concretize(t.vals[k])
+		}
+	case []any:
+		for i := range t {
+			t[i] = concretize(t[i])
+		}
 	}
-	for ct, mt := range rb.Content.FromOldest() {
-		if mt == nil {
-			continue
-		}
-		var v any
-		switch {
-		case mt.Example != nil:
-			_ = mt.Example.Decode(&v)
-		case mt.Examples != nil && mt.Examples.Len() > 0:
-			for ex := range mt.Examples.ValuesFromOldest() {
-				if ex != nil && ex.Value != nil {
-					_ = ex.Value.Decode(&v)
-					break
-				}
-			}
-		case mt.Schema != nil:
-			v = exampleFromSchema(mt.Schema.Schema(), 0)
-		}
-		if v == nil {
-			return "", ct
-		}
-		if strings.Contains(ct, "json") {
-			data, _ := json.MarshalIndent(v, "", "  ")
-			return string(data), ct
-		}
-		if s, ok := v.(string); ok {
-			return s, ct
-		}
-		data, _ := json.Marshal(v)
-		return string(data), ct
-	}
-	return "", ""
+	return v
 }
 
-func exampleFromSchema(s *base.Schema, depth int) any {
+// exampleBody builds a request body from the first media type that can
+// provide one: its example, first named example, or a value derived from
+// the schema. Without any, the first media type's content type is kept.
+// raw reports that the body contains literal {{ from the spec and must be
+// sent verbatim rather than rendered.
+func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw bool) {
+	mts := d.entries(d.get(rb, "content"))
+	if len(mts) == 0 {
+		return "", "", false
+	}
+	for _, mt := range mts {
+		ct := noTemplate(oneLine(mt.key), "", "") // a header value the runner renders
+		media := d.resolve(mt.value)
+		var v any
+		selected := true
+		switch {
+		case d.getRaw(media, "example") != nil:
+			v = decode(d.getRaw(media, "example"))
+		case firstExampleValue(d, d.get(media, "examples")) != nil:
+			v = decode(firstExampleValue(d, d.get(media, "examples")))
+		case d.get(media, "schema") != nil:
+			v, selected = d.exampleFromSchema(d.get(media, "schema"), 0)
+		default:
+			selected = false
+		}
+		if !selected {
+			continue
+		}
+		raw := hasLiteralBraces(v)
+		if raw {
+			v = concretize(v) // a verbatim body cannot carry placeholders
+		}
+		if isJSON(ct) {
+			data, _ := json.MarshalIndent(v, "", "  ")
+			if !raw && splitsBlock(string(data)) {
+				// Verbatim for the parser's sake: placeholders cannot render there.
+				data, _ = json.MarshalIndent(concretize(v), "", "  ")
+				raw = true
+			}
+			return string(data), ct, raw
+		}
+		if s, ok := v.(string); ok {
+			return s, ct, raw || splitsBlock(s)
+		}
+		if p, ok := v.(placeholder); ok {
+			return string(p), ct, false
+		}
+		switch v.(type) {
+		case nil:
+			return "null", ct, false // an explicit null example is a body
+		case int, int64, uint64, float64, bool, json.Number:
+			return fmt.Sprint(v), ct, false // a scalar serialises the same under any media type
+		}
+		if strings.EqualFold(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]), "application/x-www-form-urlencoded") {
+			if obj, ok := v.(*orderedObject); ok {
+				// Percent-encoding would turn a {{$uuid}} placeholder into
+				// literal text the runner no longer recognises, so form
+				// bodies use fixed sample values instead.
+				return formEncode(concretize(obj).(*orderedObject)), ct, raw
+			}
+		}
+		// XML, multipart and other structured non-JSON bodies cannot be
+		// rendered faithfully from a schema: try the next media type rather
+		// than emit JSON under a misleading content type.
+	}
+	return "", noTemplate(oneLine(mts[0].key), "", ""), false
+}
+
+// queryNameEscaper encodes the characters that would let a parameter name
+// change the structure of the generated query string.
+var queryNameEscaper = strings.NewReplacer("%", "%25", "&", "%26", "=", "%3D", "#", "%23", "+", "%2B", ";", "%3B", " ", "%20", "{", "%7B", "}", "%7D")
+
+// noTemplate neutralises {{ and }} in spec text that ends up where the
+// runner renders templates, so a spec cannot make a generated request read
+// local variables. Braces become open/close, or vanish when empty.
+func noTemplate(s, open, close string) string {
+	s = strings.ReplaceAll(s, "{{", open+open)
+	return strings.ReplaceAll(s, "}}", close+close)
+}
+
+// reStatusKey is the OpenAPI responses key grammar: a status code or a
+// class pattern such as 2XX.
+var reStatusKey = regexp.MustCompile(`^[1-5](\d\d|XX)$`)
+
+// splitsBlock reports whether an inline body would be misread by the .http
+// parser: a line starting with ### opens a new request block and a body
+// starting with `< ` refers to a file. Such bodies are written to a body
+// file instead.
+func splitsBlock(body string) bool {
+	if t := strings.TrimSpace(body); strings.HasPrefix(t, "< ") || strings.HasPrefix(t, "<@ ") {
+		return true
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "###") {
+			return true
+		}
+	}
+	return false
+}
+
+// oneLine collapses spec text into a single line for use in a comment or
+// heading, so a value containing line breaks cannot inject request blocks
+// or directives into the generated file.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// formEncode renders an object as application/x-www-form-urlencoded, in
+// property order; nested values are JSON-encoded.
+func formEncode(obj *orderedObject) string {
+	var parts []string
+	for _, k := range obj.keys {
+		var val string
+		switch v := obj.vals[k].(type) {
+		case string:
+			val = v
+		case nil:
+			val = ""
+		case *orderedObject, []any:
+			data, _ := json.Marshal(v)
+			val = string(data)
+		default:
+			val = fmt.Sprint(v)
+		}
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(val))
+	}
+	return strings.Join(parts, "&")
+}
+
+// isJSON reports whether a media type carries JSON; names are
+// case-insensitive, so application/JSON and application/problem+JSON count.
+func isJSON(mediaType string) bool {
+	return strings.Contains(strings.ToLower(mediaType), "json")
+}
+
+// firstExampleValue returns the `value` of the first named example that has one.
+func firstExampleValue(d *document, examples *yaml.Node) *yaml.Node {
+	for _, ex := range d.entries(examples) {
+		if v := d.getRaw(ex.value, "value"); v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
+// exampleFromSchema derives a value from a schema. ok is false only when
+// nothing could be derived; a JSON null (type: null or example: null) is a
+// real value.
+func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
+	s = d.resolve(s)
 	if s == nil || depth > 6 {
-		return nil
+		return nil, false
 	}
-	if s.Example != nil {
-		var v any
-		if err := s.Example.Decode(&v); err == nil {
-			return v
+	if n := d.getRaw(s, "example"); n != nil {
+		return decode(n), true
+	}
+	if ex := d.itemsRaw(d.getRaw(s, "examples")); len(ex) > 0 {
+		return decode(ex[0]), true
+	}
+	if n := d.getRaw(s, "default"); n != nil {
+		return decode(n), true
+	}
+	if en := d.itemsRaw(d.getRaw(s, "enum")); len(en) > 0 {
+		return decode(en[0]), true
+	}
+	typ := schemaType(d, s)
+	props := d.entries(d.get(s, "properties"))
+	// allOf: every branch contributes, so object branches are merged in
+	// order (later keys win) together with the properties declared here.
+	if sub := d.items(d.get(s, "allOf")); len(sub) > 0 {
+		merged := &orderedObject{}
+		var scalar any
+		object, found := false, false
+		for _, branch := range sub {
+			v, ok := d.exampleFromSchema(branch, depth+1)
+			if !ok {
+				continue
+			}
+			if obj, isObj := v.(*orderedObject); isObj {
+				for _, k := range obj.keys {
+					merged.set(k, obj.vals[k])
+				}
+				object = true
+			} else if !found {
+				scalar, found = v, true
+			}
+		}
+		if object || typ == "object" || len(props) > 0 {
+			for _, p := range props {
+				v, _ := d.exampleFromSchema(p.value, depth+1)
+				merged.set(p.key, v)
+			}
+			return merged, true
+		}
+		if found {
+			return scalar, true
 		}
 	}
-	if len(s.Examples) > 0 {
-		var v any
-		if err := s.Examples[0].Decode(&v); err == nil {
-			return v
+	for _, key := range []string{"oneOf", "anyOf"} {
+		if sub := d.items(d.get(s, key)); len(sub) > 0 {
+			return d.exampleFromSchema(sub[0], depth+1)
 		}
 	}
-	if s.Default != nil {
-		var v any
-		if err := s.Default.Decode(&v); err == nil {
-			return v
-		}
-	}
-	if len(s.Enum) > 0 {
-		var v any
-		if err := s.Enum[0].Decode(&v); err == nil {
-			return v
-		}
-	}
-	for _, sub := range [][]*base.SchemaProxy{s.AllOf, s.OneOf, s.AnyOf} {
-		if len(sub) > 0 {
-			return exampleFromSchema(sub[0].Schema(), depth+1)
-		}
-	}
-	typ := ""
-	if len(s.Type) > 0 {
-		typ = s.Type[0]
-	}
-	if typ == "" && s.Properties != nil && s.Properties.Len() > 0 {
+	if typ == "" && len(props) > 0 {
 		typ = "object"
 	}
 	switch typ {
 	case "object":
 		obj := &orderedObject{}
-		if s.Properties != nil {
-			for name, prop := range s.Properties.FromOldest() {
-				obj.set(name, exampleFromSchema(prop.Schema(), depth+1))
+		for _, p := range props {
+			v, _ := d.exampleFromSchema(p.value, depth+1)
+			obj.set(p.key, v)
+		}
+		return obj, true
+	case "array":
+		if items := d.get(s, "items"); items != nil {
+			v, _ := d.exampleFromSchema(items, depth+1)
+			return []any{v}, true
+		}
+		return []any{}, true
+	case "integer":
+		return 1, true
+	case "number":
+		return 1.5, true
+	case "boolean":
+		return true, true
+	case "null":
+		return nil, true
+	case "string":
+		switch str(d.get(s, "format")) {
+		case "date-time":
+			return placeholder("{{$isoTimestamp}}"), true
+		case "date":
+			return "2026-01-01", true
+		case "email":
+			return "user@example.com", true
+		case "uuid":
+			return placeholder("{{$uuid}}"), true
+		case "uri", "url":
+			return "https://example.com", true
+		}
+		return "string", true
+	}
+	return nil, false
+}
+
+// schemaType returns the schema type, taking the first non-null entry of an
+// OpenAPI 3.1 type array.
+func schemaType(d *document, s *yaml.Node) string {
+	t := d.get(s, "type")
+	if t == nil {
+		return ""
+	}
+	if t.Kind == yaml.SequenceNode {
+		for _, n := range d.items(t) {
+			if v := str(n); v != "" && v != "null" {
+				return v
 			}
 		}
-		return obj
-	case "array":
-		if s.Items != nil && s.Items.IsA() {
-			return []any{exampleFromSchema(s.Items.A.Schema(), depth+1)}
+		if len(d.items(t)) > 0 {
+			return "null"
 		}
-		return []any{}
-	case "integer":
-		return 1
-	case "number":
-		return 1.5
-	case "boolean":
-		return true
-	case "string":
-		switch s.Format {
-		case "date-time":
-			return "{{$isoTimestamp}}"
-		case "date":
-			return "2026-01-01"
-		case "email":
-			return "user@example.com"
-		case "uuid":
-			return "{{$uuid}}"
-		case "uri", "url":
-			return "https://example.com"
-		}
-		return "string"
+		return ""
 	}
-	return nil
+	return str(t)
 }
 
 var reNonWord = regexp.MustCompile(`[^A-Za-z0-9]+`)
@@ -382,7 +710,11 @@ func kebab(s string) string {
 	return s
 }
 
+// varName turns a parameter name into a template variable name: camelCase
+// letters and digits only, never `$`-prefixed (that is the built-in
+// namespace), never starting with a digit and never the reserved baseUrl.
 func varName(s string) string {
+	s = reVarJunk.ReplaceAllString(s, "")
 	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '-' || r == '_' || r == '.' || r == ' ' })
 	if len(parts) == 0 {
 		return "value"
@@ -391,15 +723,49 @@ func varName(s string) string {
 	for i := 1; i < len(parts); i++ {
 		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
-	return strings.Join(parts, "")
+	name := strings.Join(parts, "")
+	if name[0] >= '0' && name[0] <= '9' {
+		name = "p" + name
+	}
+	if strings.EqualFold(name, "baseUrl") {
+		name += "Param"
+	}
+	return name
 }
 
-func requestName(op *v3.Operation, method, path string) string {
-	if op.OperationId != "" {
-		return kebab(splitCamel(op.OperationId))
+var reVarJunk = regexp.MustCompile(`[^A-Za-z0-9_. -]`)
+
+// reHeaderJunk matches anything that is not an RFC 7230 token character.
+var reHeaderJunk = regexp.MustCompile("[^!#$%&'*+.^_`|~0-9A-Za-z-]")
+
+func requestName(op *operation, method, path string) string {
+	if op.OperationID != "" {
+		return kebab(splitCamel(op.OperationID))
 	}
 	p := strings.NewReplacer("{", "by-", "}", "").Replace(path)
 	return kebab(strings.ToLower(method) + " " + p)
+}
+
+// paramVarNames assigns a variable name to every parameter of an operation,
+// disambiguating names that would otherwise collide (user-id and user_id
+// both camel-case to userId) with the parameter location and, if needed, a
+// counter. Keys are "<in>:<name>".
+func paramVarNames(params []parameter) map[string]string {
+	out := map[string]string{}
+	used := map[string]bool{}
+	for _, p := range params {
+		base := varName(p.Name)
+		name := base
+		if used[name] {
+			name = base + strings.ToUpper(p.In[:1]) + p.In[1:]
+		}
+		for i := 2; used[name]; i++ {
+			name = fmt.Sprintf("%s%d", base, i)
+		}
+		used[name] = true
+		out[p.In+":"+p.Name] = name
+	}
+	return out
 }
 
 var reCamel = regexp.MustCompile(`([a-z0-9])([A-Z])`)

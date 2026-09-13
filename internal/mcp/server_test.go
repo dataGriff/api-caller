@@ -58,7 +58,7 @@ Authorization: Bearer {{token}}
 
 	tools, err := cs.ListTools(ctx, nil)
 	must(t, err)
-	if len(tools.Tools) != 6 {
+	if len(tools.Tools) != 7 {
 		t.Fatalf("tools: %d", len(tools.Tools))
 	}
 
@@ -108,6 +108,44 @@ Authorization: Bearer {{token}}
 	call("clear_session", map[string]any{})
 	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != false {
 		t.Fatal("session should be cleared")
+	}
+
+	must(t, os.MkdirAll(filepath.Join(dir, "features"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "features", "me.feature"), []byte(`
+Feature: Me
+  Scenario: Login then me
+    Given I run "login"
+    When I run "me"
+    Then the response status is 200
+    And the response body "$.name" is "alice"
+  Scenario: Fails
+    When I run "login"
+    Then the response status is 500
+`), 0o644))
+	feat := call("run_features", map[string]any{})
+	if feat["ok"] != false || feat["passed"] != float64(1) || feat["failed"] != float64(1) || feat["exit_code"] != float64(1) {
+		t.Fatalf("run_features: %v", feat)
+	}
+	// Isolated by default: the feature's login capture never reaches the shared session.
+	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != false {
+		t.Fatal("run_features must not touch the shared session by default")
+	}
+	shared := call("run_features", map[string]any{"use_session": true, "tags": "~@none"})
+	if shared["scenarios"] != float64(2) {
+		t.Fatalf("run_features with use_session: %v", shared)
+	}
+	if d := call("describe_request", map[string]any{"name": "me"}); d["ready"] != true {
+		t.Fatalf("use_session must share captures with the other tools: %v", d)
+	}
+	call("clear_session", map[string]any{})
+	// A transport failure still returns the summary of what ran, with the error and exit code.
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"},"down":{"baseUrl":"http://127.0.0.1:1"}}`), 0o644))
+	down := call("run_features", map[string]any{"env": "down"})
+	if down["ok"] != false || down["exit_code"] != float64(3) || down["scenarios"] != float64(2) || !strings.Contains(down["error"].(string), "request failed") {
+		t.Fatalf("run_features transport: %v", down)
+	}
+	if f := feat["failures"].([]any)[0].(map[string]any); f["scenario"] != "Fails" || !strings.Contains(f["error"].(string), "status == 500") {
+		t.Fatalf("failure detail: %v", f)
 	}
 
 	rr, err := cs.ReadResource(ctx, &sdk.ReadResourceParams{URI: "file://" + filepath.ToSlash(filepath.Join(dir, "api.http"))})

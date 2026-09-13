@@ -17,6 +17,7 @@ lands against the tools you might otherwise use.
 | Discovery (`list`, `describe`) | `task --list` | file tree | no | GUI | no | yes |
 | Never prompts | yes | n/a | picker unless `--all`/`--name` | yes | yes | yes |
 | MCP server for agents | no | no | no | no | no | yes |
+| Gherkin features without a Cucumber runtime | no | no | no | no | no | yes (`apic test`) |
 | OpenAPI import | no | no | no | yes | no | yes |
 | curl export | is curl | yes | extension | GUI | no | yes |
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
@@ -24,6 +25,13 @@ lands against the tools you might otherwise use.
 | Cookie jar, client certs | via curl flags | some | yes | yes | yes | no |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
 | GUI | no | the editor | VS Code extension | yes | no | no |
+
+## Size
+
+A stripped apic binary is about 13 MB, in the same range as `task` or `yq`
+and well below `gh`, `kubectl` or `terraform`. The largest pieces are the
+MCP SDK and the Gherkin runner; the OpenAPI importer and AWS signing are
+written in-tree to keep them small.
 
 ## Against Taskfile + curl
 
@@ -116,5 +124,5 @@ So you are not surprised later:
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover
   that.
-- No test reporters beyond exit codes and JSON. Pipe `--json` through `jq`
-  for JUnit if you need it.
+- Reports are limited to what `apic test` emits (pretty, progress, cucumber
+  JSON, JUnit) and `run --json`; there is no HTML report.

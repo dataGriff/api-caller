@@ -2,6 +2,7 @@ package assert
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/dataGriff/api-caller/internal/selector"
@@ -50,5 +51,62 @@ func TestParseAndEval(t *testing.T) {
 		if _, err := Parse(bad); err == nil {
 			t.Errorf("%q should not parse", bad)
 		}
+	}
+}
+
+func TestCompareNumbersExactly(t *testing.T) {
+	cases := []struct {
+		actual, op, expected string
+		want                 bool
+	}{
+		{"9007199254740993", "==", "9007199254740992", false},
+		{"9007199254740993", "!=", "9007199254740992", true},
+		{"9007199254740993", ">", "9007199254740992", true},
+		{"1.0", "==", "1", true},
+		{"1e2", "==", "100", true},
+		{"99", "<", "1e2", true},
+		{"abc", "==", "abc", true},
+		{"1/2", "==", "0.5", false},
+		{"1e1000", ">", "1e999", true},
+		{"1e-1000", "<", "1", true},
+		{"-0.5", "<", "+.5", true},
+	}
+	for _, c := range cases {
+		if got, why := compare(c.actual, c.op, c.expected); got != c.want || why != "" {
+			t.Errorf("%s %s %s: got %v (%s), want %v", c.actual, c.op, c.expected, got, why, c.want)
+		}
+	}
+	if _, why := compare("Inf", "<", "5"); why == "" {
+		t.Error("Inf is not an exact number and must not compare numerically")
+	}
+	// Untrusted values with absurd exponents or lengths are not expanded.
+	for _, huge := range []string{"1e1000000000", "1e-1000000000", "1" + strings.Repeat("0", 5000)} {
+		if _, ok := ParseNumber(huge); ok {
+			t.Errorf("%.20s… must not be parsed as an exact number", huge)
+		}
+		if _, why := compare(huge, "<", "5"); why == "" {
+			t.Errorf("%.20s… must not compare numerically", huge)
+		}
+		if ok, _ := compare(huge, "==", huge); !ok {
+			t.Errorf("%.20s… still compares as text", huge)
+		}
+	}
+	if _, ok := ParseNumber("1e4096"); !ok {
+		t.Error("an exponent within the bound is parsed")
+	}
+	if _, ok := ParseNumber("1e1" + strings.Repeat("0", 50)); ok {
+		t.Error("an over-long exponent is rejected before it is converted")
+	}
+	if _, ok := ParseNumber("1e" + strings.Repeat("0", 50) + "1"); !ok {
+		t.Error("leading zeroes never make an exponent over-long")
+	}
+	if _, ok := ParseNumber("1e+0004096"); !ok {
+		t.Error("leading zeroes do not count towards the exponent bound")
+	}
+	if ok, _ := compare("1e+0004096", "==", "1e4096"); !ok {
+		t.Error("1e+0004096 and 1e4096 are the same number")
+	}
+	if _, ok := ParseNumber("1e-0000000"); !ok {
+		t.Error("an all-zero exponent is fine")
 	}
 }

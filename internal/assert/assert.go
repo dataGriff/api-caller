@@ -4,6 +4,7 @@ package assert
 
 import (
 	"fmt"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -97,19 +98,66 @@ func Eval(e Expr, expected string, resp *selector.Response) Result {
 	return res
 }
 
+// reNumber is the decimal syntax assertions treat as numeric: an optional
+// sign, digits with an optional fraction, an optional exponent.
+var reNumber = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)(?:[eE]([+-]?\d+))?$`)
+
+// Bounds on the digits ParseNumber expands: response values are untrusted,
+// and big.Rat materialises 10^exponent, so 1e1000000000 must not be parsed.
+const (
+	maxNumberDigits   = 4096
+	maxNumberExponent = 4096
+)
+
+// ParseNumber reads a decimal number exactly, so large integers such as
+// 9007199254740993 keep their value instead of rounding through float64,
+// and values beyond float64's range (1e1000) still compare as numbers.
+// Words, Inf, NaN, fractions like 1/2 and numbers with more than 4096
+// digits or an exponent beyond ±4096 are not numbers here and compare as
+// text.
+func ParseNumber(s string) (*big.Rat, bool) {
+	m := reNumber.FindStringSubmatch(s)
+	if m == nil || len(m[1]) > maxNumberDigits {
+		return nil, false
+	}
+	if m[2] != "" {
+		sign := strings.TrimRight(m[2], "0123456789")
+		digits := strings.TrimLeft(strings.TrimPrefix(m[2], sign), "0") // 1e+0004096 is 1e4096
+		if len(digits) > 6 {                                            // ±4096 needs four digits; anything longer is out of range anyway
+			return nil, false
+		}
+		if digits == "" {
+			digits = "0"
+		}
+		exp, err := strconv.Atoi(strings.TrimPrefix(sign+digits, "+"))
+		if err != nil || exp > maxNumberExponent || exp < -maxNumberExponent {
+			return nil, false
+		}
+	}
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		return nil, false
+	}
+	return r, true
+}
+
 func compare(actual, op, expected string) (bool, string) {
-	af, aerr := strconv.ParseFloat(actual, 64)
-	ef, eerr := strconv.ParseFloat(expected, 64)
-	numeric := aerr == nil && eerr == nil
+	an, aok := ParseNumber(actual)
+	en, eok := ParseNumber(expected)
+	numeric := aok && eok
+	cmp := 0
+	if numeric {
+		cmp = an.Cmp(en)
+	}
 	switch op {
 	case "==":
 		if numeric {
-			return af == ef, ""
+			return cmp == 0, ""
 		}
 		return actual == expected, ""
 	case "!=":
 		if numeric {
-			return af != ef, ""
+			return cmp != 0, ""
 		}
 		return actual != expected, ""
 	case "<", "<=", ">", ">=":
@@ -118,13 +166,13 @@ func compare(actual, op, expected string) (bool, string) {
 		}
 		switch op {
 		case "<":
-			return af < ef, ""
+			return cmp < 0, ""
 		case "<=":
-			return af <= ef, ""
+			return cmp <= 0, ""
 		case ">":
-			return af > ef, ""
+			return cmp > 0, ""
 		default:
-			return af >= ef, ""
+			return cmp >= 0, ""
 		}
 	case "contains":
 		return strings.Contains(actual, expected), ""

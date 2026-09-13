@@ -61,3 +61,83 @@ GET https://example.com
 		t.Fatalf("expected testdata dir to be skipped, got files=%+v diagnostics=%+v", p.Files, p.Diagnostics)
 	}
 }
+
+func TestValidateDuplicatePhraseOnSameRequest(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I do it\n# @step I do it\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do it" matches the same text as @step "I do it"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("duplicate phrase on the same request not reported: %v", p.Validate())
+	}
+}
+
+func TestValidateDuplicatePhraseByMatcher(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I do {x}\nGET http://x\n\n### b\n# @name b\n# @step I do {y}\nGET http://y\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do {y}" matches the same text as @step "I do {x}" on a (api.http:3)`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("equivalent phrases not reported: %v", p.Validate())
+	}
+}
+
+func TestValidatePhraseConflictsWithBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I run {thing}\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, "the built-in step run") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("built-in conflict not reported: %v", p.Validate())
+	}
+}
+
+func TestValidateRejectsTooManyPhraseParams(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step {a} {b} {c} {d} {e} {f} {g}\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, "more than 6 parameters") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("arity not reported: %v", p.Validate())
+	}
+}

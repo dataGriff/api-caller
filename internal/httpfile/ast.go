@@ -73,6 +73,17 @@ func (r *Request) ID() string {
 	return r.File.Path + "#" + itoa(r.Index)
 }
 
+// Steps returns every `# @step` phrase declared on the request.
+func (r *Request) Steps() []string {
+	var out []string
+	for _, d := range r.Directives {
+		if d.Key == "step" {
+			out = append(out, d.Value)
+		}
+	}
+	return out
+}
+
 // Directive returns the value of the first directive with the given key.
 func (r *Request) Directive(key string) (string, bool) {
 	for _, d := range r.Directives {

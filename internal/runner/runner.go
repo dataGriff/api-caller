@@ -41,6 +41,7 @@ type Options struct {
 	Insecure  bool              // skip TLS verification
 	KeepGoing bool              // in a flow, continue after a failure
 	Redact    bool              // mask every request value and capture in output (for CI logs)
+	Session   *session.Store    // use this store instead of opening .apic/session.json (tests use session.NewMemory())
 }
 
 // Runner executes requests for one project.
@@ -86,7 +87,10 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
 	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}}
-	if !opts.NoSession {
+	switch {
+	case opts.Session != nil:
+		r.Session = opts.Session
+	case !opts.NoSession:
 		if r.Session, err = session.Open(p.Root); err != nil {
 			return nil, usagef("session: %v", err)
 		}
@@ -378,6 +382,57 @@ func (r *Runner) authEnv() *auth.Env {
 	return e
 }
 
+// Render substitutes {{placeholders}} in arbitrary text using the runner's
+// variables (no file-level @vars, since no request is in scope).
+func (r *Runner) Render(s string) (string, error) {
+	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e, 0) })
+}
+
+// Capture stores a value in the capture layer, below --var and shell
+// overrides and above the environment files, exactly like `# @capture`.
+func (r *Runner) Capture(name, value string) {
+	if r.captured == nil {
+		r.captured = map[string]string{}
+	}
+	r.captured[name] = value
+}
+
+// Results returns the named responses of this run, for
+// `{{name.response...}}` references.
+func (r *Runner) Results() map[string]*Result {
+	out := make(map[string]*Result, len(r.results))
+	for k, v := range r.results {
+		out[k] = v
+	}
+	return out
+}
+
+// SetResult registers a named response, e.g. one carried over from
+// another runner.
+func (r *Runner) SetResult(name string, res *Result) {
+	if r.results == nil {
+		r.results = map[string]*Result{}
+	}
+	r.results[name] = res
+}
+
+// Captured returns a copy of the values captured during this run.
+func (r *Runner) Captured() map[string]string {
+	out := make(map[string]string, len(r.captured))
+	for k, v := range r.captured {
+		out[k] = v
+	}
+	return out
+}
+
+// SetVar adds or overrides a variable at --var precedence.
+func (r *Runner) SetVar(name, value string) {
+	if r.Opts.Vars == nil {
+		r.Opts.Vars = map[string]string{}
+	}
+	r.Opts.Vars[name] = value
+}
+
 // MissingError explains unresolved variables with a hint on how to provide them.
 func (r *Runner) MissingError(req *httpfile.Request, missing []string) error {
 	var parts []string
@@ -577,6 +632,7 @@ type Description struct {
 	Variables   []VarInfo         `json:"variables"`
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
+	Steps       []string          `json:"steps,omitempty"`       // # @step phrases
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
 	Ready       bool              `json:"ready"`                 // every variable resolves
@@ -600,6 +656,7 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	for _, c := range req.Captures {
 		d.Captures = append(d.Captures, c.Name+" = "+c.Selector)
 	}
+	d.Steps = req.Steps()
 	if raw, src := r.AuthSource(req); raw != "" {
 		d.Auth, d.AuthSource = raw, src
 		if spec, err := auth.Parse(raw); err == nil {

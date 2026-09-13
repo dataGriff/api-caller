@@ -1,0 +1,188 @@
+package phrase
+
+import (
+	"regexp"
+	"testing"
+)
+
+func TestParseAndMatch(t *testing.T) {
+	p, err := Parse("a user named {name} with role {role} exists")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Params) != 2 || p.Params[0] != "name" || p.Params[1] != "role" {
+		t.Fatalf("%+v", p)
+	}
+	re := regexp.MustCompile(p.Regex)
+	for text, want := range map[string][2]string{
+		`a user named "alice smith" with role admin exists`: {"alice smith", "admin"},
+		`a user named bob with role "read only" exists`:     {"bob", "read only"},
+		`a user named "" with role x exists`:                {"", "x"},
+	} {
+		m := re.FindStringSubmatch(text)
+		if m == nil {
+			t.Fatalf("no match: %s", text)
+		}
+		v := p.Values(m[1:])
+		if v["name"] != want[0] || v["role"] != want[1] {
+			t.Errorf("%s: %v", text, v)
+		}
+	}
+	if re.MatchString("a user named alice exists") {
+		t.Error("should not match with a missing parameter")
+	}
+	dashed, err := Parse("a user {user-id} with {a.b}")
+	if err != nil || len(dashed.Params) != 2 || dashed.Params[0] != "user-id" || dashed.Params[1] != "a.b" {
+		t.Fatalf("parameter names follow the variable grammar: %v %+v", err, dashed)
+	}
+	quoted, err := Parse(`I say "{value}" loudly`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qm := regexp.MustCompile(quoted.Regex).FindStringSubmatch(`I say "hello world" loudly`)
+	if qm == nil || quoted.Values(qm[1:])["value"] != "hello world" {
+		t.Fatalf("a quoted placeholder must match quoted text with spaces: %v", qm)
+	}
+	if regexp.MustCompile(quoted.Regex).MatchString(`I say hello loudly`) {
+		t.Fatal("a quoted placeholder must not match a bare word")
+	}
+	plain, _ := Parse("I fetch the user")
+	if plain.Regex != "^I fetch the user$" || len(plain.Params) != 0 {
+		t.Fatalf("%+v", plain)
+	}
+	for _, bad := range []string{"", "a {name} and {name}", "unbalanced {", "bad {1x}", "a user {name} }", "{a} {", "I use {login.response.body}"} {
+		if _, err := Parse(bad); err == nil {
+			t.Errorf("%q should fail", bad)
+		}
+	}
+}
+
+func TestConflicts(t *testing.T) {
+	if _, err := Parse("{a} {b} {c} {d} {e} {f} {g}"); err == nil {
+		t.Error("seven parameters should be rejected")
+	}
+	for _, text := range []string{`I run {req}`, `the response status is {code}`, `I run "login"`, `the variables:`, `the response {what} "{sel}" is "{v}"`, `I capture the response {a} {b} as {c}`} {
+		p, err := Parse(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.ConflictsWithBuiltin(); err == nil {
+			t.Errorf("%q should conflict with a built-in step", text)
+		}
+	}
+	// Built-in captures keep their constraints: a bare word cannot match a
+	// quoted capture and a word cannot match a numeric one.
+	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms", "the response time is under pending", "I run {id}foo", "the response status is v{n}", "I run pre{id}"} {
+		ok, err := Parse(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ok.ConflictsWithBuiltin(); err != nil {
+			t.Errorf("unexpected conflict for %q: %v", text, err)
+		}
+	}
+	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`, "the response time is under 500ms", "the response time is under {t}", "the response status is {n}0", "the response time is under {n}ms"} {
+		p, _ := Parse(text)
+		if err := p.ConflictsWithBuiltin(); err == nil {
+			t.Errorf("%q should conflict with a built-in step", text)
+		}
+	}
+	affixed, _ := Parse("I say {a}x")
+	lit, _ := Parse("I say helloworldx")
+	nolit, _ := Parse("I say hello")
+	if !affixed.ConflictsWith(lit) || affixed.ConflictsWith(nolit) {
+		t.Error("a placeholder with a suffix only meets words carrying that suffix")
+	}
+	foo, _ := Parse("I say {x}foo")
+	bar, _ := Parse("I say {y}bar")
+	ofoo, _ := Parse("I say {y}ofoo")
+	freeY, _ := Parse("I say {y}")
+	if foo.ConflictsWith(bar) {
+		t.Error("{x}foo and {y}bar cannot match the same word")
+	}
+	if !foo.ConflictsWith(ofoo) || !foo.ConflictsWith(freeY) {
+		t.Error("compatible affixes still overlap")
+	}
+	quotedOnly, _ := Parse(`I say "{a}"`)
+	bare, _ := Parse("I say hello")
+	free, _ := Parse("I say {b}")
+	if quotedOnly.ConflictsWith(bare) {
+		t.Error("a quoted-only parameter cannot match a bare word")
+	}
+	if !quotedOnly.ConflictsWith(free) {
+		t.Error("a free parameter can match quoted text")
+	}
+	a, _ := Parse("a user named {name} exists")
+	b, _ := Parse("a {role} named {name} exists")
+	c, _ := Parse("a {role} called {name} exists")
+	if !a.ConflictsWith(b) || !b.ConflictsWith(a) {
+		t.Error("overlapping phrases should conflict")
+	}
+	if a.ConflictsWith(c) {
+		t.Error("distinct phrases should not conflict")
+	}
+	// `I do foo` matches both of these, which fixed samples cannot detect.
+	d, _ := Parse("I do {x}")
+	e, _ := Parse("I {x} foo")
+	if !d.ConflictsWith(e) {
+		t.Error("`I do {x}` and `I {x} foo` both match `I do foo`")
+	}
+	f, _ := Parse("I log in as {user}")
+	g, _ := Parse("I log out")
+	if f.ConflictsWith(g) {
+		t.Error("different literals must not conflict")
+	}
+	// A quoted span with spaces is one token, so this collides with `I run {x}`.
+	q, err := Parse(`I run "foo bar"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConflictsWithBuiltin(); err == nil {
+		t.Error(`I run "foo bar" should conflict with the built-in run step`)
+	}
+	h, _ := Parse(`I say "hello there" to {who}`)
+	i, _ := Parse(`I say {what} to {who}`)
+	if !h.ConflictsWith(i) {
+		t.Error("quoted literal must unify with a parameter")
+	}
+}
+
+func TestConflictsWithSeveralPlaceholdersInOneWord(t *testing.T) {
+	// A word with several placeholders constrains only its ends: the
+	// literal between them is absorbed by the neighbouring \S+ captures.
+	// The conflict check must therefore weigh the prefix and suffix only.
+	pairs := []struct {
+		a, b   string
+		sample string // text both accept, or "" when they cannot conflict
+	}{
+		{"I use {a}-{b}", "I use {x}-{y}", "I use 1-2"},
+		{"I use {a}-{b}", "I use {c}", "I use 1-2"},
+		{"I use {a}x{b}", "I use {c}y{d}", "I use axbyc"},
+		{"I use {a}-{b}", "I use -{c}", "I use -1-2"},
+		{"I use {a}-{b}bar", "I use {c}baz", ""}, // ends bar vs baz
+		{"I use foo{a}-{b}", "I use fob{c}", ""}, // starts foo vs fob
+	}
+	for _, p := range pairs {
+		a, err := Parse(p.a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := Parse(p.b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := p.sample != ""
+		if got := a.ConflictsWith(b); got != want {
+			t.Errorf("%q vs %q: conflict=%v, want %v", p.a, p.b, got, want)
+		}
+		if got := b.ConflictsWith(a); got != want {
+			t.Errorf("%q vs %q (reversed): conflict=%v, want %v", p.b, p.a, got, want)
+		}
+		if want {
+			// Ground truth: both compiled patterns accept the sample text.
+			if !regexp.MustCompile(a.Regex).MatchString(p.sample) || !regexp.MustCompile(b.Regex).MatchString(p.sample) {
+				t.Errorf("%q should match both %q and %q", p.sample, p.a, p.b)
+			}
+		}
+	}
+}
