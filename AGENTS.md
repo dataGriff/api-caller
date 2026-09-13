@@ -16,8 +16,9 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/runner` — variable precedence, request execution, captures, asserts, flows, `describe`
 - `internal/output` — human and JSON renderers
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands
-- `internal/cli` — cobra commands
-- `examples/httpbin` — sample project used in docs; `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`)
+- `internal/cli` — cobra commands, including `demo`
+- `internal/demoapi` — fake in-memory API (auth + a todos CRUD resource) and its embedded example project (`project/`), backing the `apic demo` command and its test suite
+- `examples/httpbin` — sample project targeting the real httpbin.org, for a live demo (needs network); `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`)
 
 ## Commands
 
