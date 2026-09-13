@@ -1,6 +1,7 @@
 package assert
 
 import (
+	"strings"
 	"net/http"
 	"testing"
 
@@ -77,5 +78,20 @@ func TestCompareNumbersExactly(t *testing.T) {
 	}
 	if _, why := compare("Inf", "<", "5"); why == "" {
 		t.Error("Inf is not an exact number and must not compare numerically")
+	}
+	// Untrusted values with absurd exponents or lengths are not expanded.
+	for _, huge := range []string{"1e1000000000", "1e-1000000000", "1" + strings.Repeat("0", 5000)} {
+		if _, ok := ParseNumber(huge); ok {
+			t.Errorf("%.20s… must not be parsed as an exact number", huge)
+		}
+		if _, why := compare(huge, "<", "5"); why == "" {
+			t.Errorf("%.20s… must not compare numerically", huge)
+		}
+		if ok, _ := compare(huge, "==", huge); !ok {
+			t.Errorf("%.20s… still compares as text", huge)
+		}
+	}
+	if _, ok := ParseNumber("1e4096"); !ok {
+		t.Error("an exponent within the bound is parsed")
 	}
 }

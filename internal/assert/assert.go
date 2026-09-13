@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/dataGriff/api-caller/internal/selector"
@@ -99,21 +100,38 @@ func Eval(e Expr, expected string, resp *selector.Response) Result {
 
 // reNumber is the decimal syntax assertions treat as numeric: an optional
 // sign, digits with an optional fraction, an optional exponent.
-var reNumber = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$`)
+var reNumber = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)(?:[eE]([+-]?\d+))?$`)
 
-// parseNumber reads a decimal number exactly, so large integers such as
+// Bounds on the digits ParseNumber expands: response values are untrusted,
+// and big.Rat materialises 10^exponent, so 1e1000000000 must not be parsed.
+const (
+	maxNumberDigits   = 4096
+	maxNumberExponent = 4096
+)
+
+// ParseNumber reads a decimal number exactly, so large integers such as
 // 9007199254740993 keep their value instead of rounding through float64,
 // and values beyond float64's range (1e1000) still compare as numbers.
-func parseNumber(s string) (*big.Rat, bool) {
-	if !reNumber.MatchString(s) {
-		return nil, false // words, Inf, NaN and fractions like 1/2 compare as text
+// Words, Inf, NaN, fractions like 1/2 and numbers with more than 4096
+// digits or an exponent beyond ±4096 are not numbers here and compare as
+// text.
+func ParseNumber(s string) (*big.Rat, bool) {
+	m := reNumber.FindStringSubmatch(s)
+	if m == nil || len(m[1]) > maxNumberDigits {
+		return nil, false
+	}
+	if m[2] != "" {
+		exp, err := strconv.Atoi(strings.TrimPrefix(m[2], "+"))
+		if err != nil || exp > maxNumberExponent || exp < -maxNumberExponent {
+			return nil, false
+		}
 	}
 	return new(big.Rat).SetString(s)
 }
 
 func compare(actual, op, expected string) (bool, string) {
-	an, aok := parseNumber(actual)
-	en, eok := parseNumber(expected)
+	an, aok := ParseNumber(actual)
+	en, eok := ParseNumber(expected)
 	numeric := aok && eok
 	cmp := 0
 	if numeric {

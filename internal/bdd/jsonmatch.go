@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/dataGriff/api-caller/internal/assert"
 )
 
 // decodeJSON keeps numbers as json.Number so large integers compare exactly.
@@ -113,10 +114,11 @@ func diff(path string, a, e any, exact bool) string {
 }
 
 // numberEqual compares JSON numbers exactly, so 1.0 equals 1 and
-// 9007199254740993 differs from 9007199254740992.
+// 9007199254740993 differs from 9007199254740992. Numbers too large to
+// expand safely (see assert.ParseNumber) compare as text.
 func numberEqual(a, b json.Number) bool {
-	x, ok1 := new(big.Rat).SetString(a.String())
-	y, ok2 := new(big.Rat).SetString(b.String())
+	x, ok1 := assert.ParseNumber(a.String())
+	y, ok2 := assert.ParseNumber(b.String())
 	if !ok1 || !ok2 {
 		return a == b
 	}

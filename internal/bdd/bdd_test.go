@@ -820,6 +820,12 @@ func TestJSONMatchComparesNumbersExactly(t *testing.T) {
 	if ok, why := jsonEqual([]byte(`[1]`), []byte(`["1"]`)); ok || !strings.Contains(why, "expected \"1\", got 1") {
 		t.Fatalf("a number is not a string: ok=%v why=%s", ok, why)
 	}
+	if ok, _ := jsonEqual([]byte(`{"n": 1e1000000000}`), []byte(`{"n": 1e1000000000}`)); !ok {
+		t.Fatal("an absurd exponent is compared as text, not expanded")
+	}
+	if ok, _ := jsonEqual([]byte(`{"n": 1e1000000000}`), []byte(`{"n": 2e1000000000}`)); ok {
+		t.Fatal("different absurd numbers differ as text")
+	}
 	for _, bad := range []string{"{}]", "{} {}", "[1],", "{}}"} {
 		if ok, _ := jsonEqual([]byte(bad), []byte(`{}`)); ok {
 			t.Fatalf("trailing data must be rejected: %q", bad)
