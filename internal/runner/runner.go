@@ -391,6 +391,9 @@ func (r *Runner) Render(s string) (string, error) {
 // Capture stores a value in the capture layer, below --var and shell
 // overrides and above the environment files, exactly like `# @capture`.
 func (r *Runner) Capture(name, value string) {
+	if r.captured == nil {
+		r.captured = map[string]string{}
+	}
 	r.captured[name] = value
 }
 

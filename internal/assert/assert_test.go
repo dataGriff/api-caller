@@ -94,4 +94,10 @@ func TestCompareNumbersExactly(t *testing.T) {
 	if _, ok := ParseNumber("1e4096"); !ok {
 		t.Error("an exponent within the bound is parsed")
 	}
+	if _, ok := ParseNumber("1e" + strings.Repeat("0", 50) + "1"); ok {
+		t.Error("an over-long exponent is rejected before it is converted")
+	}
+	if _, ok := ParseNumber("1e+0004096"); ok {
+		t.Error("an exponent with more digits than the bound allows is rejected")
+	}
 }

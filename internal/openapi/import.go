@@ -26,8 +26,8 @@ type Result struct {
 }
 
 func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
-	url := strings.TrimSpace(str(d.get(srv, "url")))
-	if url == "" {
+	rawURL := strings.TrimSpace(str(d.get(srv, "url")))
+	if rawURL == "" {
 		return "", nil
 	}
 	defaults := map[string]string{}
@@ -36,7 +36,7 @@ func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
 			defaults[v.key] = str(def)
 		}
 	}
-	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
+	out := reServerVar.ReplaceAllStringFunc(rawURL, func(match string) string {
 		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
 		if v, ok := defaults[name]; ok { // an empty default is a valid value
 			return v
@@ -44,7 +44,7 @@ func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
 		return match
 	})
 	if unresolved := reServerVar.FindStringSubmatch(out); unresolved != nil {
-		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", url, unresolved[1])
+		return "", fmt.Errorf("server URL %q has unresolved variable {%s}", rawURL, unresolved[1])
 	}
 	return strings.TrimRight(out, "/"), nil
 }

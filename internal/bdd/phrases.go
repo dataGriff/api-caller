@@ -85,9 +85,11 @@ func handlerFor(n int, fn func(context.Context, []string) error) any {
 		return func(ctx context.Context, a, b, c, d string) error { return fn(ctx, []string{a, b, c, d}) }
 	case 5:
 		return func(ctx context.Context, a, b, c, d, e string) error { return fn(ctx, []string{a, b, c, d, e}) }
-	default: // phrase.MaxParams
-
+	case 6:
 		return func(ctx context.Context, a, b, c, d, e, f string) error { return fn(ctx, []string{a, b, c, d, e, f}) }
+	default:
+		// phrase.Parse enforces MaxParams; reaching this is a programming error.
+		panic(fmt.Sprintf("phrase with %d parameters exceeds the %d supported", n, phrase.MaxParams))
 	}
 }
 

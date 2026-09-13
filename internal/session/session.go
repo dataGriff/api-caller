@@ -25,8 +25,8 @@ type Store struct {
 	Envs map[string]map[string]string `json:"envs"`
 }
 
-// NewMemory returns a session that is never written to disk. Captures and
-// cached tokens still work within the process.
+// NewMemory returns a session that is never written to disk. Captured
+// values and cached tokens still work within the process.
 func NewMemory() *Store {
 	return &Store{Envs: map[string]map[string]string{}}
 }

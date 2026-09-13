@@ -121,12 +121,20 @@ func ParseNumber(s string) (*big.Rat, bool) {
 		return nil, false
 	}
 	if m[2] != "" {
+		digits := strings.TrimLeft(m[2], "+-")
+		if len(digits) > 6 { // ±4096 needs four digits; anything longer is out of range anyway
+			return nil, false
+		}
 		exp, err := strconv.Atoi(strings.TrimPrefix(m[2], "+"))
 		if err != nil || exp > maxNumberExponent || exp < -maxNumberExponent {
 			return nil, false
 		}
 	}
-	return new(big.Rat).SetString(s)
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		return nil, false
+	}
+	return r, true
 }
 
 func compare(actual, op, expected string) (bool, string) {
