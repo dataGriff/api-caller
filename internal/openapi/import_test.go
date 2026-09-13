@@ -487,3 +487,53 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+func TestImportCyclesAndLiteralRefInExamples(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// A recursive anchor inside an example must not recurse forever.
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            example: &loop {"self": *loop, "$ref": "#/components/schemas/Pet", "name": "literal"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pet: {type: object, properties: {name: {type: string, example: from-schema}}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out := mustRead(t, filepath.Join(dir, "out", "api.http"))
+	if !strings.Contains(out, `"$ref": "#/components/schemas/Pet"`) || !strings.Contains(out, `"name": "literal"`) || strings.Contains(out, "from-schema") {
+		t.Errorf("example data must be kept literal, including a $ref key:\n%s", out)
+	}
+	// A cyclic $ref chain is an error, not a silently empty schema.
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/A"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    A: {$ref: "#/components/schemas/B"}
+    B: {$ref: "#/components/schemas/A"}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out2")}); err == nil || !strings.Contains(err.Error(), "cyclic") {
+		t.Fatalf("cyclic $ref should be reported: %v", err)
+	}
+}

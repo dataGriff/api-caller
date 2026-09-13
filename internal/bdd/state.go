@@ -67,11 +67,11 @@ func (c *Config) fail(err error) error {
 		var te *runner.TransportError
 		switch {
 		case errors.As(err, &ue):
-			err = &runner.UsageError{Msg: c.mask(ue.Msg)}
+			err = &runner.UsageError{Msg: c.maskError(ue.Msg)}
 		case errors.As(err, &te):
-			err = &runner.TransportError{Err: errors.New(c.mask(te.Err.Error()))}
+			err = &runner.TransportError{Err: errors.New(c.maskError(te.Err.Error()))}
 		default:
-			err = errors.New(c.mask(err.Error()))
+			err = errors.New(c.maskError(err.Error()))
 		}
 	}
 	c.noteError(err)
@@ -135,6 +135,21 @@ func (c *Config) maskValue(v any) any {
 		return t
 	}
 	return v
+}
+
+// maskError masks an error message: every registered secret regardless of
+// length, since a message is short and never parsed, with short values
+// replaced only where they stand alone (quoted or between separators).
+func (c *Config) maskError(s string) string {
+	s = c.mask(s)
+	for k := range c.secrets {
+		if len(k) >= minMaskLen {
+			continue
+		}
+		re := regexp.MustCompile(`(^|[^\pL\pN])` + regexp.QuoteMeta(k) + `($|[^\pL\pN])`)
+		s = re.ReplaceAllString(s, "${1}"+runner.Masked+"${2}")
+	}
+	return s
 }
 
 // mask replaces every registered secret value in s, longest first.

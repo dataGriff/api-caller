@@ -765,3 +765,13 @@ Feature: Background failure
 		t.Fatalf("non-feature path: code=%d err=%v", code, err)
 	}
 }
+
+func TestShortSecretsMaskedInErrors(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev", Redact: true, Vars: map[string]string{"e": "zz"}},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte("Feature: s\n  Scenario: s\n    Given the environment is \"{{e}}\"\n")}}})
+	if code != ExitUsage || err == nil || strings.Contains(err.Error(), `"zz"`) || !strings.Contains(err.Error(), "***") {
+		t.Fatalf("short secret must be masked in error text: code=%d err=%v", code, err)
+	}
+}

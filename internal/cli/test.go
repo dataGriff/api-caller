@@ -3,11 +3,13 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/bdd"
@@ -50,11 +52,14 @@ phrase) · 3 a server could not be reached.`,
 				return err
 			}
 			runner.Version = Version
+			if useSession && a.g.noSess {
+				return &runner.UsageError{Msg: "--use-session and --no-session cannot be combined"}
+			}
 			opts := bdd.Options{
 				Config: bdd.Config{Project: p, Env: a.g.env, Vars: vars, UseSession: useSession,
 					Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Stderr: a.Stderr},
 				Paths: args, Format: format, Tags: tags, StopOnFailure: stopOnFailure,
-				NoColors: a.g.noColor || a.g.json || os.Getenv("NO_COLOR") != "",
+				NoColors: a.g.noColor || a.g.json || os.Getenv("NO_COLOR") != "" || output != "" || !isTerminal(a.Stdout),
 				Output:   a.Stdout,
 			}
 			if opts.Env == "" {
@@ -95,6 +100,16 @@ phrase) · 3 a server could not be reached.`,
 	cmd.Flags().BoolVar(&useSession, "use-session", false, "read and write .apic/session.json instead of an isolated session per scenario")
 	cmd.Flags().BoolVar(&listSteps, "steps", false, "print the built-in step vocabulary and declared phrases, then exit")
 	return cmd
+}
+
+// isTerminal reports whether w is an interactive terminal; reports written
+// to files or pipes get no colour.
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
 
 // outputOverlapsSources refuses a report path that is, or aliases through a

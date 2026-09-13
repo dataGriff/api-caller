@@ -12,7 +12,8 @@ import (
 // on yaml.Node. JSON documents parse the same way since JSON is YAML.
 type document struct {
 	root *yaml.Node
-	v31  bool // OpenAPI 3.1: keys next to $ref override the target; 3.0 ignores them
+	v31  bool  // OpenAPI 3.1: keys next to $ref override the target; 3.0 ignores them
+	err  error // first structural problem met while resolving (cyclic $ref or alias)
 }
 
 func parseDocument(data []byte) (*document, error) {
@@ -58,7 +59,8 @@ func (d *document) entries(n *yaml.Node) []kv {
 	return out
 }
 
-// get returns the value for key in a mapping, or nil.
+// get returns the value for key in a mapping, resolved, or nil. Use it for
+// OpenAPI objects; free-form data (examples, defaults) goes through getRaw.
 func (d *document) get(n *yaml.Node, key string) *yaml.Node {
 	for _, e := range d.entries(n) {
 		if e.key == key {
@@ -66,6 +68,26 @@ func (d *document) get(n *yaml.Node, key string) *yaml.Node {
 		}
 	}
 	return nil
+}
+
+// getRaw returns the value for key without $ref resolution, so an example
+// payload that happens to contain a "$ref" key is kept as data.
+func (d *document) getRaw(n *yaml.Node, key string) *yaml.Node {
+	for _, e := range d.entries(n) {
+		if e.key == key {
+			return e.value
+		}
+	}
+	return nil
+}
+
+// itemsRaw returns a sequence's elements without $ref resolution.
+func (d *document) itemsRaw(n *yaml.Node) []*yaml.Node {
+	n = d.resolve(n)
+	if n == nil || n.Kind != yaml.SequenceNode {
+		return nil
+	}
+	return n.Content
 }
 
 // items returns a sequence's elements, resolved.
@@ -82,10 +104,17 @@ func (d *document) items(n *yaml.Node) []*yaml.Node {
 }
 
 // resolve follows YAML aliases and local `$ref` pointers such as
-// `#/components/schemas/Pet`, up to a small number of hops. External
-// references are left unresolved (returned as the mapping holding $ref).
+// `#/components/schemas/Pet`. A cycle is recorded in d.err and yields nil.
+// External references are left unresolved (returned as the mapping holding
+// $ref).
 func (d *document) resolve(n *yaml.Node) *yaml.Node {
-	for hops := 0; n != nil && hops < 16; hops++ {
+	visited := map[*yaml.Node]bool{}
+	for n != nil {
+		if visited[n] {
+			d.fail(fmt.Errorf("cyclic $ref or alias at line %d", n.Line))
+			return nil
+		}
+		visited[n] = true
 		if n.Kind == yaml.AliasNode {
 			n = n.Alias
 			continue
@@ -107,6 +136,7 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 		}
 		target := d.pointer(strings.TrimPrefix(ref, "#/"))
 		if target == nil {
+			d.fail(fmt.Errorf("unresolvable %s at line %d", ref, n.Line))
 			return n
 		}
 		if len(siblings) > 0 && d.v31 {
@@ -131,6 +161,12 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 		n = target
 	}
 	return n
+}
+
+func (d *document) fail(err error) {
+	if d.err == nil {
+		d.err = err
+	}
 }
 
 // pointer walks a JSON-pointer path (already stripped of `#/`) from the root.
@@ -176,23 +212,31 @@ func boolean(n *yaml.Node) bool {
 }
 
 // decode converts a node into plain Go values, keeping object key order.
+// Aliases are followed, but a node already on the current path (a
+// recursive anchor) decodes to nil instead of recursing forever.
 func decode(n *yaml.Node) any {
-	if n == nil {
+	return decodeGuarded(n, map[*yaml.Node]bool{})
+}
+
+func decodeGuarded(n *yaml.Node, path map[*yaml.Node]bool) any {
+	if n == nil || path[n] {
 		return nil
 	}
+	path[n] = true
+	defer delete(path, n)
 	switch n.Kind {
 	case yaml.AliasNode:
-		return decode(n.Alias)
+		return decodeGuarded(n.Alias, path)
 	case yaml.MappingNode:
 		obj := &orderedObject{}
 		for i := 0; i+1 < len(n.Content); i += 2 {
-			obj.set(n.Content[i].Value, decode(n.Content[i+1]))
+			obj.set(n.Content[i].Value, decodeGuarded(n.Content[i+1], path))
 		}
 		return obj
 	case yaml.SequenceNode:
 		out := make([]any, 0, len(n.Content))
 		for _, c := range n.Content {
-			out = append(out, decode(c))
+			out = append(out, decodeGuarded(c, path))
 		}
 		return out
 	default:

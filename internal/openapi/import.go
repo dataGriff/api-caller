@@ -139,6 +139,10 @@ func Import(specPath string, opts Options) (*Result, error) {
 		res.Files = append(res.Files, file)
 	}
 
+	if doc.err != nil {
+		return nil, fmt.Errorf("%s: %w", specPath, doc.err)
+	}
+
 	envFile := filepath.Join(opts.OutDir, "http-client.env.json")
 	if _, err := os.Stat(envFile); err != nil || opts.Force {
 		env := map[string]map[string]string{opts.EnvName: {"baseUrl": res.BaseURL}}
@@ -323,8 +327,8 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		var v any
 		selected := true
 		switch {
-		case d.get(media, "example") != nil:
-			v = decode(d.get(media, "example"))
+		case d.getRaw(media, "example") != nil:
+			v = decode(d.getRaw(media, "example"))
 		case firstExampleValue(d, d.get(media, "examples")) != nil:
 			v = decode(firstExampleValue(d, d.get(media, "examples")))
 		case d.get(media, "schema") != nil:
@@ -351,7 +355,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 // firstExampleValue returns the `value` of the first named example that has one.
 func firstExampleValue(d *document, examples *yaml.Node) *yaml.Node {
 	for _, ex := range d.entries(examples) {
-		if v := d.get(ex.value, "value"); v != nil {
+		if v := d.getRaw(ex.value, "value"); v != nil {
 			return v
 		}
 	}
@@ -366,16 +370,16 @@ func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
 	if s == nil || depth > 6 {
 		return nil, false
 	}
-	if n := d.get(s, "example"); n != nil {
+	if n := d.getRaw(s, "example"); n != nil {
 		return decode(n), true
 	}
-	if ex := d.items(d.get(s, "examples")); len(ex) > 0 {
+	if ex := d.itemsRaw(d.getRaw(s, "examples")); len(ex) > 0 {
 		return decode(ex[0]), true
 	}
-	if n := d.get(s, "default"); n != nil {
+	if n := d.getRaw(s, "default"); n != nil {
 		return decode(n), true
 	}
-	if en := d.items(d.get(s, "enum")); len(en) > 0 {
+	if en := d.itemsRaw(d.getRaw(s, "enum")); len(en) > 0 {
 		return decode(en[0]), true
 	}
 	for _, key := range []string{"allOf", "oneOf", "anyOf"} {

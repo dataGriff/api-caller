@@ -48,6 +48,15 @@ func TestTestCommandExitCodes(t *testing.T) {
 		}
 		must(t, os.Remove(alias))
 	}
+	if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--use-session", "--no-session"); code != 2 || !strings.Contains(stderr, "cannot be combined") {
+		t.Fatalf("conflicting session flags: code=%d stderr=%s", code, stderr)
+	}
+	// A report written to a file never contains colour escapes, whatever the flags.
+	pretty := filepath.Join(dir, "pretty.txt")
+	_, _, _ = run("test", "-C", dir, "--env", "dev", "--format", "pretty", "--output", pretty)
+	if data, _ := os.ReadFile(pretty); len(data) == 0 || strings.Contains(string(data), "\x1b[") {
+		t.Fatalf("file report must be plain text: %q", data)
+	}
 	report := filepath.Join(dir, "report.xml")
 	if code, _, _ := run("test", "-C", dir, "--env", "nope", "--output", report); code != 2 {
 		t.Fatalf("code=%d", code)

@@ -7,6 +7,7 @@ require (
 	github.com/cucumber/godog v0.16.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/mattn/go-isatty v0.0.20
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/muesli/termenv v0.16.0
 	github.com/spf13/cobra v1.10.2
@@ -29,7 +30,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

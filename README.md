@@ -150,10 +150,15 @@ directives, variable precedence, built-ins, selectors and assertion
 operators. Short version: standard `.http`, plus
 
 ```
-# @name id                      # @capture name = selector
-# @description one line         # @assert selector op value
-# @auth aws|oauth2|basic|...    # @step a user named {name} exists
-# @no-redirect  # @no-session   # @timeout 10s
+# @name id
+# @description one line
+# @capture name = selector
+# @assert selector op value
+# @auth aws|oauth2|basic|...
+# @step a user named {name} exists
+# @no-redirect
+# @no-session
+# @timeout 10s
 ```
 
 ## Keeping a Taskfile
