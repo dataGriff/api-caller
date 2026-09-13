@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-var reParam = regexp.MustCompile(`\{([A-Za-z_][\w]*)\}`)
+// Parameter names follow the variable grammar (letters, digits, _ . -).
+var reParam = regexp.MustCompile(`\{([A-Za-z_][\w.-]*)\}`)
 
 // Phrase is a compiled step phrase.
 type Phrase struct {

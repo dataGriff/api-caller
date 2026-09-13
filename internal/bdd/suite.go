@@ -241,6 +241,42 @@ func (o *Options) resolvePaths() ([]string, error) {
 	return out, nil
 }
 
+// FeatureFiles lists every .feature file the run would read, after the
+// same root checks as the run itself. Callers use it to protect inputs.
+func FeatureFiles(o Options) ([]string, error) {
+	paths, err := o.resolvePaths()
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			files = append(files, p)
+			continue
+		}
+		err = filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() && strings.HasSuffix(d.Name(), ".feature") {
+				if real, err := filepath.EvalSymlinks(path); err == nil {
+					path = real
+				}
+				files = append(files, path)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
+}
+
 // checkFeatureFiles counts the .feature files under dir and rejects any
 // that resolve (through symlinks) outside the project root.
 func checkFeatureFiles(root, dir string) (int, error) {

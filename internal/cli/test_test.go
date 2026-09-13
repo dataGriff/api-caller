@@ -52,6 +52,15 @@ func TestTestCommandExitCodes(t *testing.T) {
 	if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", filepath.Join(dir, "payload.json")); code != 2 || !strings.Contains(stderr, "would overwrite") {
 		t.Fatalf("output onto a body file: code=%d stderr=%s", code, stderr)
 	}
+	// An explicitly selected feature under a dot directory, hard-linked to the output.
+	must(t, os.MkdirAll(filepath.Join(dir, ".hidden"), 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, ".hidden", "h.feature"), []byte("Feature: h\n  Scenario: s\n    When I run \"ping\"\n"), 0o644))
+	if err := os.Link(filepath.Join(dir, ".hidden", "h.feature"), filepath.Join(dir, "linked.xml")); err == nil {
+		if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", filepath.Join(dir, "linked.xml"), ".hidden/h.feature"); code != 2 || !strings.Contains(stderr, "would overwrite") {
+			t.Fatalf("hard-linked output onto a selected feature: code=%d stderr=%s", code, stderr)
+		}
+		must(t, os.Remove(filepath.Join(dir, "linked.xml")))
+	}
 	// A symlink alias of a feature is refused too.
 	alias := filepath.Join(dir, "report.xml")
 	if err := os.Symlink(feature, alias); err == nil {

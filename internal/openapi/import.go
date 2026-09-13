@@ -328,11 +328,15 @@ func (o *operation) render() string {
 	return b.String()
 }
 
-// exampleBody builds a request body from the first media type: its
-// example, first named example, or a value derived from the schema.
+// exampleBody builds a request body from the first media type that can
+// provide one: its example, first named example, or a value derived from
+// the schema. Without any, the first media type's content type is kept.
 func (d *document) exampleBody(rb *yaml.Node) (string, string) {
-	if mts := d.entries(d.get(rb, "content")); len(mts) > 0 {
-		mt := mts[0]
+	mts := d.entries(d.get(rb, "content"))
+	if len(mts) == 0 {
+		return "", ""
+	}
+	for _, mt := range mts {
 		ct := mt.key
 		media := d.resolve(mt.value)
 		var v any
@@ -348,7 +352,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 			selected = false
 		}
 		if !selected {
-			return "", ct
+			continue
 		}
 		if strings.Contains(ct, "json") {
 			data, _ := json.MarshalIndent(v, "", "  ")
@@ -360,7 +364,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		data, _ := json.Marshal(v)
 		return string(data), ct
 	}
-	return "", ""
+	return "", mts[0].key
 }
 
 // firstExampleValue returns the `value` of the first named example that has one.
@@ -393,13 +397,44 @@ func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
 	if en := d.itemsRaw(d.getRaw(s, "enum")); len(en) > 0 {
 		return decode(en[0]), true
 	}
-	for _, key := range []string{"allOf", "oneOf", "anyOf"} {
+	typ := schemaType(d, s)
+	props := d.entries(d.get(s, "properties"))
+	// allOf: every branch contributes, so object branches are merged in
+	// order (later keys win) together with the properties declared here.
+	if sub := d.items(d.get(s, "allOf")); len(sub) > 0 {
+		merged := &orderedObject{}
+		var scalar any
+		found := false
+		for _, branch := range sub {
+			v, ok := d.exampleFromSchema(branch, depth+1)
+			if !ok {
+				continue
+			}
+			if obj, isObj := v.(*orderedObject); isObj {
+				for _, k := range obj.keys {
+					merged.set(k, obj.vals[k])
+				}
+				found = true
+			} else if !found {
+				scalar, found = v, true
+			}
+		}
+		if len(merged.keys) > 0 || typ == "object" || len(props) > 0 {
+			for _, p := range props {
+				v, _ := d.exampleFromSchema(p.value, depth+1)
+				merged.set(p.key, v)
+			}
+			return merged, true
+		}
+		if found {
+			return scalar, true
+		}
+	}
+	for _, key := range []string{"oneOf", "anyOf"} {
 		if sub := d.items(d.get(s, key)); len(sub) > 0 {
 			return d.exampleFromSchema(sub[0], depth+1)
 		}
 	}
-	typ := schemaType(d, s)
-	props := d.entries(d.get(s, "properties"))
 	if typ == "" && len(props) > 0 {
 		typ = "object"
 	}

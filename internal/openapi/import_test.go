@@ -601,3 +601,55 @@ components:
 		t.Errorf("a percent-encoded $ref must resolve:\n%s", all)
 	}
 }
+
+func TestImportAllOfMergeAndLaterMediaType(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/Base"
+                - type: object
+                  properties: {extra: {type: string, example: more}}
+              properties: {own: {type: boolean}}
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          text/plain: {}
+          application/json:
+            example: {"from": "second"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Base: {type: object, properties: {id: {type: integer}}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := ""
+	for _, f := range res.Files {
+		all += mustRead(t, f)
+	}
+	for _, want := range []string{`"id": 1`, `"extra": "more"`, `"own": true`, `"from": "second"`, "Content-Type: application/json"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %s:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "Content-Type: text/plain") {
+		t.Errorf("a media type without a body must not win over one with an example:\n%s", all)
+	}
+}

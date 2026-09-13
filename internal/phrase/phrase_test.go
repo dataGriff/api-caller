@@ -31,6 +31,10 @@ func TestParseAndMatch(t *testing.T) {
 	if re.MatchString("a user named alice exists") {
 		t.Error("should not match with a missing parameter")
 	}
+	dashed, err := Parse("a user {user-id} with {a.b}")
+	if err != nil || len(dashed.Params) != 2 || dashed.Params[0] != "user-id" || dashed.Params[1] != "a.b" {
+		t.Fatalf("parameter names follow the variable grammar: %v %+v", err, dashed)
+	}
 	plain, _ := Parse("I fetch the user")
 	if plain.Regex != "^I fetch the user$" || len(plain.Params) != 0 {
 		t.Fatalf("%+v", plain)

@@ -72,7 +72,11 @@ phrase) · 3 a server could not be reached.`,
 				opts.Format = "cucumber"
 			}
 			if output != "" {
-				if err := outputOverlapsSources(output, p); err != nil {
+				features, err := bdd.FeatureFiles(opts)
+				if err != nil {
+					return &runner.UsageError{Msg: err.Error()}
+				}
+				if err := outputOverlapsSources(output, p, features); err != nil {
 					return err
 				}
 				// Created on first write, which happens only after the features
@@ -132,8 +136,8 @@ func describeOutcome(err error) string {
 // outputOverlapsSources refuses a report path that is, or aliases through a
 // symlink or hard link, a file the test command reads or writes: request,
 // feature and body files, the project config, environment files and the
-// session.
-func outputOverlapsSources(output string, p *project.Project) error {
+// session. features are the resolved feature files selected for this run.
+func outputOverlapsSources(output string, p *project.Project, features []string) error {
 	refuse := func() error {
 		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write the report elsewhere", output)}
 	}
@@ -179,8 +183,14 @@ func outputOverlapsSources(output string, p *project.Project) error {
 		info, err := os.Stat(path)
 		return err == nil && os.SameFile(info, target)
 	}
+	// Explicitly selected inputs are checked directly, wherever they live.
 	for bf := range bodyFiles {
 		if sameAs(bf) {
+			return refuse()
+		}
+	}
+	for _, f := range features {
+		if sameAs(f) {
 			return refuse()
 		}
 	}

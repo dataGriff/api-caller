@@ -319,7 +319,11 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 	}
 	for _, res := range results {
 		if !res.OK {
-			return fmt.Errorf("%s failed:\n%s", res.Request.Name, describeFailure(res))
+			id := res.Request.Name
+			if id == "" {
+				id = fmt.Sprintf("%s:%d", res.Request.File, res.Request.Line)
+			}
+			return fmt.Errorf("%s failed:\n%s", id, describeFailure(res))
 		}
 	}
 	return nil

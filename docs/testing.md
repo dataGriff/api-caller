@@ -31,7 +31,8 @@ apic test --steps                           # the vocabulary and your phrases
 ## Phrases on requests
 
 Add `# @step` lines to a request. `{name}` placeholders become variables
-for that request; each matches a quoted string or a bare word.
+for that request; each matches a quoted string or a bare word. Placeholder
+names follow the variable grammar: letters, digits, `_`, `.` and `-`.
 
 ```http
 ### Create a user

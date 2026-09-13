@@ -888,3 +888,17 @@ Feature: Structural
 		t.Fatalf("the JUnit report must stay well-formed with its failure: %v\n%s", err, out.String())
 	}
 }
+
+func TestUnnamedRequestFailureIsIdentified(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "flow.http"), []byte("### unnamed\n# @assert status == 999\nGET {{baseUrl}}/users/0\n"), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "f.feature", Contents: []byte("Feature: f\n  Scenario: s\n    When I run the file \"flow.http\"\n")}}})
+	if err != nil || code != ExitFailed || len(sum.Failures) != 1 || !strings.HasPrefix(sum.Failures[0].Error, "flow.http:3 failed") {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+}
