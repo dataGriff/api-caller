@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -312,7 +313,21 @@ func tableVars(t *godog.Table) (map[string]string, error) {
 		if i == 0 && strings.EqualFold(k, "name") && strings.EqualFold(v, "value") {
 			continue
 		}
+		if err := checkVarName(k); err != nil {
+			return nil, fmt.Errorf("table row %d: %w", i+1, err)
+		}
 		out[k] = v
 	}
 	return out, nil
+}
+
+var reVarName = regexp.MustCompile(`^[A-Za-z_][\w.-]*$`)
+
+// checkVarName applies the same rule as `# @capture` names so every value
+// set from a feature can be referenced as {{name}}.
+func checkVarName(name string) error {
+	if !reVarName.MatchString(name) {
+		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q (letters, digits, _ . - ; must start with a letter or _)", name)}
+	}
+	return nil
 }

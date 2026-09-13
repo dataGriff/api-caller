@@ -31,7 +31,9 @@ func (d *document) resolveServerURL(srv *yaml.Node) (string, error) {
 	}
 	defaults := map[string]string{}
 	for _, v := range d.entries(d.get(srv, "variables")) {
-		defaults[v.key] = str(d.get(v.value, "default"))
+		if def := d.get(v.value, "default"); def != nil { // absent default stays unresolved
+			defaults[v.key] = str(def)
+		}
 	}
 	out := reServerVar.ReplaceAllStringFunc(url, func(match string) string {
 		name := strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
@@ -112,8 +114,15 @@ func Import(specPath string, opts Options) (*Result, error) {
 	}
 	sort.Strings(tagOrder)
 
+	usedFiles := map[string]bool{}
 	for _, tag := range tagOrder {
-		file := filepath.Join(opts.OutDir, kebab(tag)+".http")
+		base := kebab(tag)
+		name := base
+		for i := 2; usedFiles[name]; i++ { // foo/bar and foo-bar both kebab to foo-bar
+			name = fmt.Sprintf("%s-%d", base, i)
+		}
+		usedFiles[name] = true
+		file := filepath.Join(opts.OutDir, name+".http")
 		if _, err := os.Stat(file); err == nil && !opts.Force {
 			res.Skipped = append(res.Skipped, file)
 			continue
@@ -265,15 +274,22 @@ func (o *operation) render() string {
 	}
 	body, contentType := o.Body, o.ContentType
 	fmt.Fprintf(&b, "%s {{baseUrl}}%s\n", o.Method, path)
-	for i, q := range query {
-		sep := "&"
-		if i == 0 {
-			sep = "?"
-		}
+	active := 0
+	for _, q := range query {
 		if strings.HasPrefix(q, "# ") {
+			// Commented parameters are not sent; show the separator a caller would add.
+			sep := "&"
+			if active == 0 {
+				sep = "?"
+			}
 			fmt.Fprintf(&b, "    # %s%s  (optional)\n", sep, strings.TrimPrefix(q, "# "))
 			continue
 		}
+		sep := "&"
+		if active == 0 {
+			sep = "?"
+		}
+		active++
 		fmt.Fprintf(&b, "    %s%s\n", sep, q)
 	}
 	if contentType != "" {

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,8 +64,8 @@ phrase) · 3 a server could not be reached.`,
 				opts.Format = "cucumber"
 			}
 			if output != "" {
-				if ext := strings.ToLower(filepath.Ext(output)); ext == ".feature" || ext == ".http" || ext == ".rest" {
-					return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a source file; write the report elsewhere", output)}
+				if err := outputOverlapsSources(output, p.Root); err != nil {
+					return err
 				}
 				// Created on first write, which happens only after the features
 				// have been read, so a report path can never truncate its input.
@@ -94,6 +95,58 @@ phrase) · 3 a server could not be reached.`,
 	cmd.Flags().BoolVar(&useSession, "use-session", false, "read and write .apic/session.json instead of an isolated session per scenario")
 	cmd.Flags().BoolVar(&listSteps, "steps", false, "print the built-in step vocabulary and declared phrases, then exit")
 	return cmd
+}
+
+// outputOverlapsSources refuses a report path that is, or aliases through a
+// symlink or hard link, a request or feature file under the project.
+func outputOverlapsSources(output, root string) error {
+	refuse := func() error {
+		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a source file; write the report elsewhere", output)}
+	}
+	isSource := func(name string) bool {
+		switch strings.ToLower(filepath.Ext(name)) {
+		case ".feature", ".http", ".rest":
+			return true
+		}
+		return false
+	}
+	if isSource(output) {
+		return refuse()
+	}
+	real, err := filepath.EvalSymlinks(output)
+	if err != nil {
+		return nil // does not exist yet: nothing to alias
+	}
+	if isSource(real) {
+		return refuse()
+	}
+	target, err := os.Stat(real)
+	if err != nil {
+		return nil
+	}
+	var found bool
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || found {
+			return nil
+		}
+		if d.IsDir() {
+			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "vendor") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isSource(d.Name()) {
+			return nil
+		}
+		if info, err := os.Stat(path); err == nil && os.SameFile(info, target) {
+			found = true
+		}
+		return nil
+	})
+	if found {
+		return refuse()
+	}
+	return nil
 }
 
 // lazyFile opens its path on the first write.

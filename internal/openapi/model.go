@@ -12,6 +12,7 @@ import (
 // on yaml.Node. JSON documents parse the same way since JSON is YAML.
 type document struct {
 	root *yaml.Node
+	v31  bool // OpenAPI 3.1: keys next to $ref override the target; 3.0 ignores them
 }
 
 func parseDocument(data []byte) (*document, error) {
@@ -28,6 +29,7 @@ func parseDocument(data []byte) (*document, error) {
 	}
 	d := &document{root: root}
 	version := str(d.get(root, "openapi"))
+	d.v31 = strings.HasPrefix(version, "3.1")
 	if !strings.HasPrefix(version, "3.") {
 		if str(d.get(root, "swagger")) != "" {
 			return nil, fmt.Errorf("the document is Swagger 2.0, which is not supported; convert it to OpenAPI 3 first")
@@ -107,8 +109,9 @@ func (d *document) resolve(n *yaml.Node) *yaml.Node {
 		if target == nil {
 			return n
 		}
-		if len(siblings) > 0 {
+		if len(siblings) > 0 && d.v31 {
 			// OpenAPI 3.1 allows keys next to $ref; they override the target's.
+			// In 3.0 a Reference Object's siblings are ignored.
 			target = d.resolve(target)
 			if target != nil && target.Kind == yaml.MappingNode {
 				merged := &yaml.Node{Kind: yaml.MappingNode, Tag: target.Tag}

@@ -421,3 +421,69 @@ paths:
 		}
 	}
 }
+
+func TestImportTagFileCollisionsOptionalFirstQueryAndRefSiblings30(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers:
+  - url: https://api/{region}
+    variables:
+      region: {}
+paths:
+  /a:
+    get:
+      operationId: a
+      tags: ["foo/bar"]
+      parameters:
+        - {name: opt, in: query, schema: {type: string}}
+        - {name: req, in: query, required: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: b
+      tags: ["foo-bar"]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Pet"
+              example: {"name": "ignored-in-3.0"}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pet: {type: object, properties: {name: {type: string, example: from-ref}}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err == nil || !strings.Contains(err.Error(), "unresolved variable {region}") {
+		t.Fatalf("a server variable without a default must stay unresolved: %v", err)
+	}
+	_ = os.WriteFile(spec, []byte(strings.Replace(mustRead(t, spec), "region: {}", "region: {default: eu}", 1)), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Files) != 2 || !strings.HasSuffix(res.Files[0], "foo-bar-2.http") && !strings.HasSuffix(res.Files[1], "foo-bar-2.http") {
+		t.Fatalf("colliding tags must get distinct files: %v", res.Files)
+	}
+	all := ""
+	for _, f := range res.Files {
+		all += mustRead(t, f)
+	}
+	if !strings.Contains(all, "    # ?opt={{opt}}  (optional)\n    ?req={{req}}\n") {
+		t.Errorf("the first active query parameter must use ?:\n%s", all)
+	}
+	if !strings.Contains(all, `"name": "from-ref"`) || strings.Contains(all, "ignored-in-3.0") {
+		t.Errorf("3.0 must ignore keys next to $ref:\n%s", all)
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

@@ -693,3 +693,20 @@ Feature: Default env
 		t.Fatalf("private value of the default environment leaked:\n%s", report.String())
 	}
 }
+
+func TestEmptyOrInvalidVariableNamesAreRejected(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	for _, feature := range []string{
+		"Feature: n\n  Scenario: s\n    Given the variable \"\" is \"x\"\n",
+		"Feature: n\n  Scenario: s\n    Given the variables:\n      | | x |\n",
+		"Feature: n\n  Scenario: s\n    Given I am logged in\n    When I capture the response body \"$.token\" as \"\"\n",
+		"Feature: n\n  Scenario: s\n    Given the variable \"bad name\" is \"x\"\n",
+	} {
+		_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+			Features: []godog.Feature{{Name: "n.feature", Contents: []byte(feature)}}})
+		if code == ExitPassed {
+			t.Errorf("should not pass:\n%s (code=%d err=%v)", feature, code, err)
+		}
+	}
+}

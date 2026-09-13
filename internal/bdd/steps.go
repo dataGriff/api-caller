@@ -87,6 +87,10 @@ func stepVariable(ctx context.Context, name, value string) error {
 	if err != nil {
 		return err
 	}
+	if err := checkVarName(name); err != nil {
+		sc.cfg.noteError(err)
+		return err
+	}
 	v, err := sc.render(value)
 	if err != nil {
 		return err
@@ -205,6 +209,10 @@ func stepDuration(ctx context.Context, ms int) error {
 func stepCapture(ctx context.Context, where, sel, name string) error {
 	sc, err := from(ctx)
 	if err != nil {
+		return err
+	}
+	if err := checkVarName(name); err != nil {
+		sc.cfg.noteError(err)
 		return err
 	}
 	res, err := sc.requireLast()

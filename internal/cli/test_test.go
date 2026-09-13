@@ -40,6 +40,14 @@ func TestTestCommandExitCodes(t *testing.T) {
 	if data, _ := os.ReadFile(feature); !strings.Contains(string(data), "Feature: p") {
 		t.Fatalf("feature file was damaged: %q", data)
 	}
+	// A symlink alias of a feature is refused too.
+	alias := filepath.Join(dir, "report.xml")
+	if err := os.Symlink(feature, alias); err == nil {
+		if code, _, stderr := run("test", "-C", dir, "--env", "dev", "--output", alias); code != 2 || !strings.Contains(stderr, "would overwrite") {
+			t.Fatalf("symlinked output: code=%d stderr=%s", code, stderr)
+		}
+		must(t, os.Remove(alias))
+	}
 	report := filepath.Join(dir, "report.xml")
 	if code, _, _ := run("test", "-C", dir, "--env", "nope", "--output", report); code != 2 {
 		t.Fatalf("code=%d", code)

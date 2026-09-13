@@ -20,7 +20,7 @@ type BuiltinStep struct {
 // Builtin is the fixed step vocabulary, in registration order.
 var Builtin = []BuiltinStep{
 	{"environment", `^the environment is "([^"]*)"$`, []string{"the environment is {x}"}},
-	{"variable", `^the variable "([^"]*)" is "([^"]*)"$`, []string{"the variable {x} is {y}"}},
+	{"variable", `^the variable "([^"]+)" is "([^"]*)"$`, []string{"the variable {x} is {y}"}},
 	{"variables", `^the variables:$`, []string{"the variables:"}},
 	{"run", `^I run "([^"]*)"$`, []string{"I run {x}"}},
 	{"run-with", `^I run "([^"]*)" with:$`, []string{"I run {x} with:"}},
@@ -36,7 +36,7 @@ var Builtin = []BuiltinStep{
 	{"body-equals", `^the response body is:$`, []string{"the response body is:"}},
 	{"body-contains", `^the response body contains:$`, []string{"the response body contains:"}},
 	{"duration", `^the response time is under (\d+) ?ms$`, []string{"the response time is under {x} ms", "the response time is under {x}"}},
-	{"capture", `^I capture the response (body|header) "([^"]*)" as "([^"]*)"$`,
+	{"capture", `^I capture the response (body|header) "([^"]*)" as "([^"]+)"$`,
 		expand("I capture the response {where} {sel} as {name}", map[string][]string{"{where}": {"body", "header"}})},
 }
 
