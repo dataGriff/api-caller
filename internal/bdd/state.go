@@ -60,11 +60,19 @@ func (c *Config) noteSecrets(vals map[string]string) {
 		c.secrets = map[string]bool{}
 	}
 	for _, v := range vals {
-		if len(v) >= 3 {
+		if v != "" {
 			c.secrets[v] = true
 		}
 	}
 }
+
+// minMaskLen is the shortest secret value masked literally in report text.
+// Shorter values (a captured id of "1", say) cannot be masked by
+// substitution without corrupting line numbers, counts and JSON in the
+// report; they are protected instead by the structural masking of error
+// messages, URLs and request values, which never print secret-sourced
+// values under --redact.
+const minMaskLen = 3
 
 // mask replaces every registered secret value in s, longest first.
 func (c *Config) mask(s string) string {
@@ -73,7 +81,9 @@ func (c *Config) mask(s string) string {
 	}
 	keys := make([]string, 0, len(c.secrets))
 	for k := range c.secrets {
-		keys = append(keys, k)
+		if len(k) >= minMaskLen {
+			keys = append(keys, k)
+		}
 	}
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
 	for _, k := range keys {
@@ -137,10 +147,14 @@ func from(ctx context.Context) (*scenario, error) {
 func (s *scenario) render(text string) (string, error) {
 	out, err := s.r.Render(text)
 	if err != nil {
+		var uerr *runner.UsageError
 		if s.cfg.Redact {
-			return "", fmt.Errorf("step value (hidden by --redact): %w", err)
+			uerr = &runner.UsageError{Msg: "step value (hidden by --redact): " + err.Error()}
+		} else {
+			uerr = &runner.UsageError{Msg: fmt.Sprintf("%q: %v", text, err)}
 		}
-		return "", fmt.Errorf("%q: %w", text, err)
+		s.cfg.noteError(uerr)
+		return "", uerr
 	}
 	return out, nil
 }
@@ -165,6 +179,11 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 	}
 	if err != nil {
 		s.cfg.noteError(err)
+		var te *runner.TransportError
+		if s.cfg.Redact && errors.As(err, &te) && s.last != nil {
+			// Go's transport errors quote the full URL; keep the masked form only.
+			return &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.last.Request.DisplayURL(true))}
+		}
 		return err
 	}
 	for _, res := range results {

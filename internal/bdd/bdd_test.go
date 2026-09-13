@@ -442,3 +442,76 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func TestRedactCaptureStepAndShortValues(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.private.env.json"), []byte(`{"dev":{"pin":"7"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	var report bytes.Buffer
+	_, err = Run(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true},
+		Format: "pretty", NoColors: true, Output: &report,
+		Features: []godog.Feature{{Name: "m.feature", Contents: []byte(`
+Feature: Capture step
+  Scenario: A value captured by the capture step is masked afterwards
+    Given I am logged in
+    And a user named "alice" exists
+    When I capture the response body "$.name" as "who"
+    Then the response body "$.name" is "alice"
+    And the response body "$.name" is "bob"
+`)}},
+	})
+	must(t, err)
+	out := report.String()
+	if !strings.Contains(out, `Then the response body "$.name" is "***"`) {
+		t.Errorf("value captured by the capture step should be masked in later lines:\n%s", out)
+	}
+	// A one-character secret is deliberately not masked by substitution: it
+	// would corrupt counts, line numbers and JSON in the report.
+	if !strings.Contains(out, "1 scenarios (1 failed)") || !strings.Contains(out, "m.feature:3") {
+		t.Errorf("report structure must survive short secrets:\n%s", out)
+	}
+}
+
+func TestSymlinkedFeatureOutsideProjectRejected(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	outside := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(outside, "leak.feature"), []byte("Feature: x\n  Scenario: s\n    Given I am logged in\n"), 0o644))
+	must(t, os.MkdirAll(filepath.Join(p.Root, "features"), 0o755))
+	if err := os.Symlink(filepath.Join(outside, "leak.feature"), filepath.Join(p.Root, "features", "leak.feature")); err != nil {
+		t.Skip("symlinks not supported here")
+	}
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "outside the project root") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestMissingVariableInStepArgumentIsUsageError(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "v.feature", Contents: []byte("Feature: v\n  Scenario: s\n    Given I am logged in\n    Then the response body \"$.token\" is \"{{nope}}\"\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "{{nope}}") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestPhraseConflictingWithBuiltinIsUsageError(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I run {thing}\nGET {{baseUrl}}/login\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "c.feature", Contents: []byte("Feature: c\n  Scenario: s\n    When I run \"login\"\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "ambiguous with the built-in step") {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+}

@@ -293,8 +293,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		case firstExampleValue(d, d.get(media, "examples")) != nil:
 			v = decode(firstExampleValue(d, d.get(media, "examples")))
 		case d.get(media, "schema") != nil:
-			v = d.exampleFromSchema(d.get(media, "schema"), 0)
-			selected = v != nil
+			v, selected = d.exampleFromSchema(d.get(media, "schema"), 0)
 		default:
 			selected = false
 		}
@@ -324,21 +323,25 @@ func firstExampleValue(d *document, examples *yaml.Node) *yaml.Node {
 	return nil
 }
 
-func (d *document) exampleFromSchema(s *yaml.Node, depth int) any {
+// exampleFromSchema derives a value from a schema. ok is false only when
+// nothing could be derived; a JSON null (type: null or example: null) is a
+// real value.
+func (d *document) exampleFromSchema(s *yaml.Node, depth int) (any, bool) {
 	s = d.resolve(s)
 	if s == nil || depth > 6 {
-		return nil
+		return nil, false
 	}
-	for _, key := range []string{"example", "default"} {
-		if n := d.get(s, key); n != nil {
-			return decode(n)
-		}
+	if n := d.get(s, "example"); n != nil {
+		return decode(n), true
 	}
 	if ex := d.items(d.get(s, "examples")); len(ex) > 0 {
-		return decode(ex[0])
+		return decode(ex[0]), true
+	}
+	if n := d.get(s, "default"); n != nil {
+		return decode(n), true
 	}
 	if en := d.items(d.get(s, "enum")); len(en) > 0 {
-		return decode(en[0])
+		return decode(en[0]), true
 	}
 	for _, key := range []string{"allOf", "oneOf", "anyOf"} {
 		if sub := d.items(d.get(s, key)); len(sub) > 0 {
@@ -354,36 +357,40 @@ func (d *document) exampleFromSchema(s *yaml.Node, depth int) any {
 	case "object":
 		obj := &orderedObject{}
 		for _, p := range props {
-			obj.set(p.key, d.exampleFromSchema(p.value, depth+1))
+			v, _ := d.exampleFromSchema(p.value, depth+1)
+			obj.set(p.key, v)
 		}
-		return obj
+		return obj, true
 	case "array":
 		if items := d.get(s, "items"); items != nil {
-			return []any{d.exampleFromSchema(items, depth+1)}
+			v, _ := d.exampleFromSchema(items, depth+1)
+			return []any{v}, true
 		}
-		return []any{}
+		return []any{}, true
 	case "integer":
-		return 1
+		return 1, true
 	case "number":
-		return 1.5
+		return 1.5, true
 	case "boolean":
-		return true
+		return true, true
+	case "null":
+		return nil, true
 	case "string":
 		switch str(d.get(s, "format")) {
 		case "date-time":
-			return "{{$isoTimestamp}}"
+			return "{{$isoTimestamp}}", true
 		case "date":
-			return "2026-01-01"
+			return "2026-01-01", true
 		case "email":
-			return "user@example.com"
+			return "user@example.com", true
 		case "uuid":
-			return "{{$uuid}}"
+			return "{{$uuid}}", true
 		case "uri", "url":
-			return "https://example.com"
+			return "https://example.com", true
 		}
-		return "string"
+		return "string", true
 	}
-	return nil
+	return nil, false
 }
 
 // schemaType returns the schema type, taking the first non-null entry of an
@@ -398,6 +405,9 @@ func schemaType(d *document, s *yaml.Node) string {
 			if v := str(n); v != "" && v != "null" {
 				return v
 			}
+		}
+		if len(d.items(t)) > 0 {
+			return "null"
 		}
 		return ""
 	}

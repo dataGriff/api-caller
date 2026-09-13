@@ -37,7 +37,7 @@ for that request; each matches a quoted string or a bare word.
 ### Create a user
 # @name create-user
 # @step a user named {name} exists
-# @step a {role} named {name} exists
+# @step a {role} called {name} exists
 # @assert status == 201
 # @capture userId = body.$.id
 POST {{baseUrl}}/users
@@ -56,7 +56,10 @@ Authorization: Bearer {{token}}
 A phrase does exactly what `I run "<id>"` does: it sends the request,
 fails the step if any `# @assert` or `# @capture` on it fails, and makes
 captured values available to later steps. `apic validate` reports a phrase
-declared on two requests, and `apic list` and `describe` show them.
+that is declared on two requests, that could match the same text as another
+phrase, or that overlaps a built-in step (for example `# @step I run {x}`),
+since godog would treat such steps as ambiguous. `apic list` and `describe`
+show phrases.
 
 Phrases are matched whatever Gherkin keyword introduces them (`Given`,
 `When`, `Then`, `And`, `But`).
@@ -144,10 +147,13 @@ run has both kinds of problem, the definition problem (2) wins, then
 transport (3), then assertion failures (1). A tag expression that selects no
 scenarios exits 0 with zero scenarios reported.
 
-With `--redact`, step failure messages hide expected and actual values, and
-every value that came from a secret source (private env file, `.env`, the
-session, captures) is masked wherever the report mentions it, including in
-step text, tables and doc strings.
+With `--redact`, step failure messages hide expected and actual values,
+URLs show masked query values, and every value that came from a secret
+source (private env file, `.env`, the session, captures) is masked wherever
+the report mentions it, including in step text, tables and doc strings.
+Values shorter than three characters are not substituted in report text,
+since masking a lone digit would corrupt the report itself; they are still
+never printed by error messages.
 
 ```yaml
 # GitHub Actions

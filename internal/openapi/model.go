@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -116,14 +117,19 @@ func (d *document) pointer(path string) *yaml.Node {
 		if cur.Kind == yaml.AliasNode {
 			cur = cur.Alias
 		}
-		if cur.Kind != yaml.MappingNode {
-			return nil
-		}
 		var next *yaml.Node
-		for i := 0; i+1 < len(cur.Content); i += 2 {
-			if cur.Content[i].Value == seg {
-				next = cur.Content[i+1]
-				break
+		switch cur.Kind {
+		case yaml.MappingNode:
+			for i := 0; i+1 < len(cur.Content); i += 2 {
+				if cur.Content[i].Value == seg {
+					next = cur.Content[i+1]
+					break
+				}
+			}
+		case yaml.SequenceNode:
+			idx, err := strconv.Atoi(seg)
+			if err == nil && idx >= 0 && idx < len(cur.Content) {
+				next = cur.Content[idx]
 			}
 		}
 		if next == nil {

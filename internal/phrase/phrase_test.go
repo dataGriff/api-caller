@@ -41,3 +41,28 @@ func TestParseAndMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestConflicts(t *testing.T) {
+	for _, text := range []string{`I run {req}`, `the response status is {code}`, `I run "login"`, `the variables:`} {
+		p, err := Parse(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.ConflictsWithBuiltin(); err == nil {
+			t.Errorf("%q should conflict with a built-in step", text)
+		}
+	}
+	ok, _ := Parse("I log in as {user}")
+	if err := ok.ConflictsWithBuiltin(); err != nil {
+		t.Errorf("unexpected conflict: %v", err)
+	}
+	a, _ := Parse("a user named {name} exists")
+	b, _ := Parse("a {role} named {name} exists")
+	c, _ := Parse("a {role} called {name} exists")
+	if !a.ConflictsWith(b) || !b.ConflictsWith(a) {
+		t.Error("overlapping phrases should conflict")
+	}
+	if a.ConflictsWith(c) {
+		t.Error("distinct phrases should not conflict")
+	}
+}

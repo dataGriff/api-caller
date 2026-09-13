@@ -22,7 +22,6 @@ type compiledPhrase struct {
 // filter selects no scenarios. Equivalent matchers are rejected.
 func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 	var out []compiledPhrase
-	seen := map[string]string{}
 	for _, req := range p.Requests() {
 		for _, text := range req.Steps() {
 			ph, err := phrase.Parse(text)
@@ -32,10 +31,14 @@ func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
 			if len(ph.Params) > maxPhraseParams {
 				return nil, fmt.Errorf("%s:%d: @step %q has more than %d parameters", req.File.Path, req.Line, text, maxPhraseParams)
 			}
-			if other, dup := seen[ph.Regex]; dup {
-				return nil, fmt.Errorf("%s:%d: @step %q matches the same text as @step %q (run `apic validate`)", req.File.Path, req.Line, text, other)
+			if err := ph.ConflictsWithBuiltin(); err != nil {
+				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
 			}
-			seen[ph.Regex] = text
+			for _, prev := range out {
+				if ph.ConflictsWith(prev.phrase) {
+					return nil, fmt.Errorf("%s:%d: @step %q is ambiguous with @step %q on %s (run `apic validate`)", req.File.Path, req.Line, text, prev.phrase.Text, prev.target)
+				}
+			}
 			out = append(out, compiledPhrase{phrase: ph, target: req.ID()})
 		}
 	}

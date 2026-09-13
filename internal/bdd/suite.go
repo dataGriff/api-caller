@@ -204,26 +204,40 @@ func (o *Options) resolvePaths() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("no features at %s", p)
 		}
-		if info.IsDir() && !containsFeature(real) {
-			return nil, fmt.Errorf("no .feature files under %s", real)
+		if info.IsDir() {
+			n, err := checkFeatureFiles(root, real)
+			if err != nil {
+				return nil, err
+			}
+			if n == 0 {
+				return nil, fmt.Errorf("no .feature files under %s", real)
+			}
 		}
 		out = append(out, real)
 	}
 	return out, nil
 }
 
-// containsFeature reports whether a directory holds at least one .feature file.
-func containsFeature(dir string) bool {
-	found := false
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+// checkFeatureFiles counts the .feature files under dir and rejects any
+// that resolve (through symlinks) outside the project root.
+func checkFeatureFiles(root, dir string) (int, error) {
+	count := 0
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".feature") {
-			found = true
-			return fs.SkipAll
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".feature") {
+			return nil
 		}
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("cannot resolve %s: %w", path, err)
+		}
+		if rel, err := filepath.Rel(root, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("feature file %s resolves outside the project root %s", path, root)
+		}
+		count++
 		return nil
 	})
-	return found
+	return count, err
 }

@@ -226,10 +226,10 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 		}
 	}
 	type declared struct {
-		req  *httpfile.Request
-		text string
+		req *httpfile.Request
+		ph  *phrase.Phrase
 	}
-	phrases := map[string]declared{} // keyed by compiled matcher so {x} and {y} variants collide
+	var phrases []declared
 	for _, r := range p.Requests() {
 		for _, d := range r.Directives {
 			if d.Key != "step" {
@@ -240,11 +240,16 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
 				continue
 			}
-			if other, dup := phrases[ph.Regex]; dup {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
-					Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.text, other.req.ID(), other.req.File.Path, other.req.Line)})
+			if err := ph.ConflictsWithBuiltin(); err != nil {
+				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
 			}
-			phrases[ph.Regex] = declared{r, ph.Text}
+			for _, other := range phrases {
+				if ph.ConflictsWith(other.ph) {
+					diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
+						Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.req.Line)})
+				}
+			}
+			phrases = append(phrases, declared{r, ph})
 		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {

@@ -267,3 +267,52 @@ paths:
 		t.Errorf("explicit null example should produce a null body:\n%s", out)
 	}
 }
+
+func TestImportSchemaPrecedenceNullAndPointerIndex(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pick: {type: string, default: from-default, examples: [from-examples]}
+                nothing: {type: "null"}
+                first: {$ref: "#/components/schemas/Envelope/allOf/0"}
+      responses:
+        "200": {description: ok}
+  /b:
+    post:
+      operationId: b
+      requestBody:
+        content:
+          application/json:
+            schema: {type: "null"}
+      responses:
+        "200": {description: ok}
+components:
+  schemas:
+    Envelope:
+      allOf:
+        - type: object
+          properties: {id: {type: integer}}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{`"pick": "from-examples"`, `"nothing": null`, `"first": {` + "\n    \"id\": 1", "# @name b\n# @assert status == 200\nPOST {{baseUrl}}/b\nContent-Type: application/json\n\nnull\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}

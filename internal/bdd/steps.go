@@ -36,22 +36,34 @@ var opWords = map[string]string{
 	"starts with": "startsWith", "ends with": "endsWith", "matches": "matches",
 }
 
+// handlers binds the built-in vocabulary (patterns in package phrase) to
+// their implementations.
+var handlers = map[string]any{
+	"environment":   stepEnvironment,
+	"variable":      stepVariable,
+	"variables":     stepVariables,
+	"run":           stepRun,
+	"run-with":      stepRunWith,
+	"run-file":      stepRun,
+	"status":        stepStatus,
+	"status-not":    stepStatusNot,
+	"status-class":  stepStatusClass,
+	"compare":       stepCompare,
+	"exists":        stepExists,
+	"body-equals":   stepBodyEquals,
+	"body-contains": stepBodyContains,
+	"duration":      stepDuration,
+	"capture":       stepCapture,
+}
+
 func registerSteps(sc *godog.ScenarioContext) {
-	sc.Step(`^the environment is "([^"]*)"$`, stepEnvironment)
-	sc.Step(`^the variable "([^"]*)" is "([^"]*)"$`, stepVariable)
-	sc.Step(`^the variables:$`, stepVariables)
-	sc.Step(`^I run "([^"]*)"$`, stepRun)
-	sc.Step(`^I run "([^"]*)" with:$`, stepRunWith)
-	sc.Step(`^I run the file "([^"]*)"$`, stepRun)
-	sc.Step(`^the response status is (\d+)$`, stepStatus)
-	sc.Step(`^the response status is not (\d+)$`, stepStatusNot)
-	sc.Step(`^the response is (successful|a client error|a server error)$`, stepStatusClass)
-	sc.Step(`^the response (body|header) "([^"]*)" (is not|is|equals|contains|starts with|ends with|matches) "([^"]*)"$`, stepCompare)
-	sc.Step(`^the response (body|header) "([^"]*)" (exists|does not exist)$`, stepExists)
-	sc.Step(`^the response body is:$`, stepBodyEquals)
-	sc.Step(`^the response body contains:$`, stepBodyContains)
-	sc.Step(`^the response time is under (\d+) ?ms$`, stepDuration)
-	sc.Step(`^I capture the response (body|header) "([^"]*)" as "([^"]*)"$`, stepCapture)
+	for _, b := range phrase.Builtin {
+		h, ok := handlers[b.Name]
+		if !ok {
+			panic("no handler for built-in step " + b.Name)
+		}
+		sc.Step(b.Regex, h)
+	}
 }
 
 func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
@@ -197,6 +209,7 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 	if !r.Pass {
 		return fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), describeFailure(res))
 	}
+	sc.cfg.noteSecrets(map[string]string{name: r.Actual})
 	sc.r.SetVar(name, r.Actual)
 	return nil
 }

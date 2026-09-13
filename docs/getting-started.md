@@ -224,8 +224,16 @@ Add phrases to requests and write features; apic runs them with no
 Cucumber runtime:
 
 ```http
-# @step a user named {name} exists      (on create-user)
-# @step I fetch the user                (on get-user)
+### Create a user
+# @name create-user
+# @step a user named {name} exists
+POST {{baseUrl}}/users
+...
+
+### Fetch a user
+# @name get-user
+# @step I fetch the user
+GET {{baseUrl}}/users/{{userId}}
 ```
 
 ```gherkin

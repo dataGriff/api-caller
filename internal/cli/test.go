@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -68,6 +69,11 @@ environment or bad phrase.`,
 			}
 			code, err := bdd.Run(cmd.Context(), opts)
 			if err != nil {
+				var te *runner.TransportError
+				var ue *runner.UsageError
+				if errors.As(err, &te) || errors.As(err, &ue) {
+					return err // keeps exit codes 3 and 2
+				}
 				return &runner.UsageError{Msg: err.Error()}
 			}
 			if code != 0 {
@@ -87,10 +93,6 @@ environment or bad phrase.`,
 
 func (a *App) printSteps() error {
 	if a.g.json {
-		p, err := a.loadProject()
-		if err != nil {
-			return err
-		}
 		type entry struct {
 			Pattern string `json:"pattern"`
 			Purpose string `json:"purpose"`
@@ -100,9 +102,13 @@ func (a *App) printSteps() error {
 		for _, v := range bdd.Vocabulary {
 			out = append(out, entry{Pattern: v.Pattern, Purpose: v.Purpose})
 		}
-		for _, r := range p.Requests() {
-			for _, st := range r.Steps() {
-				out = append(out, entry{Pattern: st, Purpose: "runs " + r.ID(), Request: r.ID()})
+		// Project phrases are appended when a project loads; the built-in
+		// vocabulary is still useful outside one.
+		if p, err := a.loadProject(); err == nil {
+			for _, r := range p.Requests() {
+				for _, st := range r.Steps() {
+					out = append(out, entry{Pattern: st, Purpose: "runs " + r.ID(), Request: r.ID()})
+				}
 			}
 		}
 		return a.writeJSON(out)
