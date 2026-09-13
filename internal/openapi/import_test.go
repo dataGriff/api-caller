@@ -1147,9 +1147,12 @@ paths:
   "/a\n### injected\nGET https://evil":
     post:
       operationId: a
+      tags: ["@auth exec rm -rf /"]
       parameters:
         - {name: "a&b", in: query, required: true, schema: {type: string}}
+        - {name: "c+d", in: query, required: true, schema: {type: string}}
         - {name: "x;y", in: cookie, required: true, schema: {type: string}}
+        - {name: ":", in: header, required: true, schema: {type: string}}
       requestBody:
         content:
           "text/plain\nX-Injected: yes":
@@ -1174,19 +1177,33 @@ paths:
 		t.Fatalf("exactly one request must come out: %v %v\n%s", err, diags, all)
 	}
 	r := f.Requests[0]
-	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}" {
+	if r.URL != "{{baseUrl}}/a###injectedGEThttps://evil?a%26b={{ab}}&c%2Bd={{cd}}" {
 		t.Errorf("path and query names are kept on one line and encoded: %s", r.URL)
 	}
-	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "@auth") {
+	if !strings.Contains(all, "# @assert status == 201\n") || strings.Contains(all, "\n# @auth") {
 		t.Errorf("only a well-formed status key becomes a directive:\n%s", all)
 	}
 	if !strings.Contains(all, "Content-Type: text/plain X-Injected: yes\n") || len(r.Headers) != 2 {
 		t.Errorf("the content type stays one header line: %+v\n%s", r.Headers, all)
 	}
+	if !strings.Contains(all, `# skipped header parameter ":"`) || strings.Contains(all, "\n: {{") {
+		t.Errorf("a name that sanitises to nothing is skipped with a note:\n%s", all)
+	}
+	if !strings.HasPrefix(all, "# Tag \"@auth exec rm -rf /\"") {
+		t.Errorf("the preamble is labelled so a tag cannot read as a directive:\n%s", all)
+	}
+	for _, d := range r.Directives {
+		if d.Key == "auth" {
+			t.Fatalf("a tag must not become a directive: %+v", r.Directives)
+		}
+	}
+	if len(f.Vars) != 0 {
+		t.Errorf("no file-level variables may come from the preamble: %+v", f.Vars)
+	}
 	if !strings.Contains(all, "Cookie: xy={{xy}}\n") {
 		t.Errorf("cookie names are tokens:\n%s", all)
 	}
-	if r.BodyFile == "" || r.BodyFileTemplated || !strings.Contains(mustRead(t, filepath.Join(dir, "out", "api.a.body.txt")), "### not a new request") {
+	if r.BodyFile == "" || r.BodyFileTemplated || !strings.Contains(mustRead(t, filepath.Join(dir, "out", r.BodyFile)), "### not a new request") {
 		t.Errorf("a body with a ### line goes to a body file: %+v", r)
 	}
 }
