@@ -145,11 +145,16 @@ func Import(specPath string, opts Options) (*Result, error) {
 					ext = ".json"
 				}
 				side := name + "." + o.Name + ".body" + ext
-				if err := os.WriteFile(filepath.Join(opts.OutDir, side), []byte(o.Body), 0o644); err != nil { // verbatim: no added newline
-					return nil, err
-				}
+				sidePath := filepath.Join(opts.OutDir, side)
 				o.BodyFile = "./" + side
-				res.Files = append(res.Files, filepath.Join(opts.OutDir, side))
+				if _, err := os.Stat(sidePath); err == nil && !opts.Force {
+					res.Skipped = append(res.Skipped, sidePath) // kept, like an existing .http file
+				} else {
+					if err := os.WriteFile(sidePath, []byte(o.Body), 0o644); err != nil { // verbatim: no added newline
+						return nil, err
+					}
+					res.Files = append(res.Files, sidePath)
+				}
 			}
 			b.WriteString(o.render())
 			res.Requests++
@@ -448,7 +453,10 @@ func (d *document) exampleBody(rb *yaml.Node) (body, contentType string, raw boo
 		}
 		if strings.EqualFold(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]), "application/x-www-form-urlencoded") {
 			if obj, ok := v.(*orderedObject); ok {
-				return formEncode(obj), ct, raw
+				// Percent-encoding would turn a {{$uuid}} placeholder into
+				// literal text the runner no longer recognises, so form
+				// bodies use fixed sample values instead.
+				return formEncode(concretize(obj).(*orderedObject)), ct, raw
 			}
 		}
 		// XML, multipart and other structured non-JSON bodies cannot be
@@ -467,8 +475,6 @@ func formEncode(obj *orderedObject) string {
 		switch v := obj.vals[k].(type) {
 		case string:
 			val = v
-		case placeholder:
-			val = string(v)
 		case nil:
 			val = ""
 		case *orderedObject, []any:

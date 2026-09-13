@@ -857,6 +857,7 @@ paths:
                 user: {type: string, example: "a b"}
                 count: {type: integer}
                 tags: {type: array, items: {type: string, example: x}}
+                id: {type: string, format: uuid}
       responses: {"200": {description: ok}}
   /plain:
     post:
@@ -890,8 +891,8 @@ paths:
 		t.Fatal(err)
 	}
 	all := mustRead(t, res.Files[0])
-	if !strings.Contains(all, "Content-Type: application/x-www-form-urlencoded\n\nuser=a+b&count=1&tags=%5B%22x%22%5D\n") {
-		t.Errorf("form bodies are form-encoded in property order:\n%s", all)
+	if !strings.Contains(all, "Content-Type: application/x-www-form-urlencoded\n\nuser=a+b&count=1&tags=%5B%22x%22%5D&id=00000000-0000-4000-8000-000000000000\n") || strings.Contains(all, "%7B") {
+		t.Errorf("form bodies are form-encoded in property order with concrete sample values:\n%s", all)
 	}
 	plainPart := all[strings.Index(all, "# @name plain"):strings.Index(all, "# @name xml")]
 	if !strings.Contains(plainPart, "Content-Type: text/plain\n\n42\n") {
@@ -1056,5 +1057,46 @@ paths:
 	genPart := all[strings.Index(all, "# @name gen"):]
 	if !strings.Contains(genPart, `"id": "{{$uuid}}"`) || strings.Contains(genPart, "api.gen.body") {
 		t.Errorf("generated placeholders stay inline:\n%s", genPart)
+	}
+}
+
+func TestImportKeepsExistingBodyFileWithoutForce(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /tpl:
+    post:
+      operationId: tpl
+      requestBody:
+        content:
+          application/json:
+            example: {"greeting": "hello {{name}}"}
+      responses: {"200": {description: ok}}
+`), 0o644)
+	out := filepath.Join(dir, "out")
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(out, 0o755))
+	side := filepath.Join(out, "api.tpl.body.json")
+	must(os.WriteFile(side, []byte("edited by hand"), 0o644))
+	res, err := Import(spec, Options{OutDir: out})
+	must(err)
+	if got := mustRead(t, side); got != "edited by hand" {
+		t.Fatalf("an existing body file must be kept without --force: %q", got)
+	}
+	if len(res.Skipped) != 1 || res.Skipped[0] != side {
+		t.Fatalf("the kept file is reported as skipped: %+v", res)
+	}
+	_, err = Import(spec, Options{OutDir: out, Force: true})
+	must(err)
+	if got := mustRead(t, side); !strings.Contains(got, "hello {{name}}") {
+		t.Fatalf("--force rewrites the body file: %q", got)
 	}
 }
