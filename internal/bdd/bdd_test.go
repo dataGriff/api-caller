@@ -56,10 +56,6 @@ func server(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func itoa(i int) string {
-	return json.Number(strings.TrimSpace(strings.Repeat(" ", 0) + string(rune('0'+i)))).String()
-}
-
 const apiHTTP = `
 ### login
 # @name login
