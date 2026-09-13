@@ -60,7 +60,7 @@ Run it, then in another terminal (substituting your --out if you set one):
 				fmt.Fprintf(a.Stdout, "demo api listening on %s\n", url)
 				fmt.Fprintf(a.Stdout, "try: apic run login whoami -C %s --env local\n", out)
 			}
-			addr := fmt.Sprintf("localhost:%d", port)
+			addr := fmt.Sprintf("127.0.0.1:%d", port)
 			return http.ListenAndServe(addr, demoapi.New())
 		},
 	}
