@@ -229,7 +229,7 @@ func (d *document) operation(path, method string, op *yaml.Node, shared []parame
 
 func (o *operation) render() string {
 	var b strings.Builder
-	title := o.Summary
+	title := strings.Join(strings.Fields(o.Summary), " ") // one line: it is the ### heading
 	if title == "" {
 		title = o.Method + " " + o.Path
 	}

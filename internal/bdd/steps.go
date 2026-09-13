@@ -79,9 +79,16 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 		return ctx, sc.cfg.fail(err)
 	}
 	// The scenario's state survives the switch: variables set by steps,
-	// values captured so far and the last response.
+	// what the session held for the previous environment, values captured
+	// so far and the last response. Session values are keyed by
+	// environment, so they are carried as captures of this scenario.
 	for k, v := range sc.r.Opts.Vars {
 		next.r.SetVar(k, v)
+	}
+	if sc.r.Session != nil {
+		for k, v := range sc.r.Session.Vars(sc.r.Opts.Env) {
+			next.r.Capture(k, v)
+		}
 	}
 	for k, v := range sc.r.Captured() {
 		next.r.Capture(k, v)

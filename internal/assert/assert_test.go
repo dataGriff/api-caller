@@ -52,3 +52,27 @@ func TestParseAndEval(t *testing.T) {
 		}
 	}
 }
+
+func TestCompareNumbersExactly(t *testing.T) {
+	cases := []struct {
+		actual, op, expected string
+		want                 bool
+	}{
+		{"9007199254740993", "==", "9007199254740992", false},
+		{"9007199254740993", "!=", "9007199254740992", true},
+		{"9007199254740993", ">", "9007199254740992", true},
+		{"1.0", "==", "1", true},
+		{"1e2", "==", "100", true},
+		{"99", "<", "1e2", true},
+		{"abc", "==", "abc", true},
+		{"1/2", "==", "0.5", false},
+	}
+	for _, c := range cases {
+		if got, why := compare(c.actual, c.op, c.expected); got != c.want || why != "" {
+			t.Errorf("%s %s %s: got %v (%s), want %v", c.actual, c.op, c.expected, got, why, c.want)
+		}
+	}
+	if _, why := compare("Inf", "<", "5"); why == "" {
+		t.Error("Inf is not an exact number and must not compare numerically")
+	}
+}

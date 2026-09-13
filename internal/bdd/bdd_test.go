@@ -941,3 +941,27 @@ Feature: Switch
 		t.Fatalf("code=%d sum=%+v", code, sum)
 	}
 }
+
+func TestEnvironmentSwitchCarriesSessionValues(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"},"alt":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", UseSession: true, Stderr: io.Discard},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(`
+Feature: Session across environments
+  Scenario: Log in under dev
+    Given I am logged in
+  Scenario: A later scenario switches environments and still sees the token
+    When the environment is "alt"
+    Then the variable "check" is "{{token}}"
+    And the variable "check" is "t-1"
+`)}},
+	})
+	if err != nil || code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+}

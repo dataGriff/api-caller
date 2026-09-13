@@ -4,6 +4,7 @@ package assert
 
 import (
 	"fmt"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -97,19 +98,33 @@ func Eval(e Expr, expected string, resp *selector.Response) Result {
 	return res
 }
 
+// parseNumber reads a decimal number exactly, so large integers such as
+// 9007199254740993 keep their value instead of rounding through float64.
+func parseNumber(s string) (*big.Rat, bool) {
+	if _, err := strconv.ParseFloat(s, 64); err != nil {
+		return nil, false // not a number in the usual sense (also rejects "1/2")
+	}
+	r, ok := new(big.Rat).SetString(s)
+	return r, ok // false for Inf and NaN, which then compare as text
+}
+
 func compare(actual, op, expected string) (bool, string) {
-	af, aerr := strconv.ParseFloat(actual, 64)
-	ef, eerr := strconv.ParseFloat(expected, 64)
-	numeric := aerr == nil && eerr == nil
+	an, aok := parseNumber(actual)
+	en, eok := parseNumber(expected)
+	numeric := aok && eok
+	cmp := 0
+	if numeric {
+		cmp = an.Cmp(en)
+	}
 	switch op {
 	case "==":
 		if numeric {
-			return af == ef, ""
+			return cmp == 0, ""
 		}
 		return actual == expected, ""
 	case "!=":
 		if numeric {
-			return af != ef, ""
+			return cmp != 0, ""
 		}
 		return actual != expected, ""
 	case "<", "<=", ">", ">=":
@@ -118,13 +133,13 @@ func compare(actual, op, expected string) (bool, string) {
 		}
 		switch op {
 		case "<":
-			return af < ef, ""
+			return cmp < 0, ""
 		case "<=":
-			return af <= ef, ""
+			return cmp <= 0, ""
 		case ">":
-			return af > ef, ""
+			return cmp > 0, ""
 		default:
-			return af >= ef, ""
+			return cmp >= 0, ""
 		}
 	case "contains":
 		return strings.Contains(actual, expected), ""

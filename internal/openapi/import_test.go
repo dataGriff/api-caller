@@ -733,3 +733,33 @@ paths:
 		t.Errorf("media types are case-insensitive:\n%s", all)
 	}
 }
+
+func TestImportMultilineSummaryStaysOneHeading(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    get:
+      operationId: a
+      summary: |
+        List things
+        GET /evil
+      responses: {"200": {description: ok}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := mustRead(t, res.Files[0])
+	if !strings.Contains(all, "### List things GET /evil\n") {
+		t.Errorf("summary must collapse to one heading line:\n%s", all)
+	}
+	f, diags, err := httpfile.ParseFile(res.Files[0])
+	if err != nil || len(diags) > 0 || len(f.Requests) != 1 {
+		t.Errorf("generated file must parse as one request: %v %v", err, diags)
+	}
+}

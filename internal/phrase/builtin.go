@@ -11,7 +11,7 @@ import (
 // texts the regex accepts with every alternation expanded, so the overlap
 // check can unify a phrase against them word by word. A capture is written
 // the way the regex constrains it: "{x}" for a quoted value, {#} for a
-// number, {x} for any single token.
+// number, {#ms} for a number followed by ms, {x} for any single token.
 type BuiltinStep struct {
 	Name   string
 	Regex  string
@@ -36,7 +36,7 @@ var Builtin = []BuiltinStep{
 		expand(`the response {where} "{sel}" {op}`, map[string][]string{"{where}": {"body", "header"}, "{op}": {"exists", "does not exist"}})},
 	{"body-equals", `^the response body is:$`, []string{"the response body is:"}},
 	{"body-contains", `^the response body contains:$`, []string{"the response body contains:"}},
-	{"duration", `^the response time is under (\d+) ?ms$`, []string{"the response time is under {#} ms", "the response time is under {x}"}},
+	{"duration", `^the response time is under (\d+) ?ms$`, []string{"the response time is under {#} ms", "the response time is under {#ms}"}},
 	{"capture", `^I capture the response (body|header) "([^"]*)" as "([^"]+)"$`,
 		expand(`I capture the response {where} "{sel}" as "{name}"`, map[string][]string{"{where}": {"body", "header"}})},
 }
@@ -74,9 +74,10 @@ type token struct {
 type paramKind int
 
 const (
-	anyToken    paramKind = iota // ("[^"]*"|\S+): a quoted value or a bare word
-	quotedToken                  // "([^"]*)": quoted text only
-	digitsToken                  // (\d+): digits only
+	anyToken      paramKind = iota // ("[^"]*"|\S+): a quoted value or a bare word
+	quotedToken                    // "([^"]*)": quoted text only
+	digitsToken                    // (\d+): digits only
+	digitsMsToken                  // (\d+)ms: digits followed by ms, as one word
 )
 
 // tokenize splits step text into tokens. A double-quoted span is one token
@@ -93,6 +94,8 @@ func tokenize(text string) []token {
 		switch {
 		case w == "{#}":
 			out = append(out, token{param: true, kind: digitsToken})
+		case w == "{#ms}":
+			out = append(out, token{param: true, kind: digitsMsToken})
 		case strings.Contains(w, "{") && isQuoted(w):
 			out = append(out, token{param: true, kind: quotedToken})
 		case strings.Contains(w, "{"):
@@ -170,6 +173,8 @@ func meet(x, y token) bool {
 		return isQuoted(y.literal)
 	case digitsToken:
 		return isDigits(y.literal)
+	case digitsMsToken:
+		return strings.HasSuffix(y.literal, "ms") && isDigits(strings.TrimSuffix(y.literal, "ms"))
 	}
 	return true
 }

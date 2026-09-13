@@ -72,7 +72,7 @@ func TestConflicts(t *testing.T) {
 	}
 	// Built-in captures keep their constraints: a bare word cannot match a
 	// quoted capture and a word cannot match a numeric one.
-	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms"} {
+	for _, text := range []string{"I log in as {user}", "I run locally", "the response status is pending", `the response body "$.x" is ready`, "the response time is under budget ms", "the response time is under pending"} {
 		ok, err := Parse(text)
 		if err != nil {
 			t.Fatal(err)
@@ -81,7 +81,7 @@ func TestConflicts(t *testing.T) {
 			t.Errorf("unexpected conflict for %q: %v", text, err)
 		}
 	}
-	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`} {
+	for _, text := range []string{"the response status is 200", `I run "{x}"`, `the response time is under {n} ms`, "the response time is under 500ms", "the response time is under {t}"} {
 		p, _ := Parse(text)
 		if err := p.ConflictsWithBuiltin(); err == nil {
 			t.Errorf("%q should conflict with a built-in step", text)
