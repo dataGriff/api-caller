@@ -448,10 +448,16 @@ func excerpt(s string, n int) string {
 	return s
 }
 
-// tableVars reads a two-column table (with or without a header row) into a
-// map. A header row is detected when the first row is `name | value`.
-func tableVars(t *godog.Table) (map[string]string, error) {
-	out := map[string]string{}
+// tableRow is one `name | value` line of a step table, kept in file order
+// so a value may refer to the rows above it.
+type tableRow struct {
+	name, value string
+}
+
+// tableVars reads a two-column table (with or without a header row) in row
+// order; a later row may reference an earlier one with {{name}}.
+func tableVars(t *godog.Table) ([]tableRow, error) {
+	var out []tableRow
 	for i, row := range t.Rows {
 		if len(row.Cells) != 2 {
 			return nil, &runner.UsageError{Msg: fmt.Sprintf("table row %d must have two cells: name | value", i+1)}
@@ -463,9 +469,32 @@ func tableVars(t *godog.Table) (map[string]string, error) {
 		if err := checkVarName(k); err != nil {
 			return nil, fmt.Errorf("table row %d: %w", i+1, err)
 		}
-		out[k] = v
+		out = append(out, tableRow{k, v})
 	}
 	return out, nil
+}
+
+// renderTable renders rows top to bottom, each one seeing the rows above it
+// at --var precedence, and returns the values plus a function that undoes
+// that scoping (in reverse order, so a repeated name restores correctly).
+func (s *scenario) renderTable(rows []tableRow) (map[string]string, func(), error) {
+	vars := make(map[string]string, len(rows))
+	var undo []func()
+	restore := func() {
+		for i := len(undo) - 1; i >= 0; i-- {
+			undo[i]()
+		}
+	}
+	for _, row := range rows {
+		v, err := s.render(row.value)
+		if err != nil {
+			restore()
+			return nil, nil, err
+		}
+		vars[row.name] = v
+		undo = append(undo, s.setScoped(map[string]string{row.name: v}))
+	}
+	return vars, restore, nil
 }
 
 var reVarName = regexp.MustCompile(`^[A-Za-z_][\w.-]*$`)

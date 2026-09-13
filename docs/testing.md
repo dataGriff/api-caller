@@ -82,14 +82,14 @@ scenario, and built-ins such as `{{$uuid}}`.
 |---|---|
 | `Given the environment is "staging"` | Switch this scenario to another environment. Variables set by steps, values captured so far, the last response and the session carry over; environment variables come from the new environment. |
 | `Given the variable "userId" is "42"` | Set a variable. Highest precedence. |
-| `Given the variables:` + table | Set several. Two columns; a `name | value` header row is optional. |
+| `Given the variables:` + table | Set several. Two columns; a `name | value` header row is optional. Rows apply top to bottom, so a value may reference the rows above it. |
 
 ### Running requests
 
 | Step | Effect |
 |---|---|
 | `When I run "get-user"` | Send a request by id (`name`, `file.http#name` or `file.http#3`). |
-| `When I run "get-user" with:` + table | Same, with variables set for this request only (the table may also supply the target itself). |
+| `When I run "get-user" with:` + table | Same, with variables set for this request only (rows apply in order, and the table may also supply the target itself). |
 | `When I run the file "smoke.http"` | Send every request in the file in order; stops at the first failure. |
 
 A run step fails when the request cannot be sent (missing variable,

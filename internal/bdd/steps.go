@@ -135,16 +135,17 @@ func stepVariables(ctx context.Context, t *godog.Table) error {
 	if err != nil {
 		return err
 	}
-	vars, err := tableVars(t)
+	rows, err := tableVars(t)
 	if err != nil {
 		return sc.cfg.fail(err)
 	}
-	for k, v := range vars {
-		rv, err := sc.render(v)
+	// Rows apply in order so `| url | {{base}}/x |` may follow `| base | … |`.
+	for _, row := range rows {
+		rv, err := sc.render(row.value)
 		if err != nil {
 			return err
 		}
-		sc.r.SetVar(k, rv)
+		sc.r.SetVar(row.name, rv)
 	}
 	return nil
 }
@@ -188,17 +189,16 @@ func stepRunWith(ctx context.Context, target string, t *godog.Table) error {
 	if err != nil {
 		return err
 	}
-	vars, err := tableVars(t)
+	rows, err := tableVars(t)
 	if err != nil {
 		return sc.cfg.fail(err)
 	}
-	for k, v := range vars {
-		if vars[k], err = sc.render(v); err != nil {
-			return err
-		}
+	// Rows render in order, each seeing the ones above it, and the table may
+	// supply the target itself, so it stays scoped while the target renders.
+	vars, restore, err := sc.renderTable(rows)
+	if err != nil {
+		return err
 	}
-	// The table may supply the target itself, so apply it before rendering.
-	restore := sc.setScoped(vars)
 	target, err = sc.render(target)
 	restore()
 	if err != nil {

@@ -1297,3 +1297,36 @@ paths:
 		t.Errorf("the path is rooted and its template markers are encoded: %s", got)
 	}
 }
+
+func TestImportResolvesRootReference(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	// `$ref: "#"` is the whole document (an empty JSON pointer), not an
+	// external file; a Reference Object pointing at it must resolve.
+	if err := os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                doc: {$ref: "#"}
+      responses: {"200": {description: ok}}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatalf("a root $ref must resolve: %v", err)
+	}
+	if all := mustRead(t, res.Files[0]); !strings.Contains(all, "POST {{baseUrl}}/a") {
+		t.Errorf("request missing:\n%s", all)
+	}
+}

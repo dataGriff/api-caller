@@ -1173,3 +1173,45 @@ func TestRunFileStepRefusesRequestIDs(t *testing.T) {
 		t.Fatalf("a fragment is not a whole file: code=%d err=%v", code, err)
 	}
 }
+
+func TestTableRowsRenderInOrder(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	// Enough chained rows that map iteration would almost surely break it.
+	sum, code := run(t, p, `
+Feature: Ordered tables
+  Scenario: Later rows see the rows above them
+    Given I am logged in
+    And the variables:
+      | name  | value      |
+      | a     | get        |
+      | b     | {{a}}-user |
+      | c     | {{b}}      |
+      | which | {{c}}      |
+    Then the variable "which" is "get-user"
+    When I run "{{target}}" with:
+      | id     | 0         |
+      | userId | {{id}}    |
+      | target | {{which}} |
+    Then the response status is 404
+    And the response status is not 200
+`, "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+	// A row that refers to one below it is a missing variable, not a race.
+	var stderr bytes.Buffer
+	_, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Stderr: &stderr},
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte(`
+Feature: t
+  Scenario: s
+    Given the variables:
+      | x | {{y}} |
+      | y | 1     |
+`)}},
+	})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "missing variables: y") {
+		t.Fatalf("forward reference: code=%d err=%v stderr=%s", code, err, stderr.String())
+	}
+}

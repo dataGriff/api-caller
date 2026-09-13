@@ -141,11 +141,15 @@ func (d *document) resolveFrom(n *yaml.Node, visited map[*yaml.Node]bool) *yaml.
 		if ref == "" {
 			return n
 		}
-		if !strings.HasPrefix(ref, "#/") {
+		if ref != "#" && !strings.HasPrefix(ref, "#/") {
 			d.fail(fmt.Errorf("unsupported external $ref %q at line %d: only local #/ references are resolved", ref, n.Line))
 			return n
 		}
-		target := d.pointer(strings.TrimPrefix(ref, "#/"))
+		// A bare `#` is the whole document (RFC 6901's empty pointer).
+		target := d.root
+		if ref != "#" {
+			target = d.pointer(strings.TrimPrefix(ref, "#/"))
+		}
 		if target == nil {
 			d.fail(fmt.Errorf("unresolvable %s at line %d", ref, n.Line))
 			return n
