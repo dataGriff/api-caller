@@ -25,7 +25,7 @@ func Parse(text string) (*Phrase, error) {
 	if text == "" {
 		return nil, fmt.Errorf("@step needs a phrase")
 	}
-	if strings.ContainsAny(text, "{}") && !reParam.MatchString(text) {
+	if strings.ContainsAny(reParam.ReplaceAllString(text, ""), "{}") {
 		return nil, fmt.Errorf("@step %q: braces must wrap a parameter name like {userId}", text)
 	}
 	p := &Phrase{Text: text}

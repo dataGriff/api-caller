@@ -35,7 +35,7 @@ func TestParseAndMatch(t *testing.T) {
 	if plain.Regex != "^I fetch the user$" || len(plain.Params) != 0 {
 		t.Fatalf("%+v", plain)
 	}
-	for _, bad := range []string{"", "a {name} and {name}", "unbalanced {", "bad {1x}"} {
+	for _, bad := range []string{"", "a {name} and {name}", "unbalanced {", "bad {1x}", "a user {name} }", "{a} {"} {
 		if _, err := Parse(bad); err == nil {
 			t.Errorf("%q should fail", bad)
 		}

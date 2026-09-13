@@ -2,7 +2,6 @@ package bdd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/phrase"
-	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 // Vocabulary documents the built-in steps for `apic test --steps` and the docs.
@@ -63,10 +61,7 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	}
 	next, err := sc.cfg.newScenario(env)
 	if err != nil {
-		var ue *runner.UsageError
-		if errors.As(err, &ue) {
-			sc.cfg.noteUsageError(err)
-		}
+		sc.cfg.noteError(err)
 		return ctx, err
 	}
 	return context.WithValue(ctx, ctxKey{}, next), nil

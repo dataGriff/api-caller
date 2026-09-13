@@ -73,11 +73,31 @@ func TestValidateDuplicatePhraseOnSameRequest(t *testing.T) {
 	}
 	found := false
 	for _, d := range p.Validate() {
-		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do it" is also declared`) {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do it" matches the same text as @step "I do it"`) {
 			found = true
 		}
 	}
 	if !found {
 		t.Fatalf("duplicate phrase on the same request not reported: %v", p.Validate())
+	}
+}
+
+func TestValidateDuplicatePhraseByMatcher(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte("### a\n# @name a\n# @step I do {x}\nGET http://x\n\n### b\n# @name b\n# @step I do {y}\nGET http://y\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range p.Validate() {
+		if d.Severity == "error" && strings.Contains(d.Message, `@step "I do {y}" matches the same text as @step "I do {x}"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("equivalent phrases not reported: %v", p.Validate())
 	}
 }

@@ -225,22 +225,26 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "warning", Message: "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"})
 		}
 	}
-	phrases := map[string]*httpfile.Request{}
+	type declared struct {
+		req  *httpfile.Request
+		text string
+	}
+	phrases := map[string]declared{} // keyed by compiled matcher so {x} and {y} variants collide
 	for _, r := range p.Requests() {
 		for _, d := range r.Directives {
 			if d.Key != "step" {
 				continue
 			}
-			if _, err := phrase.Parse(d.Value); err != nil {
+			ph, err := phrase.Parse(d.Value)
+			if err != nil {
 				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
 				continue
 			}
-			key := strings.TrimSpace(d.Value)
-			if other, dup := phrases[key]; dup {
+			if other, dup := phrases[ph.Regex]; dup {
 				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
-					Message: fmt.Sprintf("@step %q is also declared on %s (%s:%d)", key, other.ID(), other.File.Path, other.Line)})
+					Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.text, other.req.ID(), other.req.File.Path, other.req.Line)})
 			}
-			phrases[key] = r
+			phrases[ph.Regex] = declared{r, ph.Text}
 		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {

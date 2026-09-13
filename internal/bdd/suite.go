@@ -17,9 +17,10 @@ import (
 
 // Exit codes from Run, aligned with the rest of apic.
 const (
-	ExitPassed = runner.ExitOK
-	ExitFailed = runner.ExitAssert
-	ExitUsage  = runner.ExitUsage
+	ExitPassed    = runner.ExitOK
+	ExitFailed    = runner.ExitAssert
+	ExitUsage     = runner.ExitUsage
+	ExitTransport = runner.ExitTransport
 )
 
 // Formats lists the accepted --format values.
@@ -66,19 +67,26 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	if _, err := opts.newScenario(opts.Env); err != nil {
 		return ExitUsage, err
 	}
-	var phraseErr error
+	phrases, err := compilePhrases(opts.Project)
+	if err != nil {
+		return ExitUsage, err
+	}
+	output := opts.Output
+	var masker *maskWriter
+	if opts.Redact {
+		masker = &maskWriter{w: opts.Output, cfg: &opts.Config}
+		output = masker
+	}
 	suite := godog.TestSuite{
 		Name: "apic",
 		ScenarioInitializer: func(sc *godog.ScenarioContext) {
 			sc.Before(opts.before)
 			registerSteps(sc)
-			if err := registerPhrases(sc, opts.Project); err != nil && phraseErr == nil {
-				phraseErr = err
-			}
+			registerPhrases(sc, phrases)
 		},
 		Options: &godog.Options{
 			Format:          opts.Format,
-			Output:          opts.Output,
+			Output:          output,
 			Paths:           paths,
 			FeatureContents: opts.Features,
 			Tags:            opts.Tags,
@@ -90,11 +98,18 @@ func Run(ctx context.Context, opts Options) (int, error) {
 		},
 	}
 	code := suite.Run()
-	if phraseErr != nil {
-		return ExitUsage, phraseErr
+	if masker != nil {
+		if err := masker.flush(); err != nil {
+			return ExitUsage, err
+		}
 	}
+	// Typed step errors keep the CLI's exit-code contract: definition
+	// problems are 2, unreachable servers are 3, assertion failures are 1.
 	if opts.usageErr != nil {
 		return ExitUsage, opts.usageErr
+	}
+	if opts.transportErr != nil {
+		return ExitTransport, opts.transportErr
 	}
 	switch code {
 	case 0:
@@ -104,6 +119,39 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	default:
 		return ExitUsage, fmt.Errorf("could not run features (check the paths and the report above)")
 	}
+}
+
+// maskWriter hides registered secret values in whatever the formatter
+// writes (step text, tables, doc strings, error messages). Formatters
+// write in small pieces, so it buffers and masks whole lines.
+type maskWriter struct {
+	w   io.Writer
+	cfg *Config
+	buf bytes.Buffer
+}
+
+func (m *maskWriter) Write(p []byte) (int, error) {
+	m.buf.Write(p)
+	for {
+		i := bytes.IndexByte(m.buf.Bytes(), '\n')
+		if i < 0 {
+			return len(p), nil
+		}
+		line := string(m.buf.Next(i + 1))
+		if _, err := io.WriteString(m.w, m.cfg.mask(line)); err != nil {
+			return 0, err
+		}
+	}
+}
+
+// flush writes any trailing partial line.
+func (m *maskWriter) flush() error {
+	if m.buf.Len() == 0 {
+		return nil
+	}
+	_, err := io.WriteString(m.w, m.cfg.mask(m.buf.String()))
+	m.buf.Reset()
+	return err
 }
 
 // RunSummary runs with the cucumber formatter into memory and returns the
@@ -135,20 +183,31 @@ func (o *Options) resolvePaths() ([]string, error) {
 	if len(paths) == 0 {
 		paths = []string{"features"}
 	}
+	root, err := filepath.EvalSymlinks(o.Project.Root)
+	if err != nil {
+		return nil, err
+	}
 	var out []string
 	for _, p := range paths {
 		abs := p
 		if !filepath.IsAbs(p) {
 			abs = filepath.Join(o.Project.Root, p)
 		}
-		info, err := os.Stat(abs)
+		real, err := filepath.EvalSymlinks(abs)
 		if err != nil {
 			return nil, fmt.Errorf("no features at %s (paths are relative to the project root %s)", p, o.Project.Root)
 		}
-		if info.IsDir() && !containsFeature(abs) {
-			return nil, fmt.Errorf("no .feature files under %s", abs)
+		if rel, err := filepath.Rel(root, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("feature path %s is outside the project root %s", p, o.Project.Root)
 		}
-		out = append(out, abs)
+		info, err := os.Stat(real)
+		if err != nil {
+			return nil, fmt.Errorf("no features at %s", p)
+		}
+		if info.IsDir() && !containsFeature(real) {
+			return nil, fmt.Errorf("no .feature files under %s", real)
+		}
+		out = append(out, real)
 	}
 	return out, nil
 }

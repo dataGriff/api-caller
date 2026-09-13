@@ -241,3 +241,29 @@ paths:
 		t.Errorf("required: True should be treated as required:\n%s", s)
 	}
 }
+
+func TestImportExplicitNullExample(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /reset:
+    post:
+      operationId: reset
+      requestBody:
+        content:
+          application/json:
+            example: null
+      responses:
+        "204": {description: done}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	if !strings.Contains(string(out), "Content-Type: application/json\n\nnull\n") {
+		t.Errorf("explicit null example should produce a null body:\n%s", out)
+	}
+}

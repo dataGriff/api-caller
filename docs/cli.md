@@ -137,7 +137,9 @@ for the vocabulary.
 | `--steps` | Print the vocabulary and this project's phrases (`--json` for machine form) and exit. |
 
 Exit codes: `0` all passed · `1` failures or undefined steps · `2` no
-features, unknown environment, bad phrase or bad flag.
+features, a feature path outside the project, unknown environment, unknown
+request, missing variable, bad phrase or bad flag · `3` a server could not
+be reached. Feature paths must lie inside the project root.
 
 ## apic list
 
@@ -325,8 +327,8 @@ apic mcp [--dir <path>] [--env <name>]
 
 Serves the project over the Model Context Protocol on stdin/stdout until
 the client disconnects. Tools: `list_requests`, `describe_request`,
-`run_request`, `run_file`, `list_environments`, `clear_session`. Each `.http`
-file is a resource. `--env` sets the default environment for calls that do
+`run_request`, `run_file`, `run_features`, `list_environments`,
+`clear_session`. Each `.http` file is a resource. `--env` sets the default environment for calls that do
 not pass one. See [agents.md](agents.md).
 
 ```sh

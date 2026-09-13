@@ -11,36 +11,57 @@ import (
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
-// registerPhrases turns every `# @step` directive into a step that runs its
-// request with the phrase's parameters as variables.
-func registerPhrases(sc *godog.ScenarioContext, p *project.Project) error {
+// compiledPhrase is a `# @step` directive ready to register.
+type compiledPhrase struct {
+	phrase *phrase.Phrase
+	target string
+}
+
+// compilePhrases validates every `# @step` directive in the project before
+// any scenario runs, so a bad phrase is a usage error even when a tag
+// filter selects no scenarios. Equivalent matchers are rejected.
+func compilePhrases(p *project.Project) ([]compiledPhrase, error) {
+	var out []compiledPhrase
+	seen := map[string]string{}
 	for _, req := range p.Requests() {
 		for _, text := range req.Steps() {
 			ph, err := phrase.Parse(text)
 			if err != nil {
-				return fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
+				return nil, fmt.Errorf("%s:%d: %w", req.File.Path, req.Line, err)
 			}
 			if len(ph.Params) > maxPhraseParams {
-				return fmt.Errorf("%s:%d: @step %q has more than %d parameters", req.File.Path, req.Line, text, maxPhraseParams)
+				return nil, fmt.Errorf("%s:%d: @step %q has more than %d parameters", req.File.Path, req.Line, text, maxPhraseParams)
 			}
-			target := req.ID()
-			run := func(ctx context.Context, args []string) error {
-				s, err := from(ctx)
-				if err != nil {
-					return err
-				}
-				vars := ph.Values(args)
-				for k, v := range vars {
-					if vars[k], err = s.render(v); err != nil {
-						return err
-					}
-				}
-				return s.run(ctx, target, vars)
+			if other, dup := seen[ph.Regex]; dup {
+				return nil, fmt.Errorf("%s:%d: @step %q matches the same text as @step %q (run `apic validate`)", req.File.Path, req.Line, text, other)
 			}
-			sc.Step(ph.Regex, handlerFor(len(ph.Params), run))
+			seen[ph.Regex] = text
+			out = append(out, compiledPhrase{phrase: ph, target: req.ID()})
 		}
 	}
-	return nil
+	return out, nil
+}
+
+// registerPhrases adds compiled phrases as steps that run their request
+// with the phrase's parameters as variables.
+func registerPhrases(sc *godog.ScenarioContext, phrases []compiledPhrase) {
+	for _, cp := range phrases {
+		ph, target := cp.phrase, cp.target
+		run := func(ctx context.Context, args []string) error {
+			s, err := from(ctx)
+			if err != nil {
+				return err
+			}
+			vars := ph.Values(args)
+			for k, v := range vars {
+				if vars[k], err = s.render(v); err != nil {
+					return err
+				}
+			}
+			return s.run(ctx, target, vars)
+		}
+		sc.Step(ph.Regex, handlerFor(len(ph.Params), run))
+	}
 }
 
 const maxPhraseParams = 6

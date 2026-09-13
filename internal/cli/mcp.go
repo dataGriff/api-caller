@@ -15,8 +15,8 @@ func (a *App) mcpCmd() *cobra.Command {
 		Use:   "mcp",
 		Short: "Serve the project's requests to AI agents over MCP (stdio)",
 		Long: `Start a Model Context Protocol server on stdin/stdout exposing the tools
-list_requests, describe_request, run_request, run_file, list_environments
-and clear_session, plus every .http file as a resource.
+list_requests, describe_request, run_request, run_file, run_features,
+list_environments and clear_session, plus every .http file as a resource.
 
 Register it with your agent, for example:
   claude mcp add api -- apic mcp --dir ./api --env dev`,

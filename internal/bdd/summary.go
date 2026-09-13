@@ -9,7 +9,7 @@ import (
 // Summary is the machine-readable outcome of a run, derived from the
 // cucumber JSON report.
 type Summary struct {
-	OK        bool      `json:"ok"`
+	OK        bool      `json:"ok"` // no scenario failed; check Scenarios for how many ran
 	Scenarios int       `json:"scenarios"`
 	Passed    int       `json:"passed"`
 	Failed    int       `json:"failed"`
@@ -75,6 +75,6 @@ func Summarize(report []byte) (*Summary, error) {
 			}
 		}
 	}
-	s.OK = s.Failed == 0 && s.Scenarios > 0
+	s.OK = s.Failed == 0 // an empty selection (e.g. a tag matching nothing) is not a failure; Scenarios says how many ran
 	return s, nil
 }

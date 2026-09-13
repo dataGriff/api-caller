@@ -124,5 +124,5 @@ So you are not surprised later:
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover
   that.
-- No test reporters beyond exit codes and JSON. Pipe `--json` through `jq`
-  for JUnit if you need it.
+- Reports are limited to what `apic test` emits (pretty, progress, cucumber
+  JSON, JUnit) and `run --json`; there is no HTML report.

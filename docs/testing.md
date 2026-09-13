@@ -135,9 +135,19 @@ OAuth2 tokens obtained through `# @auth` are cached within a scenario.
 | `--format junit --output report.xml` | JUnit XML for CI dashboards. |
 | `--format cucumber` or `--json` | Cucumber JSON, the format most reporting tools accept. |
 
-Exit codes: `0` every scenario passed · `1` at least one failed (including
-undefined steps, which are never silently skipped) · `2` no features found,
-unknown environment, bad phrase or bad flag.
+Exit codes follow the rest of apic: `0` every scenario passed · `1` at
+least one failed on an assertion (undefined steps count as failures and are
+never silently skipped) · `2` a definition problem: no features found, a
+feature path outside the project root, unknown environment, unknown request,
+missing variable or bad phrase · `3` a server could not be reached. When a
+run has both kinds of problem, the definition problem (2) wins, then
+transport (3), then assertion failures (1). A tag expression that selects no
+scenarios exits 0 with zero scenarios reported.
+
+With `--redact`, step failure messages hide expected and actual values, and
+every value that came from a secret source (private env file, `.env`, the
+session, captures) is masked wherever the report mentions it, including in
+step text, tables and doc strings.
 
 ```yaml
 # GitHub Actions

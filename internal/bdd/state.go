@@ -4,8 +4,10 @@ package bdd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,13 +29,57 @@ type Config struct {
 	Redact     bool
 	Stderr     io.Writer
 
-	usageErr error // first usage error raised by a step (e.g. unknown environment)
+	usageErr     error           // first usage error raised by a step (unknown environment, request or variable)
+	transportErr error           // first transport error raised by a step
+	secrets      map[string]bool // values that must never appear in reports when Redact is set
 }
 
-func (c *Config) noteUsageError(err error) {
-	if c.usageErr == nil {
-		c.usageErr = err
+// noteError records the first usage and transport errors so Run can map
+// them to exit codes 2 and 3 after the suite finishes.
+func (c *Config) noteError(err error) {
+	var ue *runner.UsageError
+	var te *runner.TransportError
+	switch {
+	case errors.As(err, &ue):
+		if c.usageErr == nil {
+			c.usageErr = err
+		}
+	case errors.As(err, &te):
+		if c.transportErr == nil {
+			c.transportErr = err
+		}
 	}
+}
+
+// noteSecrets registers values to mask in redacted reports.
+func (c *Config) noteSecrets(vals map[string]string) {
+	if !c.Redact {
+		return
+	}
+	if c.secrets == nil {
+		c.secrets = map[string]bool{}
+	}
+	for _, v := range vals {
+		if len(v) >= 3 {
+			c.secrets[v] = true
+		}
+	}
+}
+
+// mask replaces every registered secret value in s, longest first.
+func (c *Config) mask(s string) string {
+	if len(c.secrets) == 0 {
+		return s
+	}
+	keys := make([]string, 0, len(c.secrets))
+	for k := range c.secrets {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+	for _, k := range keys {
+		s = strings.ReplaceAll(s, k, runner.Masked)
+	}
+	return s
 }
 
 // scenario is the per-scenario state carried in the context.
@@ -61,6 +107,13 @@ func (c *Config) newScenario(env string) (*scenario, error) {
 	if c.Stderr != nil {
 		r.Stderr = c.Stderr
 	}
+	if c.Redact {
+		c.noteSecrets(r.Envs.PrivateVars(env))
+		c.noteSecrets(r.Envs.DotEnv)
+		if r.Session != nil {
+			c.noteSecrets(r.Session.Vars(env))
+		}
+	}
 	return &scenario{cfg: c, r: r}, nil
 }
 
@@ -84,6 +137,9 @@ func from(ctx context.Context) (*scenario, error) {
 func (s *scenario) render(text string) (string, error) {
 	out, err := s.r.Render(text)
 	if err != nil {
+		if s.cfg.Redact {
+			return "", fmt.Errorf("step value (hidden by --redact): %w", err)
+		}
 		return "", fmt.Errorf("%q: %w", text, err)
 	}
 	return out, nil
@@ -96,13 +152,19 @@ func (s *scenario) run(ctx context.Context, target string, vars map[string]strin
 	}
 	reqs, err := s.r.Project.Resolve(target)
 	if err != nil {
-		return err
+		uerr := &runner.UsageError{Msg: err.Error()}
+		s.cfg.noteError(uerr)
+		return uerr
 	}
 	results, err := s.r.RunAll(ctx, reqs)
 	if len(results) > 0 {
 		s.last = results[len(results)-1]
 	}
+	for _, res := range results {
+		s.cfg.noteSecrets(res.Captures)
+	}
 	if err != nil {
+		s.cfg.noteError(err)
 		return err
 	}
 	for _, res := range results {

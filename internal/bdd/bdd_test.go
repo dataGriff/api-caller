@@ -219,19 +219,18 @@ Feature: Isolation
       | userId | 0     |
       | token  | stale |
     Then the response status is 401
-
-  Scenario: Switch environment
-    Given the environment is "other"
-    When I run "login"
 `, "dev")
-	if code != ExitFailed || sum.Passed != 2 || sum.Failed != 1 {
+	if code != ExitPassed || sum.Passed != 2 {
 		t.Fatalf("code=%d summary=%+v", code, sum)
 	}
 	if _, err := os.Stat(filepath.Join(p.Root, ".apic")); !os.IsNotExist(err) {
 		t.Fatal("tests must not write the session")
 	}
-	if !strings.Contains(sum.Failures[0].Error, "request failed") {
-		t.Fatalf("environment switch should hit the unreachable env: %+v", sum.Failures)
+	// Switching to an unreachable environment is a transport error (exit 3).
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte("Feature: s\n  Scenario: switch\n    Given the environment is \"other\"\n    When I run \"login\"\n")}}})
+	if code != ExitTransport || err == nil || !strings.Contains(err.Error(), "request failed") {
+		t.Fatalf("environment switch: code=%d err=%v", code, err)
 	}
 }
 
@@ -290,6 +289,120 @@ func TestEmptyFeatureDirIsUsageError(t *testing.T) {
 	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}})
 	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "no .feature files") {
 		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestRunFileFlowStopsAtFailure(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	must(t, os.WriteFile(filepath.Join(p.Root, "flow.http"), []byte(`
+### one
+# @name flow-login
+# @capture token = body.$.token
+POST {{baseUrl}}/login
+
+### two
+# @name flow-missing
+# @assert status == 200
+GET {{baseUrl}}/users/0
+Authorization: Bearer {{token}}
+
+### three
+# @name flow-never
+GET {{baseUrl}}/users/0
+Authorization: Bearer {{token}}
+`), 0o644))
+	p, err := project.Load(p.Root)
+	must(t, err)
+	sum, code := run(t, p, `
+Feature: Files
+  Scenario: A file runs in order and stops at the first failure
+    When I run the file "flow.http"
+  Scenario: The last response is the failing one
+    When I run the file "flow.http"
+    Then the response status is 404
+`, "dev")
+	if code != ExitFailed || sum.Failed != 2 || len(sum.Failures) != 2 {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+	for _, f := range sum.Failures {
+		if !strings.Contains(f.Error, "flow-missing failed") || strings.Contains(f.Error, "flow-never") {
+			t.Fatalf("flow should stop at flow-missing: %q", f.Error)
+		}
+	}
+}
+
+func TestTypedStepErrorsMapToExitCodes(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"},
+		Features: []godog.Feature{{Name: "u.feature", Contents: []byte("Feature: u\n  Scenario: s\n    When I run \"no-such-request\"\n")}}})
+	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "no-such-request") {
+		t.Fatalf("unknown request: code=%d err=%v", code, err)
+	}
+	_, _, code, err = RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "other"},
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    When I run \"login\"\n")}}})
+	if code != ExitTransport || err == nil {
+		t.Fatalf("unreachable server: code=%d err=%v", code, err)
+	}
+}
+
+func TestRedactMasksSecretsInReportText(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.private.env.json"), []byte(`{"dev":{"apiKey":"hunter2-secret"}}`), 0o644))
+	p, err := project.Load(dir)
+	must(t, err)
+	var report bytes.Buffer
+	code, err := Run(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true},
+		Format: "pretty", NoColors: true, Output: &report,
+		Features: []godog.Feature{{Name: "m.feature", Contents: []byte(`
+Feature: Masking
+  Scenario: A captured token and a private value never appear in the report
+    Given I am logged in
+    When I run "get-user" with:
+      | userId | 0              |
+      | token  | hunter2-secret |
+    Then the response status is 404
+    And the response body "$.error" is "t-1"
+`)}},
+	})
+	if err != nil || code != ExitFailed {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	for _, leak := range []string{"hunter2-secret", "t-1"} {
+		if strings.Contains(report.String(), leak) {
+			t.Errorf("--redact leaked %q:\n%s", leak, report.String())
+		}
+	}
+	if !strings.Contains(report.String(), "***") {
+		t.Fatalf("expected masked values in report:\n%s", report.String())
+	}
+}
+
+func TestFeaturePathMustBeInsideProject(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	outside := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(outside, "x.feature"), []byte("Feature: x\n  Scenario: s\n    Given I am logged in\n"), 0o644))
+	for _, path := range []string{filepath.Join(outside, "x.feature"), filepath.Join("..", filepath.Base(outside), "x.feature")} {
+		_, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Paths: []string{path}})
+		if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "outside the project root") {
+			t.Fatalf("%s: code=%d err=%v", path, code, err)
+		}
+	}
+}
+
+func TestEmptyTagSelectionIsNotAFailure(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{Config: Config{Project: p, Env: "dev"}, Tags: "@nothing",
+		Features: []godog.Feature{{Name: "t.feature", Contents: []byte("Feature: t\n  Scenario: s\n    Given I am logged in\n")}}})
+	if err != nil || code != ExitPassed || !sum.OK || sum.Scenarios != 0 {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
 	}
 }
 

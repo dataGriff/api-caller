@@ -286,6 +286,7 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 		ct := mt.key
 		media := d.resolve(mt.value)
 		var v any
+		selected := true
 		switch {
 		case d.get(media, "example") != nil:
 			v = decode(d.get(media, "example"))
@@ -293,8 +294,11 @@ func (d *document) exampleBody(rb *yaml.Node) (string, string) {
 			v = decode(firstExampleValue(d, d.get(media, "examples")))
 		case d.get(media, "schema") != nil:
 			v = d.exampleFromSchema(d.get(media, "schema"), 0)
+			selected = v != nil
+		default:
+			selected = false
 		}
-		if v == nil {
+		if !selected {
 			return "", ct
 		}
 		if strings.Contains(ct, "json") {
