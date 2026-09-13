@@ -974,6 +974,34 @@ paths:
           application/json:
             example: {"day": 2025-01-01, "at": 2025-01-01T10:00:00Z}
       responses: {"200": {description: ok}}
+  /mixed:
+    post:
+      operationId: mixed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, format: uuid}
+                text: {type: string, example: "keep {{this}}"}
+      responses: {"200": {description: ok}}
+  /fake:
+    post:
+      operationId: fake
+      requestBody:
+        content:
+          application/json:
+            example: {"note": "{{$uuid}}"}
+      responses: {"200": {description: ok}}
+  /gen:
+    post:
+      operationId: gen
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {id: {type: string, format: uuid}}}
+      responses: {"200": {description: ok}}
 `), 0o644)
 	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
 	if err != nil {
@@ -998,5 +1026,23 @@ paths:
 	}
 	if !strings.Contains(all, `"day": "2025-01-01"`) || !strings.Contains(all, `"at": "2025-01-01T10:00:00Z"`) {
 		t.Errorf("timestamps keep their written form:\n%s", all)
+	}
+	// Mixed: a literal marker forces a verbatim body, so the generated
+	// placeholder becomes a fixed sample instead of an unrendered template.
+	mixed := mustRead(t, filepath.Join(dir, "out", "api.mixed.body.json"))
+	if strings.Contains(mixed, "{{$uuid}}") || !strings.Contains(mixed, `"id": "00000000-0000-4000-8000-000000000000"`) || !strings.Contains(mixed, "keep {{this}}") {
+		t.Errorf("mixed body: %s", mixed)
+	}
+	// Spec text that happens to spell a built-in placeholder is still literal.
+	if fake := mustRead(t, filepath.Join(dir, "out", "api.fake.body.json")); !strings.Contains(fake, `"note": "{{$uuid}}"`) {
+		t.Errorf("fake placeholder body: %s", fake)
+	}
+	if !strings.Contains(all, "< ./api.fake.body.json") {
+		t.Errorf("an example spelling a placeholder must be sent verbatim:\n%s", all)
+	}
+	// Purely generated placeholders stay inline and rendered.
+	genPart := all[strings.Index(all, "# @name gen"):]
+	if !strings.Contains(genPart, `"id": "{{$uuid}}"`) || strings.Contains(genPart, "api.gen.body") {
+		t.Errorf("generated placeholders stay inline:\n%s", genPart)
 	}
 }

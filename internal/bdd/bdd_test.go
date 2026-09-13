@@ -1101,3 +1101,28 @@ Feature: Stop
 		t.Fatalf("the scenario that never ran must be reported as skipped: code=%d err=%v sum=%+v", code, err, sum)
 	}
 }
+
+func TestRedactMasksCaptureStepErrors(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true, Stderr: io.Discard, Vars: map[string]string{"short": "zq", "long": "hidden-path-secret"}},
+		Features: []godog.Feature{{Name: "c.feature", Contents: []byte(`
+Feature: Capture errors
+  Scenario: Missing capture path with a short secret
+    Given I am logged in
+    When I capture the response body "$.{{short}}" as "a"
+  Scenario: Missing capture path with a long secret
+    Given I am logged in
+    When I capture the response body "$.{{long}}" as "b"
+`)}},
+	})
+	if err != nil || code != ExitFailed || sum.Failed != 2 {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+	for _, f := range sum.Failures {
+		if strings.Contains(f.Error, "zq") || strings.Contains(f.Error, "hidden-path-secret") {
+			t.Fatalf("capture errors must be masked: %q", f.Error)
+		}
+	}
+}

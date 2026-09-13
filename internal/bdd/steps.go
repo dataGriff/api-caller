@@ -264,10 +264,10 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 	}
 	r := assert.Eval(assert.Expr{Selector: selector(where, sel), Op: "exists"}, "", res.Raw())
 	if r.Error != "" {
-		return fmt.Errorf("capture %s: %s", sel, r.Error)
+		return sc.cfg.fail(fmt.Errorf("capture %s: %s", sel, r.Error))
 	}
 	if !r.Pass {
-		return fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), describeFailure(res))
+		return sc.cfg.fail(fmt.Errorf("capture %s: nothing at %s\n%s", name, selector(where, sel), describeFailure(res)))
 	}
 	sc.cfg.noteSecrets(map[string]string{name: r.Actual})
 	sc.r.Capture(name, r.Actual) // same precedence as # @capture: below --var, above env files
