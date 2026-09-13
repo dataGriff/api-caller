@@ -26,8 +26,10 @@ Each scenario starts with a fresh, in-memory session so tests never touch
 .apic/session.json (use --use-session to change that). Undefined steps fail
 the run.
 
-Exit codes: 0 all scenarios passed · 1 failures · 2 no features, unknown
-environment or bad phrase.`,
+Exit codes: 0 all scenarios passed · 1 assertion failures or undefined
+steps · 2 definition problems (no features, feature path outside the
+project, unknown environment, unknown request, missing variable, bad
+phrase) · 3 a server could not be reached.`,
 		Example: `  apic test
   apic test features/users.feature --env staging --tags @smoke
   apic test --format junit --output report.xml

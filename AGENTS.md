@@ -37,4 +37,4 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - Every command must work non-interactively (no prompts) and respect `--json`.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer and the OpenAPI reader are the precedents). Check the stripped binary size with `task build && ls -la bin/apic` when adding a dependency.
 - Add a test next to any parser or runner change; parser cases go in `internal/httpfile/testdata/sample.http`.
-- A new step in the vocabulary needs: the regex in `steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.
+- A new step in the vocabulary needs: its regex and shapes in `internal/phrase/builtin.go` (`Builtin`), a handler bound by name in `internal/bdd/steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.

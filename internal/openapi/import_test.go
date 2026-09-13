@@ -355,3 +355,32 @@ components:
 		t.Errorf("patterned status must not be emitted literally:\n%s", s)
 	}
 }
+
+func TestImportDisambiguatesCollidingParamNames(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /u/{user-id}:
+    get:
+      operationId: getU
+      parameters:
+        - {name: user-id, in: path, required: true, schema: {type: string}}
+        - {name: user_id, in: query, required: true, schema: {type: string}}
+        - {name: userId, in: header, required: true, schema: {type: string}}
+      responses:
+        "200": {description: ok}
+`), 0o644)
+	if _, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "out", "api.http"))
+	s := string(out)
+	for _, want := range []string{"GET {{baseUrl}}/u/{{userId}}\n", "?user_id={{userIdQuery}}", "userId: {{userIdHeader}}"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in:\n%s", want, s)
+		}
+	}
+}

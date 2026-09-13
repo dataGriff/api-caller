@@ -38,8 +38,10 @@ type Options struct {
 	NoColors      bool
 }
 
-// Run executes the features and returns an exit code. err is set only for
-// usage problems (no features, bad phrase, unknown environment).
+// Run executes the features and returns an exit code. err carries the
+// typed failure when the run ended on a usage problem (exit 2: no features,
+// bad phrase, unknown environment, unknown request, missing variable) or a
+// transport problem (exit 3); assertion failures are reported by code only.
 func Run(ctx context.Context, opts Options) (int, error) {
 	if opts.Format == "" {
 		opts.Format = "pretty"
@@ -74,7 +76,10 @@ func Run(ctx context.Context, opts Options) (int, error) {
 	output := opts.Output
 	var masker *maskWriter
 	if opts.Redact {
-		masker = &maskWriter{w: opts.Output, cfg: &opts.Config}
+		// The cucumber report is JSON: mask its string values after the run
+		// so a numeric-looking secret cannot break the structure. Text
+		// formats are masked line by line as they stream.
+		masker = &maskWriter{w: opts.Output, cfg: &opts.Config, whole: opts.Format == "cucumber"}
 		output = masker
 	}
 	suite := godog.TestSuite{
@@ -125,13 +130,17 @@ func Run(ctx context.Context, opts Options) (int, error) {
 // writes (step text, tables, doc strings, error messages). Formatters
 // write in small pieces, so it buffers and masks whole lines.
 type maskWriter struct {
-	w   io.Writer
-	cfg *Config
-	buf bytes.Buffer
+	w     io.Writer
+	cfg   *Config
+	buf   bytes.Buffer
+	whole bool // buffer everything and mask as JSON at flush
 }
 
 func (m *maskWriter) Write(p []byte) (int, error) {
 	m.buf.Write(p)
+	if m.whole {
+		return len(p), nil
+	}
 	for {
 		i := bytes.IndexByte(m.buf.Bytes(), '\n')
 		if i < 0 {
@@ -144,13 +153,19 @@ func (m *maskWriter) Write(p []byte) (int, error) {
 	}
 }
 
-// flush writes any trailing partial line.
+// flush writes any trailing partial line, or the whole masked JSON report.
 func (m *maskWriter) flush() error {
 	if m.buf.Len() == 0 {
 		return nil
 	}
+	defer m.buf.Reset()
+	if m.whole {
+		if out, err := m.cfg.maskJSON(m.buf.Bytes()); err == nil {
+			_, werr := m.w.Write(out)
+			return werr
+		}
+	}
 	_, err := io.WriteString(m.w, m.cfg.mask(m.buf.String()))
-	m.buf.Reset()
 	return err
 }
 
@@ -230,7 +245,7 @@ func checkFeatureFiles(root, dir string) (int, error) {
 	count := 0
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return fmt.Errorf("cannot read %s: %w", path, err)
 		}
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".feature") {
 			return nil

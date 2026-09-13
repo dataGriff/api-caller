@@ -557,3 +557,87 @@ func TestRedactedTransportErrorIsRecorded(t *testing.T) {
 		t.Fatalf("summary should still describe the run: %+v", sum)
 	}
 }
+
+func TestRedactCucumberJSONStaysValidWithNumericSecret(t *testing.T) {
+	srv := server(t)
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "api.http"), []byte(apiHTTP), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`","role":"member"}}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "http-client.private.env.json"), []byte(`{"dev":{"pin":"123"}}`), 0o644))
+	t.Setenv("APIC_VAR_shellSecret", "from-shell-secret")
+	p, err := project.Load(dir)
+	must(t, err)
+	sum, report, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", Redact: true},
+		Features: []godog.Feature{{Name: "n.feature", Contents: []byte(`
+Feature: Numbers
+  Scenario: A numeric secret and a shell secret
+    Given I am logged in
+    When I run "get-user" with:
+      | userId | 123               |
+      | token  | from-shell-secret |
+    Then the response status is 123
+`)}},
+	})
+	if err != nil || code != ExitFailed {
+		t.Fatalf("code=%d err=%v report=%s", code, err, report)
+	}
+	if sum == nil || sum.Scenarios != 1 || sum.Failed != 1 {
+		t.Fatalf("cucumber JSON must stay parseable under --redact: %+v\n%s", sum, report)
+	}
+	for _, leak := range []string{"from-shell-secret", "| userId | 123"} {
+		if strings.Contains(string(report), leak) {
+			t.Errorf("--redact leaked %q:\n%s", leak, report)
+		}
+	}
+	if !strings.Contains(string(report), `"line": 3`) {
+		t.Errorf("numbers in the report must survive masking:\n%s", report)
+	}
+}
+
+func TestRunTargetRendersVariablesAndStatusNot(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, `
+Feature: Targets
+  Scenario: The request id can come from a variable
+    Given the variable "which" is "login"
+    When I run "{{which}}"
+    Then the response status is not 500
+    And the response status is 200
+    When I run "{{which}}" with:
+      | role | admin |
+    Then the response is successful
+`, "dev")
+	if code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
+func TestCaptureStepPersistsWithUseSession(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	var stderr bytes.Buffer
+	sum, _, code, err := RunSummary(context.Background(), Options{
+		Config: Config{Project: p, Env: "dev", UseSession: true, Stderr: &stderr},
+		Features: []godog.Feature{{Name: "s.feature", Contents: []byte(`
+Feature: Session
+  Scenario: Capture into the shared session
+    Given I am logged in
+    When I capture the response body "$.token" as "kept"
+  Scenario: A later scenario sees it
+    When I run "get-user" with:
+      | userId | 0        |
+      | token  | {{kept}} |
+    Then the response status is 404
+`)}},
+	})
+	if err != nil || code != ExitPassed || !sum.OK {
+		t.Fatalf("code=%d err=%v sum=%+v", code, err, sum)
+	}
+	data, err := os.ReadFile(filepath.Join(p.Root, ".apic", "session.json"))
+	must(t, err)
+	if !strings.Contains(string(data), `"kept": "t-1"`) {
+		t.Fatalf("capture step should persist under --use-session: %s", data)
+	}
+}

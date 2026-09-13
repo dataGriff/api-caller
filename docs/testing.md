@@ -154,9 +154,11 @@ With `--redact`, step failure messages hide expected and actual values,
 URLs show masked query values, and every value that came from a secret
 source (private env file, `.env`, the session, captures) is masked wherever
 the report mentions it, including in step text, tables and doc strings.
-Values shorter than three characters are not substituted in report text,
-since masking a lone digit would corrupt the report itself; they are still
-never printed by error messages.
+In the cucumber JSON report only string values are masked, so numbers and
+structure are untouched. Values shorter than three characters are not
+substituted in report text, since masking a lone digit would corrupt the
+report itself; they are still never printed by error messages. Values
+passed as `APIC_VAR_*` are treated as secrets.
 
 ```yaml
 # GitHub Actions

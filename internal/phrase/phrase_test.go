@@ -79,4 +79,17 @@ func TestConflicts(t *testing.T) {
 	if f.ConflictsWith(g) {
 		t.Error("different literals must not conflict")
 	}
+	// A quoted span with spaces is one token, so this collides with `I run {x}`.
+	q, err := Parse(`I run "foo bar"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConflictsWithBuiltin(); err == nil {
+		t.Error(`I run "foo bar" should conflict with the built-in run step`)
+	}
+	h, _ := Parse(`I say "hello there" to {who}`)
+	i, _ := Parse(`I say {what} to {who}`)
+	if !h.ConflictsWith(i) {
+		t.Error("quoted literal must unify with a parameter")
+	}
 }

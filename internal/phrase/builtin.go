@@ -67,15 +67,40 @@ type token struct {
 	param   bool
 }
 
+// tokenize splits step text into tokens. A double-quoted span is one token
+// even when it contains spaces, matching how the step patterns treat it.
 func tokenize(text string) []token {
 	var out []token
-	for _, w := range strings.Fields(text) {
+	var cur strings.Builder
+	inQuote, inWord := false, false
+	flush := func() {
+		if !inWord {
+			return
+		}
+		w := cur.String()
 		if strings.Contains(w, "{") {
 			out = append(out, token{param: true})
-			continue
+		} else {
+			out = append(out, token{literal: w})
 		}
-		out = append(out, token{literal: w})
+		cur.Reset()
+		inWord = false
 	}
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		switch {
+		case c == '"':
+			inQuote = !inQuote
+			cur.WriteByte(c)
+			inWord = true
+		case (c == ' ' || c == '\t') && !inQuote:
+			flush()
+		default:
+			cur.WriteByte(c)
+			inWord = true
+		}
+	}
+	flush()
 	return out
 }
 

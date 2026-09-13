@@ -119,6 +119,9 @@ func stepRun(ctx context.Context, target string) error {
 	if err != nil {
 		return err
 	}
+	if target, err = sc.render(target); err != nil {
+		return err
+	}
 	return sc.run(ctx, target, nil)
 }
 
@@ -135,6 +138,9 @@ func stepRunWith(ctx context.Context, target string, t *godog.Table) error {
 		if vars[k], err = sc.render(v); err != nil {
 			return err
 		}
+	}
+	if target, err = sc.render(target); err != nil {
+		return err
 	}
 	return sc.run(ctx, target, vars)
 }
@@ -164,7 +170,7 @@ func stepStatusClass(ctx context.Context, class string) error {
 	case "a client error":
 		ok = st >= 400 && st < 500
 	case "a server error":
-		ok = st >= 500
+		ok = st >= 500 && st < 600
 	}
 	if !ok {
 		return fmt.Errorf("expected the response to be %s, got %d %s\n%s", class, st, res.Raw().StatusText, describeFailure(res))
@@ -214,6 +220,13 @@ func stepCapture(ctx context.Context, where, sel, name string) error {
 	}
 	sc.cfg.noteSecrets(map[string]string{name: r.Actual})
 	sc.r.SetVar(name, r.Actual)
+	// With --use-session the value outlives the scenario, like a request capture.
+	if sc.cfg.UseSession && sc.r.Session != nil {
+		sc.r.Session.Set(sc.r.Opts.Env, map[string]string{name: r.Actual})
+		if err := sc.r.Session.Save(); err != nil {
+			return fmt.Errorf("session: %w", err)
+		}
+	}
 	return nil
 }
 

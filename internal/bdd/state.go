@@ -3,10 +3,13 @@
 package bdd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -74,6 +77,42 @@ func (c *Config) noteSecrets(vals map[string]string) {
 // values under --redact.
 const minMaskLen = 3
 
+// maskJSON masks secrets inside the string values of a JSON document,
+// leaving keys, numbers and structure untouched, so a numeric-looking
+// secret cannot corrupt a cucumber report.
+func (c *Config) maskJSON(data []byte) ([]byte, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	v = c.maskValue(v)
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
+}
+
+func (c *Config) maskValue(v any) any {
+	switch t := v.(type) {
+	case string:
+		return c.mask(t)
+	case []any:
+		for i := range t {
+			t[i] = c.maskValue(t[i])
+		}
+		return t
+	case map[string]any:
+		for k, val := range t {
+			t[k] = c.maskValue(val)
+		}
+		return t
+	}
+	return v
+}
+
 // mask replaces every registered secret value in s, longest first.
 func (c *Config) mask(s string) string {
 	if len(c.secrets) == 0 {
@@ -123,6 +162,14 @@ func (c *Config) newScenario(env string) (*scenario, error) {
 		if r.Session != nil {
 			c.noteSecrets(r.Session.Vars(env))
 		}
+		// APIC_VAR_* is the documented way to pass CI secrets.
+		shell := map[string]string{}
+		for _, kv := range os.Environ() {
+			if k, v, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(k, "APIC_VAR_") {
+				shell[k] = v
+			}
+		}
+		c.noteSecrets(shell)
 	}
 	return &scenario{cfg: c, r: r}, nil
 }

@@ -235,8 +235,9 @@ func (o *operation) render() string {
 	path := o.Path
 	var query []string
 	var headers []string
+	names := paramVarNames(o.Params)
 	for _, p := range o.Params {
-		v := "{{" + varName(p.Name) + "}}"
+		v := "{{" + names[p.In+":"+p.Name] + "}}"
 		required := p.Required
 		switch p.In {
 		case "path":
@@ -449,6 +450,28 @@ func requestName(op *operation, method, path string) string {
 	}
 	p := strings.NewReplacer("{", "by-", "}", "").Replace(path)
 	return kebab(strings.ToLower(method) + " " + p)
+}
+
+// paramVarNames assigns a variable name to every parameter of an operation,
+// disambiguating names that would otherwise collide (user-id and user_id
+// both camel-case to userId) with the parameter location and, if needed, a
+// counter. Keys are "<in>:<name>".
+func paramVarNames(params []parameter) map[string]string {
+	out := map[string]string{}
+	used := map[string]bool{}
+	for _, p := range params {
+		base := varName(p.Name)
+		name := base
+		if used[name] {
+			name = base + strings.ToUpper(p.In[:1]) + p.In[1:]
+		}
+		for i := 2; used[name]; i++ {
+			name = fmt.Sprintf("%s%d", base, i)
+		}
+		used[name] = true
+		out[p.In+":"+p.Name] = name
+	}
+	return out
 }
 
 var reCamel = regexp.MustCompile(`([a-z0-9])([A-Z])`)
