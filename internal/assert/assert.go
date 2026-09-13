@@ -123,7 +123,7 @@ func ParseNumber(s string) (*big.Rat, bool) {
 	if m[2] != "" {
 		sign := strings.TrimRight(m[2], "0123456789")
 		digits := strings.TrimLeft(strings.TrimPrefix(m[2], sign), "0") // 1e+0004096 is 1e4096
-		if len(digits) > 6 { // ±4096 needs four digits; anything longer is out of range anyway
+		if len(digits) > 6 {                                            // ±4096 needs four digits; anything longer is out of range anyway
 			return nil, false
 		}
 		if digits == "" {
