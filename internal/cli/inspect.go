@@ -133,7 +133,8 @@ to requests whose id, URL, file or description contains it.`,
 			if err := tw.Flush(); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.Stdout, "\n%s\n", theme.Dim.Render(fmt.Sprintf("%d requests in %d files · apic describe <id> · apic run <id> · apic ui", len(entries), len(files))))
+			fmt.Fprintf(a.Stdout, "\n%s\n", theme.Dim.Render(fmt.Sprintf("%s in %s · apic describe <id> · apic run <id> · apic ui",
+				plural(len(entries), "request"), plural(len(files), "file"))))
 			return nil
 		},
 	}
@@ -376,14 +377,14 @@ func (a *App) validateCmd() *cobra.Command {
 					}
 					fmt.Fprintf(a.Stdout, "%s:%d: %s: %s\n", d.Path, d.Line, sev, d.Message)
 				}
-				counts := fmt.Sprintf("%d file(s), %d request(s)", len(p.Files), len(p.Requests()))
+				counts := fmt.Sprintf("%s, %s", plural(len(p.Files), "file"), plural(len(p.Requests()), "request"))
 				switch {
 				case len(diags) == 0:
 					fmt.Fprintf(a.Stdout, "%s %s, no problems\n", theme.OK.Render("✓"), counts)
 				case errs == 0:
-					fmt.Fprintf(a.Stdout, "%s %s, %d warning(s)\n", theme.Warn.Render("!"), counts, len(diags))
+					fmt.Fprintf(a.Stdout, "%s %s, %s\n", theme.Warn.Render("!"), counts, plural(len(diags), "warning"))
 				default:
-					fmt.Fprintf(a.Stdout, "%s %s, %d error(s), %d warning(s)\n", theme.Fail.Render("✗"), counts, errs, len(diags)-errs)
+					fmt.Fprintf(a.Stdout, "%s %s, %s, %s\n", theme.Fail.Render("✗"), counts, plural(errs, "error"), plural(len(diags)-errs, "warning"))
 				}
 			}
 			if errs > 0 {
@@ -408,6 +409,14 @@ func (a *App) single(target string) (*runner.Runner, *httpfile.Request, error) {
 		return nil, nil, &runner.UsageError{Msg: fmt.Sprintf("%s names %d requests; pick one with %s#<name>", target, len(reqs), target)}
 	}
 	return r, reqs[0], nil
+}
+
+// plural renders "1 file" or "3 files".
+func plural(n int, word string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, word)
+	}
+	return fmt.Sprintf("%d %ss", n, word)
 }
 
 func maskDescription(d *runner.Description) *runner.Description {

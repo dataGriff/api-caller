@@ -53,12 +53,11 @@ unless --force is given.`,
 			for _, f := range skipped {
 				fmt.Fprintf(a.Stdout, "%s  %s %s\n", theme.Warn.Render("kept"), f, theme.Dim.Render("(use --force to overwrite)"))
 			}
-			cd := ""
-			if dir != "." {
-				cd = " -C " + dir
-			}
 			fmt.Fprintf(a.Stdout, "\n%s\n", theme.Bold.Render("next:"))
-			fmt.Fprintf(a.Stdout, "  edit api.http, then:  apic list%s · apic run ping%s · apic ui%s\n", cd, cd, cd)
+			if dir != "." {
+				fmt.Fprintf(a.Stdout, "  cd %s\n", dir)
+			}
+			fmt.Fprintf(a.Stdout, "  edit api.http, then:  %s\n", theme.Dim.Render("apic list · apic run ping · apic ui"))
 			return nil
 		},
 	}
