@@ -1,29 +1,15 @@
 // Package output renders run results for humans (coloured, readable) and for
-// machines (one JSON object per result).
+// machines (one JSON object per result). The string-returning renderers in
+// render.go are shared with the terminal UI; the functions here are the
+// io.Writer wrappers the CLI uses.
 package output
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
-	"sort"
-	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/dataGriff/api-caller/internal/runner"
-)
-
-var (
-	styleMethod  = lipgloss.NewStyle().Bold(true)
-	styleURL     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	styleOK      = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
-	styleWarn    = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	styleFail    = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
-	styleDim     = lipgloss.NewStyle().Faint(true)
-	styleHeader  = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
-	styleCapture = lipgloss.NewStyle().Foreground(lipgloss.Color("81"))
 )
 
 // JSON writes one result as a single JSON line.
@@ -44,119 +30,26 @@ func Body(w io.Writer, res *runner.Result) {
 
 // Human writes a readable report of a result.
 func Human(w io.Writer, res *runner.Result, verbose bool) {
-	req := res.Request
-	fmt.Fprintf(w, "%s %s\n", styleMethod.Render(req.Method), styleURL.Render(req.DisplayURL(res.Redact)))
-	if verbose {
-		for _, h := range req.DisplayHeaders(res.Redact) {
-			fmt.Fprintf(w, "%s %s\n", styleHeader.Render(h.Name+":"), h.Value)
-		}
-		if body := req.DisplayBody(res.Redact); body != "" {
-			fmt.Fprintf(w, "\n%s\n", strings.TrimRight(body, "\n"))
-		}
-		fmt.Fprintln(w)
-	}
-	if res.Response == nil {
-		for _, e := range res.Errors {
-			fmt.Fprintf(w, "%s %s\n", styleFail.Render("✗"), e)
-		}
-		return
-	}
-	raw := res.Raw()
-	status := fmt.Sprintf("%d %s", raw.Status, raw.StatusText)
-	switch {
-	case raw.Status < 300:
-		status = styleOK.Render(status)
-	case raw.Status < 400:
-		status = styleWarn.Render(status)
-	default:
-		status = styleFail.Render(status)
-	}
-	fmt.Fprintf(w, "%s %s\n", status, styleDim.Render(fmt.Sprintf("· %d ms · %s", res.Response.DurationMs, size(res.Response.Size))))
-	if verbose {
-		keys := make([]string, 0, len(raw.Headers))
-		for k := range raw.Headers {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			fmt.Fprintf(w, "%s %s\n", styleHeader.Render(strings.ToLower(k)+":"), strings.Join(raw.Headers[k], ", "))
-		}
-	}
-	if len(raw.Body) > 0 {
-		fmt.Fprintf(w, "\n%s\n", bytes.TrimRight(prettyJSON(raw.Body), "\n"))
-	}
-	if len(res.Asserts)+len(res.Captures)+len(res.Errors) > 0 {
-		fmt.Fprintln(w)
-	}
-	for _, a := range res.Asserts {
-		switch {
-		case a.Error != "":
-			fmt.Fprintf(w, "%s %s %s\n", styleFail.Render("✗"), a.Expr, styleDim.Render("("+a.Error+")"))
-		case a.Pass:
-			fmt.Fprintf(w, "%s %s\n", styleOK.Render("✓"), a.Expr)
-		default:
-			fmt.Fprintf(w, "%s %s %s\n", styleFail.Render("✗"), a.Expr, styleDim.Render(fmt.Sprintf("(actual: %s)", truncate(a.Actual, 80))))
-		}
-	}
-	captures := res.DisplayCaptures()
-	names := make([]string, 0, len(captures))
-	for n := range captures {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		fmt.Fprintf(w, "%s %s = %s\n", styleCapture.Render("↳"), n, truncate(captures[n], 80))
-	}
-	for _, e := range res.Errors {
-		fmt.Fprintf(w, "%s %s\n", styleFail.Render("✗"), e)
-	}
+	_, _ = io.WriteString(w, Result(Default(), res, Options{Verbose: verbose}))
 }
 
-// Summary writes a one-line flow summary.
+// Summary writes the per-request table and totals of a flow.
 func Summary(w io.Writer, results []*runner.Result) {
-	passed := 0
-	for _, r := range results {
-		if r.OK {
-			passed++
-		}
-	}
-	failed := len(results) - passed
-	line := fmt.Sprintf("%d passed", passed)
-	if failed > 0 {
-		line = styleFail.Render(fmt.Sprintf("%d failed", failed)) + ", " + line
-	} else {
-		line = styleOK.Render(line)
-	}
-	fmt.Fprintf(w, "\n%s\n", line)
+	_, _ = io.WriteString(w, "\n"+SummaryTable(Default(), results))
+}
+
+func isJSON(b []byte) bool {
+	t := bytes.TrimSpace(b)
+	return len(t) > 0 && (t[0] == '{' || t[0] == '[') && json.Valid(t)
 }
 
 func prettyJSON(b []byte) []byte {
-	t := bytes.TrimSpace(b)
-	if len(t) == 0 || (t[0] != '{' && t[0] != '[') || !json.Valid(t) {
+	if !isJSON(b) {
 		return b
 	}
 	var out bytes.Buffer
-	if err := json.Indent(&out, t, "", "  "); err != nil {
+	if err := json.Indent(&out, bytes.TrimSpace(b), "", "  "); err != nil {
 		return b
 	}
 	return out.Bytes()
-}
-
-func size(n int) string {
-	switch {
-	case n < 1024:
-		return fmt.Sprintf("%d B", n)
-	case n < 1024*1024:
-		return fmt.Sprintf("%.1f KB", float64(n)/1024)
-	default:
-		return fmt.Sprintf("%.1f MB", float64(n)/1024/1024)
-	}
-}
-
-func truncate(s string, n int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

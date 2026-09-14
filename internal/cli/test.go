@@ -321,9 +321,9 @@ func (a *App) printSteps() error {
 		}
 		return a.writeJSON(out)
 	}
-	fmt.Fprintln(a.Stdout, styleBold.Render("built-in steps"))
+	fmt.Fprintln(a.Stdout, theme.Bold.Render("built-in steps"))
 	for _, v := range bdd.Vocabulary {
-		fmt.Fprintf(a.Stdout, "  %s\n      %s\n", v.Pattern, styleDim.Render(v.Purpose))
+		fmt.Fprintf(a.Stdout, "  %s\n      %s\n", v.Pattern, theme.Dim.Render(v.Purpose))
 	}
 	p, err := a.loadProject()
 	if err != nil {
@@ -333,10 +333,10 @@ func (a *App) printSteps() error {
 	for _, r := range p.Requests() {
 		for _, st := range r.Steps() {
 			if !printed {
-				fmt.Fprintln(a.Stdout, styleBold.Render("\nphrases declared in this project"))
+				fmt.Fprintln(a.Stdout, theme.Bold.Render("\nphrases declared in this project"))
 				printed = true
 			}
-			fmt.Fprintf(a.Stdout, "  %s\n      %s\n", st, styleDim.Render("runs "+r.ID()+" ("+r.File.Path+")"))
+			fmt.Fprintf(a.Stdout, "  %s\n      %s\n", st, theme.Dim.Render("runs "+r.ID()+" ("+r.File.Path+")"))
 		}
 	}
 	return nil

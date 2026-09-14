@@ -56,18 +56,25 @@ func WriteProject(dir string, port int, force bool) (written, skipped []string, 
 		return nil
 	}
 
-	entries, err := fs.ReadDir(projectFS, "project")
+	err = fs.WalkDir(projectFS, "project", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel := strings.TrimPrefix(path, "project/")
+		if d.IsDir() {
+			if path == "project" {
+				return nil
+			}
+			return os.MkdirAll(filepath.Join(dir, filepath.FromSlash(rel)), 0o755)
+		}
+		content, err := fs.ReadFile(projectFS, path)
+		if err != nil {
+			return err
+		}
+		return write(filepath.FromSlash(rel), content)
+	})
 	if err != nil {
 		return nil, nil, err
-	}
-	for _, e := range entries {
-		content, err := fs.ReadFile(projectFS, "project/"+e.Name())
-		if err != nil {
-			return nil, nil, err
-		}
-		if err := write(e.Name(), content); err != nil {
-			return nil, nil, err
-		}
 	}
 
 	envJSON := fmt.Sprintf(`{
