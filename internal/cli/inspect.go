@@ -3,28 +3,23 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/curlexport"
 	"github.com/dataGriff/api-caller/internal/httpfile"
+	"github.com/dataGriff/api-caller/internal/output"
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
-var (
-	styleBold = lipgloss.NewStyle().Bold(true)
-	styleDim  = lipgloss.NewStyle().Faint(true)
-	styleBad  = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	styleGood = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	styleWarn = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-)
+// theme is the shared style set; colour is switched off in root's
+// PersistentPreRun when the output is not a terminal.
+var theme = output.Default()
 
 func (a *App) writeJSON(v any) error {
 	enc := json.NewEncoder(a.Stdout)
@@ -46,11 +41,25 @@ type listEntry struct {
 	Steps       []string `json:"steps,omitempty"`
 }
 
+func (e listEntry) matches(pattern string) bool {
+	p := strings.ToLower(pattern)
+	return strings.Contains(strings.ToLower(e.ID), p) ||
+		strings.Contains(strings.ToLower(e.URL), p) ||
+		strings.Contains(strings.ToLower(e.Description), p) ||
+		strings.Contains(strings.ToLower(e.File), p)
+}
+
 func (a *App) listCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
+	cmd := &cobra.Command{
+		Use:   "list [pattern]",
 		Short: "List every request in the project",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Long: `List the requests apic found, grouped by file. A pattern narrows the list
+to requests whose id, URL, file or description contains it.`,
+		Example: `  apic list
+  apic list todo
+  apic list --json | jq '.requests[].id'`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := a.loadProject()
 			if err != nil {
 				return err
@@ -61,44 +70,79 @@ func (a *App) listCmd() *cobra.Command {
 				for _, c := range r.Captures {
 					e.Captures = append(e.Captures, c.Name)
 				}
+				if len(args) == 1 && !e.matches(args[0]) {
+					continue
+				}
 				entries = append(entries, e)
 			}
 			if a.g.json {
+				if entries == nil {
+					entries = []listEntry{}
+				}
 				return a.writeJSON(struct {
 					Root     string      `json:"root"`
 					Requests []listEntry `json:"requests"`
 				}{p.Root, entries})
 			}
 			if len(entries) == 0 {
+				if len(args) == 1 {
+					fmt.Fprintf(a.Stdout, "no requests match %q (run `apic list` to see them all)\n", args[0])
+					return nil
+				}
 				fmt.Fprintf(a.Stdout, "no .http files found under %s\n", p.Root)
 				return nil
 			}
-			tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
+			files := map[string]bool{}
+			for _, e := range entries {
+				files[e.File] = true
+			}
 			hasSteps := false
 			for _, e := range entries {
 				if len(e.Steps) > 0 {
 					hasSteps = true
 				}
 			}
-			header := styleBold.Render("ID") + "\t" + styleBold.Render("METHOD") + "\t" + styleBold.Render("URL") + "\t" + styleBold.Render("FILE") + "\t" + styleBold.Render("DESCRIPTION")
-			if hasSteps {
-				header += "\t" + styleBold.Render("PHRASES")
+			tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
+			cols := []string{"ID", "METHOD", "URL", "LINE", "DESCRIPTION"}
+			if len(files) == 1 {
+				cols[3] = "FILE"
 			}
-			fmt.Fprintln(tw, header)
+			if hasSteps {
+				cols = append(cols, "PHRASES")
+			}
+			for i, c := range cols {
+				cols[i] = theme.Bold.Render(c)
+			}
+			fmt.Fprintln(tw, strings.Join(cols, "\t"))
+			lastFile := ""
 			for _, e := range entries {
-				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", e.ID, e.Method, e.URL, fmt.Sprintf("%s:%d", e.File, e.Line), e.Description)
+				if len(files) > 1 && e.File != lastFile {
+					fmt.Fprintf(tw, "%s\t\t\t\t\n", theme.Accent.Render(e.File))
+					lastFile = e.File
+				}
+				where := fmt.Sprintf("%s:%d", e.File, e.Line)
+				if len(files) > 1 {
+					where = fmt.Sprintf(":%d", e.Line)
+				}
+				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", theme.Bold.Render(e.ID), theme.Method(e.Method), theme.URL.Render(e.URL), theme.Dim.Render(where), e.Description)
 				if hasSteps {
-					line += "\t" + strings.Join(e.Steps, " | ")
+					line += "\t" + theme.Dim.Render(strings.Join(e.Steps, " | "))
 				}
 				fmt.Fprintln(tw, line)
 			}
-			return tw.Flush()
+			if err := tw.Flush(); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.Stdout, "\n%s\n", theme.Dim.Render(fmt.Sprintf("%s in %s · apic describe <id> · apic run <id> · apic ui",
+				plural(len(entries), "request"), plural(len(files), "file"))))
+			return nil
 		},
 	}
+	return cmd
 }
 
 func (a *App) describeCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "describe <request>",
 		Short: "Show a request's variables, where each comes from, captures and asserts",
 		Args:  cobra.ExactArgs(1),
@@ -111,78 +155,16 @@ func (a *App) describeCmd() *cobra.Command {
 			if a.g.json {
 				return a.writeJSON(maskDescription(d))
 			}
-			fmt.Fprintf(a.Stdout, "%s %s\n", styleBold.Render(d.Method), d.URLTemplate)
-			if d.Description != "" {
-				fmt.Fprintln(a.Stdout, d.Description)
-			}
-			fmt.Fprintf(a.Stdout, "%s %s:%d\n", styleDim.Render("file:"), d.File, d.Line)
-			if d.ID != d.Name {
-				fmt.Fprintf(a.Stdout, "%s %s\n", styleDim.Render("id:  "), d.ID)
-			}
-			if len(d.Headers) > 0 {
-				section(a.Stdout, "headers")
-				for _, h := range req.Headers {
-					fmt.Fprintf(a.Stdout, "  %s: %s\n", h.Name, h.Value)
-				}
-			}
-			if d.Body != "" {
-				section(a.Stdout, "body")
-				fmt.Fprintln(a.Stdout, indent(d.Body))
-			}
-			if d.Auth != "" {
-				section(a.Stdout, "auth")
-				fmt.Fprintf(a.Stdout, "  %s %s\n", d.Auth, styleDim.Render("("+d.AuthSource+")"))
-			}
-			if d.BodyFile != "" {
-				section(a.Stdout, "body file")
-				fmt.Fprintln(a.Stdout, "  "+d.BodyFile)
-			}
-			section(a.Stdout, "variables")
-			if len(d.Variables) == 0 {
-				fmt.Fprintln(a.Stdout, "  (none)")
-			}
-			tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-			for _, v := range d.Variables {
-				switch {
-				case v.Missing && v.CapturedBy != "":
-					fmt.Fprintf(tw, "  %s\t%s\t%s\n", styleBad.Render("✗ "+v.Name), "missing", fmt.Sprintf("captured by %s — run `apic run %s` first", v.CapturedBy, v.CapturedBy))
-				case v.Missing:
-					fmt.Fprintf(tw, "  %s\t%s\t%s\n", styleBad.Render("✗ "+v.Name), "missing", "pass --var "+v.Name+"=...")
-				default:
-					fmt.Fprintf(tw, "  %s\t%s\t%s\n", styleGood.Render("✓ "+v.Name), mask(v), styleDim.Render(v.Source))
-				}
-			}
-			tw.Flush()
-			if steps := req.Steps(); len(steps) > 0 {
-				section(a.Stdout, "steps")
-				for _, st := range steps {
-					fmt.Fprintf(a.Stdout, "  %s\n", st)
-				}
-			}
-			if len(d.Captures) > 0 {
-				section(a.Stdout, "captures")
-				for _, c := range d.Captures {
-					fmt.Fprintf(a.Stdout, "  %s\n", c)
-				}
-			}
-			if len(d.Asserts) > 0 {
-				section(a.Stdout, "asserts")
-				for _, x := range d.Asserts {
-					fmt.Fprintf(a.Stdout, "  %s\n", x)
-				}
-			}
-			if d.Ready {
-				fmt.Fprintf(a.Stdout, "\n%s %s\n", styleGood.Render("ready:"), d.URL)
-			} else {
-				fmt.Fprintf(a.Stdout, "\n%s\n", styleWarn.Render("not ready: some variables are missing"))
-			}
+			fmt.Fprint(a.Stdout, output.Describe(theme, d, req.Headers))
 			return nil
 		},
 	}
+	cmd.ValidArgsFunction = a.completeRequests
+	return cmd
 }
 
 func (a *App) curlCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "curl <request>",
 		Short: "Print the equivalent curl command (with variables resolved)",
 		Args:  cobra.ExactArgs(1),
@@ -204,10 +186,19 @@ func (a *App) curlCmd() *cobra.Command {
 				}
 				return r.MissingError(req, missing)
 			}
-			fmt.Fprintln(a.Stdout, curlexport.Command(res))
+			command := curlexport.Command(res)
+			if a.g.json {
+				return a.writeJSON(struct {
+					ID      string `json:"id"`
+					Command string `json:"command"`
+				}{req.ID(), command})
+			}
+			fmt.Fprintln(a.Stdout, command)
 			return nil
 		},
 	}
+	cmd.ValidArgsFunction = a.completeRequests
+	return cmd
 }
 
 func (a *App) envCmd() *cobra.Command {
@@ -241,22 +232,18 @@ func (a *App) envCmd() *cobra.Command {
 				var marked []string
 				for _, n := range names {
 					if n == r.Opts.Env {
-						n = styleBold.Render(n + "*")
+						n = theme.Accent.Render(n + "*")
 					}
 					marked = append(marked, n)
 				}
-				fmt.Fprintf(a.Stdout, "%s %s\n", styleBold.Render("environments:"), strings.Join(marked, " "))
+				fmt.Fprintf(a.Stdout, "%s %s\n", theme.Bold.Render("environments:"), strings.Join(marked, " "))
 			}
 			if len(r.Envs.Found) > 0 {
-				fmt.Fprintf(a.Stdout, "%s %s\n", styleDim.Render("files:"), strings.Join(r.Envs.Found, ", "))
+				fmt.Fprintf(a.Stdout, "%s %s\n", theme.Dim.Render("files:"), strings.Join(r.Envs.Found, ", "))
 			}
 			if len(vars) > 0 {
-				section(a.Stdout, "variables")
-				tw := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-				for _, v := range vars {
-					fmt.Fprintf(tw, "  %s\t%s\t%s\n", v.Name, mask(v), styleDim.Render(v.Source))
-				}
-				tw.Flush()
+				fmt.Fprint(a.Stdout, output.Section(theme, "variables"))
+				fmt.Fprint(a.Stdout, output.Variables(theme, vars, false))
 			}
 			return nil
 		},
@@ -284,7 +271,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				return nil
 			}
 			for _, e := range envs {
-				fmt.Fprintln(a.Stdout, styleBold.Render(e))
+				fmt.Fprintln(a.Stdout, theme.Bold.Render(e))
 				vars := r.Session.Vars(e)
 				keys := make([]string, 0, len(vars))
 				for k := range vars {
@@ -293,10 +280,10 @@ func (a *App) sessionCmd() *cobra.Command {
 				sort.Strings(keys)
 				for _, k := range keys {
 					if isAuthCacheKey(k) {
-						fmt.Fprintf(a.Stdout, "  %s = %s\n", k, auth.DescribeCached(vars[k], time.Now()))
+						fmt.Fprintf(a.Stdout, "  %s %s = %s\n", theme.Capture.Render("↳"), k, auth.DescribeCached(vars[k], time.Now()))
 						continue
 					}
-					fmt.Fprintf(a.Stdout, "  %s = %s\n", k, truncate(vars[k], 60))
+					fmt.Fprintf(a.Stdout, "  %s %s = %s\n", theme.Capture.Render("↳"), k, output.Truncate(vars[k], 60))
 				}
 			}
 			return nil
@@ -384,13 +371,21 @@ func (a *App) validateCmd() *cobra.Command {
 				}
 			} else {
 				for _, d := range diags {
-					sev := styleWarn.Render(d.Severity)
+					sev := theme.Warn.Render(d.Severity)
 					if d.Severity == "error" {
-						sev = styleBad.Render(d.Severity)
+						sev = theme.Fail.Render(d.Severity)
 					}
 					fmt.Fprintf(a.Stdout, "%s:%d: %s: %s\n", d.Path, d.Line, sev, d.Message)
 				}
-				fmt.Fprintf(a.Stdout, "%d file(s), %d request(s), %d error(s), %d warning(s)\n", len(p.Files), len(p.Requests()), errs, len(diags)-errs)
+				counts := fmt.Sprintf("%s, %s", plural(len(p.Files), "file"), plural(len(p.Requests()), "request"))
+				switch {
+				case len(diags) == 0:
+					fmt.Fprintf(a.Stdout, "%s %s, no problems\n", theme.OK.Render("✓"), counts)
+				case errs == 0:
+					fmt.Fprintf(a.Stdout, "%s %s, %s\n", theme.Warn.Render("!"), counts, plural(len(diags), "warning"))
+				default:
+					fmt.Fprintf(a.Stdout, "%s %s, %s, %s\n", theme.Fail.Render("✗"), counts, plural(errs, "error"), plural(len(diags)-errs, "warning"))
+				}
 			}
 			if errs > 0 {
 				return &exitError{code: runner.ExitUsage}
@@ -416,6 +411,14 @@ func (a *App) single(target string) (*runner.Runner, *httpfile.Request, error) {
 	return r, reqs[0], nil
 }
 
+// plural renders "1 file" or "3 files".
+func plural(n int, word string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, word)
+	}
+	return fmt.Sprintf("%d %ss", n, word)
+}
+
 func maskDescription(d *runner.Description) *runner.Description {
 	out := *d
 	out.Variables = append([]runner.VarInfo(nil), d.Variables...)
@@ -425,27 +428,4 @@ func maskDescription(d *runner.Description) *runner.Description {
 		}
 	}
 	return &out
-}
-
-func mask(v runner.VarInfo) string {
-	if v.Secret {
-		return "***"
-	}
-	return truncate(v.Value, 60)
-}
-
-func truncate(s string, n int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}
-
-func indent(s string) string {
-	return "  " + strings.ReplaceAll(strings.TrimRight(s, "\n"), "\n", "\n  ")
-}
-
-func section(w io.Writer, title string) {
-	fmt.Fprintf(w, "\n%s\n", styleBold.Render(title))
 }

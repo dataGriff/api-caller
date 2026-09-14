@@ -158,6 +158,8 @@ one `task`.
 
 ## The repo's own Taskfile
 
-`Taskfile.yml` at the root of this repository builds apic and drives the
-example project with it (`task example ENV=local`), which is a small working
-instance of these patterns.
+`Taskfile.yml` at the root of this repository builds apic and drives two
+example projects with it: `task example:demo` runs the bundled offline demo
+end to end, and `task example` runs `examples/httpbin` against httpbin.org
+(`ENV=dev`, needs network). Both are small working instances of these
+patterns.

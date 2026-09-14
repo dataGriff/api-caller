@@ -24,14 +24,14 @@ lands against the tools you might otherwise use.
 | Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code), basic, bearer, exec |
 | Cookie jar, client certs | via curl flags | some | yes | yes | yes | no |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
-| GUI | no | the editor | VS Code extension | yes | no | no |
+| GUI | no | the editor | VS Code extension | yes | no | terminal UI (`apic ui`) |
 
 ## Size
 
-A stripped apic binary is about 13 MB, in the same range as `task` or `yq`
+A stripped apic binary is about 15 MB, in the same range as `task` or `yq`
 and well below `gh`, `kubectl` or `terraform`. The largest pieces are the
-MCP SDK and the Gherkin runner; the OpenAPI importer and AWS signing are
-written in-tree to keep them small.
+MCP SDK and the Gherkin runner; the OpenAPI importer, the AWS signing and
+the terminal UI's event loop are written in-tree to keep them small.
 
 ## Against Taskfile + curl
 

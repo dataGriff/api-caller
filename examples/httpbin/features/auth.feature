@@ -11,6 +11,6 @@ Feature: Authentication
     And the response body "$.authenticated" is "true"
 
   Scenario: The token from login is visible to later steps
-    Then the variable "token" is "{{token}}"
     When I run "bearer-auth"
     Then the response is successful
+    And the response body "$.token" exists

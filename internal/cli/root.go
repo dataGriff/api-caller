@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
 
+	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
 )
@@ -48,16 +51,19 @@ func New() *App {
 	root := &cobra.Command{
 		Use:   "apic",
 		Short: "Run .http request files from the terminal, CI, or an AI agent",
-		Long: `apic runs requests defined in plain .http files — the same files VS Code,
-JetBrains and Neovim can send with one click — from any terminal, CI job or
-AI agent. It adds environments, captured variables that persist between
-runs, assertions, JSON output, curl export and an MCP server.
+		Long: `apic is epic: it runs the plain .http files VS Code, JetBrains and Neovim
+can send with one click, from any terminal, CI job or AI agent, with one
+static binary. It adds environments, captured variables that persist between
+runs, assertions, AWS and OAuth2 auth, Gherkin features, JSON output, curl
+export, an MCP server and a terminal UI (apic ui).
+
+Try it with nothing set up:  apic ui --demo
 
 Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing variable · 3 network error`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
-			if a.g.noColor || os.Getenv("NO_COLOR") != "" || a.g.json {
+			if a.g.noColor || os.Getenv("NO_COLOR") != "" || a.g.json || !isTerminal(a.Stdout) {
 				lipgloss.SetColorProfile(termenv.Ascii)
 			}
 		},
@@ -75,8 +81,9 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	root.SetOut(a.Stdout)
 	root.SetErr(a.Stderr)
 
-	root.AddCommand(a.runCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(),
-		a.validateCmd(), a.importCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
+	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(),
+		a.validateCmd(), a.importCmd(), a.initCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
+	_ = root.RegisterFlagCompletionFunc("env", a.completeEnvs)
 	a.Root = root
 	return a
 }
@@ -141,10 +148,84 @@ func (a *App) versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the apic version",
-		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintln(a.Stdout, "apic", Version)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info := buildInfo()
+			if a.g.json {
+				return a.writeJSON(info)
+			}
+			fmt.Fprintf(a.Stdout, "apic %s %s\n", theme.Accent.Render(info.Version), theme.Dim.Render(fmt.Sprintf("· %s · %s %s/%s", info.Commit, info.Go, info.OS, info.Arch)))
+			fmt.Fprintln(a.Stdout, theme.Dim.Render("apic is epic · https://datagriff.github.io/api-caller/"))
+			return nil
 		},
 	}
+}
+
+// versionInfo is what `apic version --json` prints.
+type versionInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date,omitempty"`
+	Go      string `json:"go"`
+	OS      string `json:"os"`
+	Arch    string `json:"arch"`
+}
+
+func buildInfo() versionInfo {
+	v := versionInfo{Version: Version, Commit: "unknown", Go: runtime.Version(), OS: runtime.GOOS, Arch: runtime.GOARCH}
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range bi.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				if len(s.Value) > 7 {
+					v.Commit = s.Value[:7]
+				} else if s.Value != "" {
+					v.Commit = s.Value
+				}
+			case "vcs.time":
+				v.Date = s.Value
+			case "vcs.modified":
+				if s.Value == "true" {
+					v.Commit += "-dirty"
+				}
+			}
+		}
+	}
+	return v
+}
+
+// completeRequests offers request ids and .http files to shell completion.
+func (a *App) completeRequests(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	p, err := project.Load(a.g.dir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, r := range p.Requests() {
+		if strings.HasPrefix(r.ID(), toComplete) {
+			out = append(out, r.ID()+"\t"+r.Method+" "+r.URL)
+		}
+		if !seen[r.File.Path] && strings.HasPrefix(r.File.Path, toComplete) {
+			seen[r.File.Path] = true
+			out = append(out, r.File.Path+"\tevery request in the file")
+		}
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeEnvs offers environment names to shell completion.
+func (a *App) completeEnvs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	envs, err := env.Load(a.g.dir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	var out []string
+	for _, n := range envs.Names() {
+		if strings.HasPrefix(n, toComplete) {
+			out = append(out, n)
+		}
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
 // varMap parses the repeatable --var flag.

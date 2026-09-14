@@ -21,6 +21,7 @@ Requests live in `api/*.http` and are run with `apic` (install: see README).
 - `apic run <id> --env staging` — pick an environment from http-client.env.json
 - `apic curl <id>` — the equivalent curl command
 - `apic test --json` — run the Gherkin features in features/; `apic test --steps --json` lists the steps you may use
+- `apic validate --json` — parse every file and report problems before running anything
 
 Exit codes: 0 ok, 1 assertion failed, 2 usage/parse/missing variable, 3 network.
 Values captured with `# @capture` (like a login token) persist in `.apic/session.json`,
@@ -48,6 +49,27 @@ see [auth.md](auth.md). URL, body and captures are real values so an agent
 can chain them. When the output is going into a stored log rather than to
 an agent, add `--redact`.
 
+A session usually looks like this:
+
+```console
+$ apic list --json | jq -r '.requests[] | "\(.id)\t\(.method) \(.url)"'
+login   POST {{baseUrl}}/auth/login
+whoami  GET {{baseUrl}}/me
+
+$ apic describe whoami --json | jq '{ready, missing: [.variables[] | select(.missing) | .name]}'
+{"ready": false, "missing": ["token"]}
+
+$ apic run login --json | jq '{ok, captured: .captures}'
+{"ok": true, "captured": {"token": "mock-token"}}
+
+$ apic run whoami --json | jq '{ok, status: .response.status, body: .response.body}'
+{"ok": true, "status": 200, "body": {"email": "alice@example.com"}}
+```
+
+The agent never has to guess: `describe` says what is missing and which
+request provides it, and the token persists, so `login` is run once rather
+than before every call.
+
 ## 2. MCP (Claude Code, Cursor, Windsurf, any MCP client)
 
 `apic mcp` serves the project over stdio. Register it once:
@@ -55,8 +77,10 @@ an agent, add `--redact`.
 ```sh
 # Claude Code
 claude mcp add api -- apic mcp --dir ./api --env dev
+```
 
-# Generic MCP client config
+```json
+// Cursor (.cursor/mcp.json), Windsurf, and any other MCP client
 {"mcpServers": {"api": {"command": "apic", "args": ["mcp", "--dir", "./api", "--env", "dev"]}}}
 ```
 
@@ -80,4 +104,6 @@ transport and usage problems return an error message the agent can act on.
 
 The format is plain text, so an agent can add requests too. Keep to the
 subset in [format.md](format.md), give every request a `# @name`, add an
-`# @assert status == 200` and run `apic validate` afterwards.
+`# @assert status == 200` and run `apic validate` afterwards. `apic init`
+writes a correct skeleton to start from, and the
+[cheat sheet](cheatsheet.md) fits in a prompt.

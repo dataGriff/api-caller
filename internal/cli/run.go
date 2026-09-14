@@ -82,6 +82,7 @@ so a later invocation can use them. Use --no-session to disable.`,
 			return nil
 		},
 	}
+	cmd.ValidArgsFunction = a.completeRequests
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show request and response headers")
 	cmd.Flags().BoolVar(&bodyOnly, "body-only", false, "print only the response body (for piping)")
 	cmd.Flags().BoolVar(&keepGoing, "keep-going", false, "in a flow, continue after a failure")

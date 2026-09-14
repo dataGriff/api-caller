@@ -14,13 +14,14 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/session` — `.apic/session.json` persistence of captured values and cached tokens
 - `internal/auth` — `# @auth` spec parsing and application: bearer, basic, AWS SigV4 (own signer in `sigv4.go`, credentials in `awscreds.go`; no AWS SDK), OAuth2 grants, exec
 - `internal/runner` — variable precedence, request execution, captures, asserts, flows, `describe`
-- `internal/output` — human and JSON renderers
+- `internal/output` — the shared theme (`theme.go`), the string renderers used by both the CLI and the UI (`render.go`), JSON highlighting (`jsonhl.go`) and the `io.Writer` wrappers (`output.go`)
 - `internal/phrase` — `# @step` phrase to regex
 - `internal/bdd` — `apic test`: godog suite, step vocabulary (`steps.go`), phrase registration, JSON matching, cucumber-report summary
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands. The OpenAPI reader is a small yaml.Node walker (`model.go`) with local `$ref` resolution; do not add an OpenAPI library for it.
-- `internal/cli` — cobra commands, including `demo`
+- `internal/cli` — cobra commands, including `demo`, `init` and `ui`
+- `internal/ui` — the `apic ui` terminal UI: model/update/view (`ui.go`, `list.go`, `panes.go`, `run.go`), key bindings (`keys.go`), and its own small terminal layer (`term.go` input decoding, `viewport.go`, `program.go` event loop). Tests drive `Update`/`View` directly, so no terminal is needed
 - `internal/demoapi` — fake in-memory API (auth + a todos CRUD resource) and its embedded example project (`project/`), backing the `apic demo` command and its test suite
-- `examples/httpbin` — sample project targeting the real httpbin.org, for a live demo (needs network); `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`)
+- `examples/httpbin` — sample project targeting the real httpbin.org, for a live demo (needs network); `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/*.svg` are terminal screenshots generated from real output, not hand-drawn
 
 ## Commands
 
@@ -30,12 +31,14 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `task check` — what CI runs
 - `task notices` — regenerate THIRD_PARTY_NOTICES.md (goreleaser runs this before packaging)
 - `task docs` / `task docs:build` — preview or strictly build the docs site (`pip install "mkdocs<2" "mkdocs-material<10"`)
+- New commands need a row in the README table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`
 
 ## Conventions
 
 - Keep the `.http` dialect compatible with VS Code REST Client and JetBrains: new features go in `# @directive` comments before the request line, never new syntax in the request itself. Document any addition in `docs/format.md`.
 - The `--json` output shape and exit codes are a public contract; change them only with a note in the README.
-- Every command must work non-interactively (no prompts) and respect `--json`.
+- Every command must work non-interactively (no prompts) and respect `--json`. `apic ui` is the single, deliberate exception: it is interactive, has no `--json`, and exits 2 when stdout is not a terminal.
+- The UI has its own terminal layer rather than a TUI framework. Bubble Tea was tried and removed: its package `init` queries the terminal for its background colour with a five-second timeout, which every apic command would pay on terminals that do not answer. Keep anything with an init-time terminal query out of the binary.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer and the OpenAPI reader are the precedents). Check the stripped binary size with `task build && ls -la bin/apic` when adding a dependency.
 - Add a test next to any parser or runner change; parser cases go in `internal/httpfile/testdata/sample.http`.
 - A new step in the vocabulary needs: its regex and shapes in `internal/phrase/builtin.go` (`Builtin`), a handler bound by name in `internal/bdd/steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.

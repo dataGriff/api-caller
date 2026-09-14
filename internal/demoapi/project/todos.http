@@ -1,5 +1,8 @@
+@title = Write docs
+
 ### List todos
 # @name list-todos
+# @step I list the todos
 # @assert status == 200
 # @assert body.$.# >= 1
 GET {{baseUrl}}/todos
@@ -7,24 +10,28 @@ Authorization: Bearer {{token}}
 
 ### Create a todo
 # @name create-todo
+# @step a todo titled {title} is created
 # @assert status == 201
-# @assert body.$.title == "Write docs"
+# @assert body.$.title == "{{title}}"
 # @capture todoId = body.$.id
+# @capture todoTitle = body.$.title
 POST {{baseUrl}}/todos
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{"title": "Write docs"}
+{"title": "{{title}}"}
 
 ### Fetch the todo just created
 # @name get-todo
+# @step I fetch the todo
 # @assert status == 200
-# @assert body.$.title == "Write docs"
+# @assert body.$.title == "{{todoTitle}}"
 GET {{baseUrl}}/todos/{{todoId}}
 Authorization: Bearer {{token}}
 
 ### Mark it done
 # @name update-todo
+# @step I mark the todo done
 # @assert status == 200
 # @assert body.$.done == true
 PUT {{baseUrl}}/todos/{{todoId}}
@@ -42,6 +49,7 @@ Authorization: Bearer {{token}}
 
 ### Delete it
 # @name delete-todo
+# @step I delete the todo
 # @assert status == 204
 DELETE {{baseUrl}}/todos/{{todoId}}
 Authorization: Bearer {{token}}

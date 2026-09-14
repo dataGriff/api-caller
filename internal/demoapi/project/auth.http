@@ -3,6 +3,7 @@
 
 ### Log in and keep the token
 # @name login
+# @step I am logged in
 # @assert status == 200
 # @capture token = body.$.access_token
 POST {{baseUrl}}/auth/login
@@ -12,6 +13,7 @@ Content-Type: application/json
 
 ### Who am I, using the token captured by login
 # @name whoami
+# @step I ask who I am
 # @assert status == 200
 # @assert body.$.email endsWith @example.com
 GET {{baseUrl}}/me
