@@ -166,8 +166,7 @@ func (m *Model) Update(msg Msg) Cmd {
 		m.resize()
 	case tickMsg:
 		if m.inflight != nil {
-			m.spin.tick()
-			m.paneKey = ""
+			m.spin.tick() // the spinner shows in the list and the status bar, both redrawn every frame
 		}
 	case resultMsg:
 		return m.handleResult(msg)
@@ -256,7 +255,7 @@ func (m *Model) paneID() string {
 		res = m.results[m.selected]
 		desc = m.descs[m.selected]
 	}
-	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.showCurl, m.showHelp, m.confirmClear, res, desc, len(m.session), m.vp.width, m.vp.height, m.spin.i)
+	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.showCurl, m.showHelp, m.confirmClear, res, desc, len(m.session), m.vp.width, m.vp.height)
 }
 
 // renderStatus draws the bottom bar.

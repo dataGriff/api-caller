@@ -86,7 +86,7 @@ func (m *Model) renderResponse(width int) string {
 		return t.Dim.Render("not run yet · press enter to send it, f to run the whole file")
 	}
 	if m.showCurl {
-		return t.Bold.Render("curl") + "\n\n" + m.curlFor(req) + "\n\n" + t.Dim.Render("c hides this")
+		return t.Bold.Render("curl") + "\n\n" + m.curlFor() + "\n\n" + t.Dim.Render("c hides this")
 	}
 	var b strings.Builder
 	b.WriteString(output.RequestLine(t, res) + "\n")
@@ -111,7 +111,8 @@ func (m *Model) renderResponse(width int) string {
 	return b.String()
 }
 
-func (m *Model) curlFor(req interface{ ID() string }) string {
+// curlFor renders the curl command for the selected request.
+func (m *Model) curlFor() string {
 	if m.inflight != nil {
 		return m.theme.Dim.Render("(available once the run finishes)")
 	}
