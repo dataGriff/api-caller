@@ -58,6 +58,8 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
+| `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
+| `# @prompt name` | Accepted and ignored: apic never prompts. Pass the value with `--var name=...`, or put it in an env file. |
 
 Unknown directives are reported as warnings by `apic validate` and ignored.
 

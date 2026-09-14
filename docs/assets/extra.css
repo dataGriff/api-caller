@@ -1,0 +1,67 @@
+/* apic docs: a hero block and card grid for the landing page. */
+
+.apic-hero {
+  text-align: center;
+  padding: 1.6rem 0 0.4rem;
+}
+
+.apic-hero .apic-tagline {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0 0 0.4rem;
+  background: linear-gradient(100deg, #7c5cff, #ff5ca8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.apic-hero p {
+  margin: 0 auto 1rem;
+  max-width: 36rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.apic-hero img {
+  max-width: 100%;
+  border-radius: 10px;
+}
+
+/* Cards: one per guide, laid out in a responsive grid. */
+.apic-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.9rem;
+  margin: 1.2rem 0;
+}
+
+.apic-cards > a {
+  display: block;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  color: inherit;
+  transition: border-color 120ms, transform 120ms;
+}
+
+.apic-cards > a:hover {
+  border-color: var(--md-accent-fg-color);
+  transform: translateY(-2px);
+}
+
+.apic-cards strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.apic-cards span {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.78rem;
+}
+
+/* Keep the terminal screenshots from stretching past their natural size. */
+.apic-shot {
+  display: block;
+  margin: 1.2rem auto;
+  max-width: 100%;
+}

@@ -6,32 +6,70 @@ same files to an AI agent. It takes about ten minutes.
 
 ## 1. Install
 
+=== "Go"
+
+    ```sh
+    go install github.com/dataGriff/api-caller/cmd/apic@latest   # Go 1.25 or newer
+    ```
+
+=== "Linux / macOS"
+
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
+    ```
+
+    `APIC_VERSION=v1.2.3` pins a version, `APIC_INSTALL_DIR=~/bin` chooses
+    where it lands. The installer verifies the release checksum.
+
+=== "Windows"
+
+    Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
+    and put `apic.exe` on your `PATH`.
+
+Check it with `apic version`.
+
+## 2. See it work before writing anything
+
 ```sh
-# Go 1.25 or newer
-go install github.com/dataGriff/api-caller/cmd/apic@latest
-
-# Linux or macOS without Go
-curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
-
-# Windows: download the zip from GitHub Releases and put apic.exe on your PATH
+apic ui --demo
 ```
 
-Check it: `apic version`. Want something to point it at right away, with no
-setup? Run `apic demo` — see the [README's "Try it now"](https://github.com/dataGriff/api-caller#try-it-now)
-section, which scaffolds a fake API and example `.http` files for you.
+That serves a small fake API inside the same process and opens the
+[terminal UI](tui.md) on an example project pointing at it. Press
+<kbd>enter</kbd> to send the request under the cursor, <kbd>f</kbd> to run a
+whole file as a flow, <kbd>?</kbd> for every key, <kbd>q</kbd> to quit. Nothing
+is left behind.
 
-## 2. Create a project
+The same example works from the plain CLI: `apic demo` writes it to
+`./apic-demo` and serves the API, then in another terminal:
+
+```sh
+apic run login whoami -C apic-demo
+apic run todos.http -C apic-demo --keep-going
+apic test -C apic-demo
+```
+
+Read `apic-demo/auth.http` and `apic-demo/todos.http` to see the files
+behind those commands.
+
+## 3. Create a project
 
 A project is any directory containing `.http` files. Keeping them in an
-`api/` folder next to your code works well.
+`api/` folder next to your code works well. `apic init` writes a working
+starting point:
+
+```sh
+apic init api --base-url https://dev.example.com --env dev
+```
 
 ```
 api/
   apic.yaml
   http-client.env.json
   http-client.private.env.json
-  auth.http
-  users.http
+  api.http
+  features/smoke.feature
+  .gitignore
 ```
 
 `apic.yaml` sets defaults so you do not repeat flags:
@@ -51,9 +89,9 @@ every environment.
 }
 ```
 
-`http-client.private.env.json` has the same shape and holds secrets. Add it
-to `.gitignore`. apic masks values from this file wherever it prints
-variables.
+`http-client.private.env.json` has the same shape and holds secrets. `apic
+init` gitignores it for you. apic masks values from this file wherever it
+prints variables.
 
 ```json
 {
@@ -68,7 +106,7 @@ If you already have an OpenAPI document, let apic write the first draft:
 apic import openapi.yaml -o api
 ```
 
-## 3. Write requests
+## 4. Write requests
 
 `api/auth.http`:
 
@@ -110,15 +148,16 @@ extension, in a JetBrains IDE, or in Neovim with kulala, and the "Send
 Request" action works as usual. apic's `# @` lines are comments to those
 tools.
 
-Check the files parse:
+Check the files parse, and see what you have:
 
 ```sh
 cd api
 apic validate
 apic list
+apic list user     # only requests matching "user"
 ```
 
-## 4. Run requests
+## 5. Run requests
 
 ```sh
 apic run get-user
@@ -159,6 +198,11 @@ apic session                         # what is captured
 apic session clear                   # forget it
 ```
 
+!!! tip "Or drive it interactively"
+    `apic ui` shows the same project with the requests on the left and the
+    response, checks and session on the right, and marks which requests are
+    ready to run. See [the terminal UI](tui.md).
+
 Override anything for one run:
 
 ```sh
@@ -173,7 +217,7 @@ apic run users.http
 apic run users.http --keep-going
 ```
 
-## 5. Use the output in scripts
+## 6. Use the output in scripts
 
 ```sh
 apic run get-user --body-only | jq .email
@@ -189,7 +233,7 @@ Exit codes make apic safe in `set -e` scripts and CI steps:
 | 2 | usage, parse error, unknown request or missing variable |
 | 3 | network error or timeout |
 
-## 6. Put it in CI
+## 7. Put it in CI
 
 ```yaml
 # .github/workflows/smoke.yml
@@ -206,7 +250,7 @@ header values, bodies, query values and captures in the stored log;
 sensitive headers are masked even without it. `apic run` runs targets
 in the order given, so `auth.http users.http` logs in first.
 
-## 7. Add authentication
+## 8. Add authentication
 
 If the API needs more than a bearer token, put it in the file or the
 project config and apic handles it at send time:
@@ -220,7 +264,7 @@ project config and apic handles it at send time:
 AWS uses your existing credentials (environment, profiles, SSO via the AWS
 CLI); OAuth2 tokens are cached and refreshed. See [auth.md](auth.md).
 
-## 8. Describe behaviour in Gherkin
+## 9. Describe behaviour in Gherkin
 
 Add phrases to requests and write features; apic runs them with no
 Cucumber runtime:
@@ -255,7 +299,7 @@ apic test --format junit --output report.xml
 
 See [testing.md](testing.md) for the full vocabulary.
 
-## 9. Hand it to an agent
+## 10. Hand it to an agent
 
 Add to your project's `AGENTS.md` or `CLAUDE.md`:
 
@@ -275,6 +319,9 @@ See [agents.md](agents.md) for the details.
 
 ## Next
 
+- [cheatsheet.md](cheatsheet.md): every directive, selector and operator on one page
+- [cookbook.md](cookbook.md): worked recipes for CI, AWS, OAuth2, uploads and polling
 - [format.md](format.md): everything the `.http` dialect supports
 - [cli.md](cli.md): every command and flag
-- [taskfile.md](taskfile.md): keep `task` as the front door
+- [tui.md](tui.md): the terminal UI
+- [faq.md](faq.md): short answers when something misbehaves

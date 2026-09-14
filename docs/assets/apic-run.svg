@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="325" height="506" viewBox="0 0 325 506" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13">
+<rect width="325" height="506" rx="10" fill="#11131a"/>
+<rect width="325" height="38" rx="10" fill="#1b1e28"/>
+<rect y="28" width="325" height="10" fill="#1b1e28"/>
+<circle cx="18" cy="19.0" r="5.5" fill="#ff5f57"/>
+<circle cx="35" cy="19.0" r="5.5" fill="#febc2e"/>
+<circle cx="52" cy="19.0" r="5.5" fill="#28c840"/>
+<text x="162.5" y="23.5" fill="#8b93a7" text-anchor="middle" font-size="12">apic run login whoami</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0" y="60.0" fill="#d6dae4" xml:space="preserve">$ apic run login whoami</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1 237.0 244.8 252.6 260.4 268.2 276.1 283.9 291.7 299.5" y="78.0" fill="#d6dae4" xml:space="preserve">POST http://localhost:8089/auth/login</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6" y="96.0" fill="#d6dae4" xml:space="preserve">200 OK · 1 ms · 30 B</text>
+<text x="18.0" y="132.0" fill="#d6dae4" xml:space="preserve">{</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1 237.0 244.8" y="150.0" fill="#d6dae4" xml:space="preserve">  &quot;access_token&quot;: &quot;mock-token&quot;</text>
+<text x="18.0" y="168.0" fill="#d6dae4" xml:space="preserve">}</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5" y="204.0" fill="#d6dae4" xml:space="preserve">✓ status == 200</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6" y="222.0" fill="#d6dae4" xml:space="preserve">↳ token = mock-token</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1" y="258.0" fill="#d6dae4" xml:space="preserve">GET http://localhost:8089/me</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6" y="276.0" fill="#d6dae4" xml:space="preserve">200 OK · 1 ms · 30 B</text>
+<text x="18.0" y="312.0" fill="#d6dae4" xml:space="preserve">{</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1 237.0 244.8" y="330.0" fill="#d6dae4" xml:space="preserve">  &quot;email&quot;: &quot;alice@example.com&quot;</text>
+<text x="18.0" y="348.0" fill="#d6dae4" xml:space="preserve">}</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5" y="384.0" fill="#d6dae4" xml:space="preserve">✓ status == 200</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1 237.0 244.8 252.6 260.4 268.2 276.1 283.9 291.7" y="402.0" fill="#d6dae4" xml:space="preserve">✓ body.$.email endsWith @example.com</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6" y="438.0" fill="#d6dae4" xml:space="preserve">✓ login   200   1 ms</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6" y="456.0" fill="#d6dae4" xml:space="preserve">✓ whoami  200   1 ms</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.6 88.4 96.2 104.0 111.8 119.7 127.5 135.3 143.1 150.9 158.8 166.6 174.4 182.2 190.0 197.9 205.7 213.5 221.3 229.1" y="492.0" fill="#d6dae4" xml:space="preserve">2 passed · 2 requests · 2 ms</text>
+</svg>

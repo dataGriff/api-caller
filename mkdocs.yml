@@ -1,5 +1,5 @@
 site_name: apic
-site_description: Run .http request files from the terminal, CI or an AI agent, on any platform.
+site_description: apic is epic — run .http request files from the terminal, CI or an AI agent, on any platform.
 site_url: https://datagriff.github.io/api-caller/
 repo_url: https://github.com/dataGriff/api-caller
 repo_name: dataGriff/api-caller
@@ -9,44 +9,72 @@ strict: true
 
 nav:
   - Home: index.md
-  - Getting started: getting-started.md
-  - CLI reference: cli.md
-  - The .http format: format.md
-  - Authentication: auth.md
-  - Testing with Gherkin: testing.md
-  - Agents and MCP: agents.md
-  - Taskfile: taskfile.md
-  - Comparison: comparison.md
+  - Start:
+      - Getting started: getting-started.md
+      - Terminal UI: tui.md
+      - Cheat sheet: cheatsheet.md
+  - Guides:
+      - The .http format: format.md
+      - Authentication: auth.md
+      - Testing with Gherkin: testing.md
+      - Cookbook: cookbook.md
+      - Agents and MCP: agents.md
+      - Taskfile: taskfile.md
+  - Reference:
+      - CLI reference: cli.md
+      - FAQ: faq.md
+      - Comparison: comparison.md
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.tracking
+    - toc.follow
     - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
     - content.action.edit
     - search.suggest
+    - search.highlight
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
+      primary: deep purple
+      accent: pink
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
+      primary: deep purple
+      accent: pink
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
 
+extra_css:
+  - assets/extra.css
+
 markdown_extensions:
   - tables
   - admonition
+  - attr_list
+  - md_in_html
+  - def_list
   - toc:
       permalink: true
   - pymdownx.highlight
+  - pymdownx.inlinehilite
   - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.keys
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - pymdownx.tabbed:
       alternate_style: true
 

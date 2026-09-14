@@ -4,9 +4,10 @@
 apic [command] [flags]
 ```
 
-All commands are non-interactive: apic never prompts. Colour is off when
-stdout is not a terminal, when `NO_COLOR` is set, when `--no-color` is
-given, or when `--json` is used.
+All commands are non-interactive: apic never prompts. The one exception is
+`apic ui`, the terminal UI, which refuses to start unless it has a terminal
+to draw on. Colour is off when stdout is not a terminal, when `NO_COLOR` is
+set, when `--no-color` is given, or when `--json` is used.
 
 ## Global flags
 
@@ -141,14 +142,36 @@ features, a feature path outside the project, unknown environment, unknown
 request, missing variable, bad phrase or bad flag · `3` a server could not
 be reached. Feature paths must lie inside the project root.
 
+## apic ui
+
+```
+apic ui [--demo]
+```
+
+Opens the [terminal UI](tui.md): requests on the left, and preview,
+response, checks and session tabs on the right. <kbd>enter</kbd> runs the
+selected request, <kbd>f</kbd> runs its file as a flow, <kbd>e</kbd> switches
+environment, <kbd>?</kbd> lists every key.
+
+| Flag | Meaning |
+|---|---|
+| `--demo` | Serve the bundled fake API in-process and open the UI on its example project. Needs no project and no network. |
+
+It is the only interactive command, and the only one without `--json`: with
+`--json`, or when stdout is not a terminal, it exits 2 and points at
+`apic run` and `apic list` instead. All the other global flags (`-C`,
+`--env`, `--var`, `--redact`, `--timeout`, `--insecure`, `--no-session`)
+work as usual.
+
 ## apic list
 
 ```
-apic list
+apic list [pattern]
 ```
 
 Every request in the project in file order: id, method, URL template,
-`file:line` and description.
+`file:line` and description, grouped by file. A pattern keeps only the
+requests whose id, URL, file or description contains it, case-insensitively.
 
 `--json`:
 
@@ -164,7 +187,8 @@ Every request in the project in file order: id, method, URL template,
 ```
 
 `name` is omitted for unnamed requests; `id` is then `file.http#N`. `steps`
-lists the request's `# @step` phrases when it has any.
+lists the request's `# @step` phrases when it has any. A pattern filters the
+`requests` array; the shape does not change.
 
 ## apic describe
 
@@ -262,6 +286,8 @@ pasting into a Taskfile.
 apic curl create-user --env staging
 apic curl get-user | sh
 ```
+
+`--json` wraps it as `{"id": "get-user", "command": "curl -sS …"}`.
 
 ## apic validate
 
@@ -364,15 +390,47 @@ starts the bundled fake API and serves until you stop the process.
 }
 ```
 
+## apic init
+
+```
+apic init [dir] [--base-url URL] [--env NAME] [--force]
+```
+
+Writes a working starting point into `dir` (default: the current
+directory): `apic.yaml`, `http-client.env.json`, a `http-client.private.env.json`
+with mode 0600, `api.http` with two annotated requests, a
+`features/smoke.feature`, and `.gitignore` lines for the private env file
+and `.apic/`. Existing files are kept unless `--force` is given, and the
+`.gitignore` is appended to rather than replaced.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--base-url` | `https://api.example.com` | `baseUrl` for the environment. |
+| `--env` | `dev` | Name of the first environment, also written as `env:` in `apic.yaml`. |
+| `--force` | off | Overwrite files that already exist. |
+
+`--json` prints `{"out", "env", "written", "skipped"}`.
+
 ## apic version, apic completion
 
-`version` prints the build version. `completion bash|zsh|fish|powershell`
-prints a shell completion script:
+`version` prints the version, commit, Go version and platform. With
+`--json`:
+
+```json
+{"version": "v1.2.3", "commit": "abc1234", "date": "2026-02-01T10:00:00Z",
+ "go": "go1.25.7", "os": "linux", "arch": "amd64"}
+```
+
+`completion bash|zsh|fish|powershell` prints a shell completion script:
 
 ```sh
 source <(apic completion bash)
 apic completion zsh > "${fpath[1]}/_apic"
 ```
+
+Completion knows the project: `run`, `describe` and `curl` complete request
+ids and `.http` file names, and `--env` completes the environments in
+`http-client.env.json`.
 
 ## Configuration file
 

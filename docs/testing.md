@@ -28,6 +28,24 @@ apic test --json | jq                       # cucumber JSON report
 apic test --steps                           # the vocabulary and your phrases
 ```
 
+!!! tip "Try it offline"
+    `apic demo` writes an example project that includes `features/todos.feature`,
+    so `apic test -C apic-demo` runs a real suite against the bundled fake
+    API with no network access.
+
+Standard Gherkin structure works as you would expect: `Background`,
+`Scenario Outline` with `Examples`, doc strings, data tables and tags.
+
+```gherkin
+  Scenario Outline: Any id echoes back
+    When I fetch user <id>
+    Then the response body "$.args.id" is "<id>"
+    Examples:
+      | id  |
+      | 1   |
+      | 999 |
+```
+
 ## Phrases on requests
 
 Add `# @step` lines to a request. `{name}` placeholders become variables
