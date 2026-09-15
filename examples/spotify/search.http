@@ -1,0 +1,18 @@
+### Search for an artist
+# @name search-artist
+# @step I search Spotify for an artist
+# @auth oauth2 tokenUrl={{tokenUrl}} clientId={{clientId}} clientSecret={{clientSecret}} grant=client_credentials clientAuth=basic
+# @assert status == 200
+# @assert body.$.artists.items[0].name exists
+GET {{baseUrl}}/v1/search
+    ?q=radiohead
+    &type=artist
+    &market={{market}}
+
+### Browse new releases
+# @name new-releases
+# @step I browse new releases
+# @auth oauth2 tokenUrl={{tokenUrl}} clientId={{clientId}} clientSecret={{clientSecret}} grant=client_credentials clientAuth=basic
+# @assert status == 200
+GET {{baseUrl}}/v1/browse/new-releases
+    ?country={{market}}

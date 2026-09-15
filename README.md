@@ -65,7 +65,7 @@ terminal and agents need:
 - **Assertions** with `# @assert status == 200`, and files that run as ordered flows with a pass/fail summary and exit code.
 - **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out.
 - **Gherkin without Cucumber.** `apic test` runs `.feature` files with a built-in step vocabulary; `# @step a user named {name} exists` on a request makes features read as behaviour.
-- **A terminal UI.** `apic ui` browses the project, runs requests and flows, shows the response and the checks, and switches environment without leaving the keyboard.
+- **A terminal UI.** `apic ui` browses the project, runs requests and flows, shows each row's status and round trip as it lands, and switches environment without leaving the keyboard.
 - **Safe to log.** Sensitive headers are masked in output; `--redact` masks everything for stored CI logs.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
@@ -237,4 +237,8 @@ task lint
 ```
 
 Tests run against local `httptest` servers; no network is needed. The
-`examples/httpbin` project targets httpbin.org for a live demo instead.
+`examples/httpbin` project targets httpbin.org for a live demo instead. Two
+more real-world examples live under `examples/`: `github` (`bearer` auth,
+`task example:github`) and `spotify` (`oauth2` client-credentials,
+`task example:spotify`) — each needs your own credentials dropped into its
+`http-client.private.env.json` first; see `examples/README.md`.

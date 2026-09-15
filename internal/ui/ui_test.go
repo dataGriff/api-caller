@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -70,21 +71,7 @@ func newFixture(t *testing.T, opts runner.Options) *fixture {
 	return f
 }
 
-func kp(s string) Key {
-	switch s {
-	case "enter":
-		return Key{Type: KeyEnter}
-	case "esc":
-		return Key{Type: KeyEsc}
-	case "tab":
-		return Key{Type: KeyTab}
-	case "backspace":
-		return Key{Type: KeyBackspace}
-	case "ctrl+c":
-		return Key{Type: KeyCtrlC}
-	}
-	return runeKey([]rune(s)[0])
-}
+func kp(s string) Key { return ParseKey(s) }
 
 func (f *fixture) press(keys ...string) Cmd {
 	var cmd Cmd
@@ -112,11 +99,7 @@ func (f *fixture) step(cmd Cmd) Cmd {
 
 // drain resolves a whole command chain, such as a flow running request by
 // request.
-func (f *fixture) drain(cmd Cmd) {
-	for i := 0; cmd != nil && i < 100; i++ {
-		cmd = f.step(cmd)
-	}
-}
+func (f *fixture) drain(cmd Cmd) { f.m.settle(cmd) }
 
 func (f *fixture) view() string { return f.m.View() }
 
@@ -431,5 +414,101 @@ func TestPreviewShowsMissingVariableHint(t *testing.T) {
 	}
 	if !strings.Contains(v, "○ GET    whoami") {
 		t.Fatalf("list should mark whoami as not ready:\n%s", v)
+	}
+}
+
+func TestPaneScrollSurvivesRedraw(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	f.m.Update(sizeMsg{width: 100, height: 24})
+	f.drain(f.press("enter"))
+	f.press("1") // the preview is taller than the pane
+	f.view()
+	if len(f.m.vp.lines) <= f.m.vp.height {
+		t.Skipf("preview fits in %d lines; nothing to scroll", f.m.vp.height)
+	}
+	f.m.Update(Key{Type: KeyCtrlD})
+	want := f.m.vp.offset
+	if want == 0 {
+		t.Fatal("ctrl+d should scroll the pane down")
+	}
+	if f.view(); f.m.vp.offset != want {
+		t.Fatalf("redrawing reset the scroll offset to %d, want %d", f.m.vp.offset, want)
+	}
+	f.press("K")
+	if f.m.vp.offset != want-1 {
+		t.Fatalf("K should scroll up a line, offset=%d want %d", f.m.vp.offset, want-1)
+	}
+	f.press("J")
+	if f.m.vp.offset != want {
+		t.Fatalf("J should scroll down a line, offset=%d want %d", f.m.vp.offset, want)
+	}
+	f.press("2") // another tab is another subject: back to the top
+	f.view()
+	if f.m.vp.offset != 0 {
+		t.Fatalf("switching tab should scroll back to the top, offset=%d", f.m.vp.offset)
+	}
+}
+
+func TestScrollPositionShowsWhereThePaneIs(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	f.m.Update(sizeMsg{width: 100, height: 24})
+	f.drain(f.press("enter"))
+	f.press("1")
+	if v := f.view(); !strings.Contains(v, "top ↓") {
+		t.Fatalf("a pane with more below should say so:\n%s", v)
+	}
+	for i := 0; i < 20; i++ {
+		f.m.Update(Key{Type: KeyCtrlD})
+	}
+	if v := f.view(); !strings.Contains(v, "↑ end") {
+		t.Fatalf("a pane scrolled to the bottom should say so:\n%s", v)
+	}
+	f.m.Update(sizeMsg{width: 100, height: 90}) // now everything fits
+	if v := f.view(); strings.Contains(v, "top ↓") || strings.Contains(v, "↑ end") {
+		t.Fatalf("content that fits needs no scroll position:\n%s", v)
+	}
+}
+
+func TestRowsCarryTheOutcomeAndFilesRollUp(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	f.m.Update(sizeMsg{width: 120, height: 30})
+	if v := f.view(); !strings.Contains(v, "auth.http") || !strings.Contains(v, "todos.http") {
+		t.Fatalf("the list should be grouped by file:\n%s", v)
+	}
+	f.drain(f.press("f")) // run auth.http as a flow
+	v := f.view()
+	if !strings.Contains(v, "200 ") {
+		t.Fatalf("a request that ran should show its status:\n%s", v)
+	}
+	if !strings.Contains(v, "✓4") {
+		t.Fatalf("auth.http should roll up four passes:\n%s", v)
+	}
+	if !strings.Contains(v, "last: 4 passed") {
+		t.Fatalf("status bar should summarise the flow:\n%s", v)
+	}
+}
+
+func TestStatusBarBadges(t *testing.T) {
+	f := newFixture(t, runner.Options{Redact: true})
+	f.m.cfg.Demo = true
+	v := f.view()
+	if !strings.Contains(v, "demo") || !strings.Contains(v, "redact") {
+		t.Fatalf("status bar should badge demo and redact:\n%s", v)
+	}
+}
+
+func TestShortDuration(t *testing.T) {
+	for _, tc := range []struct {
+		d    time.Duration
+		want string
+	}{
+		{120 * time.Millisecond, "120ms"},
+		{999 * time.Millisecond, "999ms"},
+		{1500 * time.Millisecond, "1.5s"},
+		{12 * time.Second, "12.0s"},
+	} {
+		if got := shortDuration(tc.d); got != tc.want {
+			t.Errorf("shortDuration(%v) = %q, want %q", tc.d, got, tc.want)
+		}
 	}
 }

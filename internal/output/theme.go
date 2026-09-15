@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -69,17 +70,27 @@ func (t Theme) Method(m string) string {
 	return t.other.Render(m)
 }
 
-// Status renders "200 OK" coloured by status class.
-func (t Theme) Status(code int, text string) string {
-	s := fmt.Sprintf("%d %s", code, text)
+// statusStyle picks the style for a status class.
+func (t Theme) statusStyle(code int) lipgloss.Style {
 	switch {
 	case code < 300:
-		return t.OK.Render(s)
+		return t.OK
 	case code < 400:
-		return t.Warn.Render(s)
+		return t.Warn
 	default:
-		return t.Fail.Render(s)
+		return t.Fail
 	}
+}
+
+// Status renders "200 OK" coloured by status class.
+func (t Theme) Status(code int, text string) string {
+	return t.statusStyle(code).Render(fmt.Sprintf("%d %s", code, text))
+}
+
+// StatusCode renders the status number on its own, coloured by class, for
+// the places too narrow for the reason phrase.
+func (t Theme) StatusCode(code int) string {
+	return t.statusStyle(code).Render(strconv.Itoa(code))
 }
 
 // Latency renders a duration in milliseconds, coloured by how long it took.

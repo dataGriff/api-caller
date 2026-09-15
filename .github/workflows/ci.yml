@@ -39,6 +39,8 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go run ./cmd/apic validate -C examples/httpbin
+      - run: go run ./cmd/apic validate -C examples/github
+      - run: go run ./cmd/apic validate -C examples/spotify
       - run: |
           go build -o /tmp/apic ./cmd/apic
           /tmp/apic demo --out /tmp/apic-demo >/tmp/apic-demo.log 2>&1 &

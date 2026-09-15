@@ -54,6 +54,13 @@ its state, method, id and description:
 | `✗` | Ran and failed, or could not be sent at all. |
 | spinner | In flight. |
 
+Once a request has run, its status code and round trip sit at the right of
+the row — `200 12ms` — and the file heading above it rolls its requests up
+as `✓9 ✗1`, so a flow over a long file reads at a glance. A narrow pane
+sheds the timing first and the description second; the status code and the
+mark always stay. The colour of a status code is its class, not its verdict:
+a `404` a request asserts is still a `✓`.
+
 **Preview** is `apic describe` for the selected request: the URL template,
 headers, the body, auth, every variable with the source it resolved from,
 and the declared captures and asserts. Missing variables are called out with
@@ -62,7 +69,8 @@ the request that would provide them.
 **Response** is the status line, timing and size, the body pretty-printed
 and syntax-highlighted, and the assertions and captures underneath. <kbd>H</kbd>
 adds the request and response headers; <kbd>c</kbd> swaps in the equivalent
-curl command.
+curl command. When a tab holds more than fits, the right of the tab strip
+says where you are in it — `top ↓`, `↑ 40% ↓`, `↑ end`.
 
 **Checks** shows each assertion with its actual *and* expected value, which
 is the fastest way to see why a check failed, plus everything the request
@@ -72,8 +80,10 @@ captured.
 ones `apic session` prints and the same ones later runs will use. <kbd>x</kbd>
 clears them after a confirmation.
 
-The status bar carries the project root, the environment, a spinner and
-progress while a flow runs, and the result of the last run.
+The status bar carries the project root, the environment, a spinner with
+progress and a running clock while a request is out, and the result of the
+last run. `demo` and `redact` badges show when `--demo` or `--redact` is in
+force, so a screenshot never hides that values were masked.
 
 ## Keys
 
@@ -90,7 +100,8 @@ progress while a flow runs, and the result of the last run.
 | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Jump to preview, response, checks, session |
 | <kbd>H</kbd> | Toggle request and response headers |
 | <kbd>c</kbd> | Toggle the curl command for the selected request |
-| <kbd>pgup</kbd>/<kbd>ctrl+u</kbd>, <kbd>pgdn</kbd>/<kbd>ctrl+d</kbd> | Scroll the right pane |
+| <kbd>J</kbd>, <kbd>K</kbd> | Scroll the right pane a line down or up |
+| <kbd>pgup</kbd>/<kbd>ctrl+u</kbd>, <kbd>pgdn</kbd>/<kbd>ctrl+d</kbd> | Scroll the right pane half a page |
 | <kbd>e</kbd> | Switch to the next environment |
 | <kbd>r</kbd> | Reload the project from disk |
 | <kbd>o</kbd> | Open the request's file at its line in `$EDITOR` |
@@ -108,6 +119,10 @@ progress while a flow runs, and the result of the last run.
   flow shows progress instead of a frozen screen.
 - **Captures apply immediately.** After `login` passes, requests that need
   `{{token}}` flip from `○` to `●` without a reload.
+- **Scrolling stays put.** Reading down a long response and it finishes
+  changing underneath you — a later step of a flow landing, the terminal
+  being resized — leaves you where you were. Moving to another request, tab
+  or overlay starts at the top again.
 - **Switching environment rebuilds the project** with that environment's
   variables and session, and clears the results on screen, since they came
   from somewhere else.
@@ -131,3 +146,9 @@ progress while a flow runs, and the result of the last run.
   needs `winpty apic ui`.
 - Below 70×16 the UI says the terminal is too small rather than drawing a
   scrambled screen.
+
+!!! note "About the screenshot"
+    The picture at the top is not a drawing. `task shots` serves the demo
+    API in process, drives the UI the way the keys above do, and renders the
+    frame it produces — escape codes and all — as SVG, so what the docs show
+    is what the terminal shows.

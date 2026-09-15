@@ -155,6 +155,21 @@ func (p *program) dispatch(cmd Cmd) bool {
 			}
 		}()
 		return false
+	case delayMsg:
+		go func() {
+			t := time.NewTimer(msg.d)
+			defer t.Stop()
+			select {
+			case <-t.C:
+			case <-p.done:
+				return
+			}
+			select {
+			case p.msgs <- msg.msg:
+			case <-p.done:
+			}
+		}()
+		return false
 	default:
 		return p.dispatch(func() Msg { return msg })
 	}
@@ -224,10 +239,13 @@ func async(run func() Msg) Cmd {
 	return func() Msg { return asyncMsg{run: run} }
 }
 
+// delayMsg asks the program to deliver msg once d has passed.
+type delayMsg struct {
+	d   time.Duration
+	msg Msg
+}
+
 // after schedules a message once d has passed.
 func after(d time.Duration, msg Msg) Cmd {
-	return async(func() Msg {
-		time.Sleep(d)
-		return msg
-	})
+	return func() Msg { return delayMsg{d: d, msg: msg} }
 }

@@ -46,6 +46,20 @@ tasks:
       - ../../{{.BIN}} run users.http --env {{.ENV | default "dev"}} --keep-going
     deps: [build]
 
+  example:github:
+    desc: Run the GitHub example (needs your own token in examples/github/http-client.private.env.json)
+    dir: examples/github
+    cmds:
+      - ../../{{.BIN}} run repo.http --env {{.ENV | default "dev"}} --keep-going
+    deps: [build]
+
+  example:spotify:
+    desc: Run the Spotify example (needs your own client id/secret in examples/spotify/http-client.private.env.json)
+    dir: examples/spotify
+    cmds:
+      - ../../{{.BIN}} run search.http --env {{.ENV | default "dev"}} --keep-going
+    deps: [build]
+
   example:demo:
     desc: Run the built-in demo project (no network needed)
     deps: [build]
@@ -68,6 +82,11 @@ tasks:
         done
         {{.BIN}} run login whoami list-todos create-todo get-todo update-todo get-updated delete-todo get-deleted redirect-followed redirect-raw -C bin/apic-demo --env local --keep-going
         "
+
+  shots:
+    desc: Regenerate the terminal screenshots in docs/assets from real apic output
+    cmds:
+      - go run ./scripts/shot
 
   docs:
     desc: Serve the documentation site locally (needs `pip install "mkdocs<2" "mkdocs-material<10"`)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/output"
@@ -130,12 +131,14 @@ func (m *Model) handleKey(msg Key) Cmd {
 		}
 		m.tab = tabSession
 		m.confirmClear = true
+	case k.LineUp.matches(msg):
+		m.vp.scroll(-1)
+	case k.LineDown.matches(msg):
+		m.vp.scroll(1)
 	case k.PageUp.matches(msg):
 		m.vp.halfPageUp()
-		m.paneKey = ""
 	case k.PageDown.matches(msg):
 		m.vp.halfPageDown()
-		m.paneKey = ""
 	}
 	return nil
 }
@@ -153,7 +156,7 @@ func (m *Model) startRun(reqs []*httpfile.Request, flow bool) Cmd {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.runSeq++
-	m.inflight = &runState{id: m.runSeq, reqs: reqs, flow: flow, ctx: ctx, cancel: cancel}
+	m.inflight = &runState{id: m.runSeq, reqs: reqs, flow: flow, started: time.Now(), ctx: ctx, cancel: cancel}
 	for _, r := range reqs {
 		delete(m.results, r)
 		delete(m.errs, r)
@@ -226,7 +229,8 @@ func (m *Model) finishRun(rs *runState) {
 		case m.errs[rs.reqs[0]] != nil:
 			m.lastSummary = m.theme.Fail.Render("✗ " + rs.reqs[0].ID())
 		case res.Response != nil:
-			m.lastSummary = fmt.Sprintf("%s %s %s", m.theme.Mark(res.OK), rs.reqs[0].ID(), m.theme.Status(res.Response.Status, ""))
+			m.lastSummary = fmt.Sprintf("%s %s %s %s", m.theme.Mark(res.OK), rs.reqs[0].ID(),
+				m.theme.StatusCode(res.Response.Status), m.theme.Dim.Render(fmt.Sprintf("%d ms", res.Response.DurationMs)))
 		}
 		return
 	}
