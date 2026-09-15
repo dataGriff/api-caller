@@ -26,6 +26,7 @@ type keyMap struct {
 	Headers, Curl         binding
 	Open, Env, Reload     binding
 	Clear                 binding
+	LineUp, LineDown      binding
 	PageUp, PageDown      binding
 	Esc, Help, Quit       binding
 }
@@ -52,8 +53,10 @@ func newKeyMap() keyMap {
 		Env:      bind("e", "next environment", "e"),
 		Reload:   bind("r", "reload the project", "r"),
 		Clear:    bind("x", "clear the session", "x"),
-		PageUp:   bind("pgup/ctrl+u", "scroll up", "pgup", "ctrl+u"),
-		PageDown: bind("pgdn/ctrl+d", "scroll down", "pgdown", "ctrl+d"),
+		LineUp:   bind("K", "scroll the pane a line up", "K"),
+		LineDown: bind("J", "scroll the pane a line down", "J"),
+		PageUp:   bind("pgup/ctrl+u", "scroll the pane up", "pgup", "ctrl+u"),
+		PageDown: bind("pgdn/ctrl+d", "scroll the pane down", "pgdown", "ctrl+d"),
 		Esc:      bind("esc", "cancel, or go back", "esc"),
 		Help:     bind("?", "this help", "?"),
 		Quit:     bind("q", "quit", "q", "ctrl+c"),
@@ -63,9 +66,10 @@ func newKeyMap() keyMap {
 // columns groups the bindings for the help overlay.
 func (k keyMap) columns() [][]binding {
 	return [][]binding{
-		{k.Up, k.Down, k.Top, k.Bottom, k.Filter, k.PageUp, k.PageDown},
+		{k.Up, k.Down, k.Top, k.Bottom, k.Filter},
 		{k.Run, k.RunFile, k.RunAll, k.Esc, k.Env, k.Reload, k.Open},
 		{k.NextTab, k.PrevTab, k.Tab1, k.Tab2, k.Tab3, k.Tab4},
+		{k.LineUp, k.LineDown, k.PageUp, k.PageDown},
 		{k.Headers, k.Curl, k.Clear, k.Help, k.Quit},
 	}
 }

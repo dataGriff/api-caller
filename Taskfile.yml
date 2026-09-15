@@ -83,6 +83,11 @@ tasks:
         {{.BIN}} run login whoami list-todos create-todo get-todo update-todo get-updated delete-todo get-deleted redirect-followed redirect-raw -C bin/apic-demo --env local --keep-going
         "
 
+  shots:
+    desc: Regenerate the terminal screenshots in docs/assets from real apic output
+    cmds:
+      - go run ./scripts/shot
+
   docs:
     desc: Serve the documentation site locally (needs `pip install "mkdocs<2" "mkdocs-material<10"`)
     cmds:

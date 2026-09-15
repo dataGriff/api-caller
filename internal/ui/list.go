@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -181,8 +182,9 @@ func (m *Model) renderList(width, height int) string {
 	if len(v) == 0 {
 		lines = append(lines, t.Dim.Render("  no requests match"))
 	}
+	rolls := m.rollups(v)
 	for i := start; i < len(v) && i < start+rows; i++ {
-		lines = append(lines, ansi.Truncate(m.renderRow(v[i], i == m.cursor, width), width, "…"))
+		lines = append(lines, ansi.Truncate(m.renderRow(v[i], i == m.cursor, width, rolls), width, "…"))
 	}
 	for len(lines) < height {
 		lines = append(lines, "")
@@ -210,27 +212,149 @@ func (m *Model) countRequests(v []item) int {
 	return n
 }
 
-func (m *Model) renderRow(it item, cursor bool, width int) string {
+// renderRow draws one row: a file heading with its rollup, or a request
+// with its mark, method, id, description and — once it has run — the status
+// and how long it took, pushed to the right edge.
+func (m *Model) renderRow(it item, cursor bool, width int, rolls map[string]rollup) string {
 	t := m.theme
 	if it.req == nil {
-		return t.Accent.Render(it.file)
+		return alignRight(t.Accent.Render(it.file), m.renderRollup(rolls[it.file]), width)
 	}
 	r := it.req
-	mark := m.rowMark(r)
 	prefix := "  "
 	if cursor {
 		prefix = t.Accent.Render("▸ ")
 	}
-	method := t.Method(fmt.Sprintf("%-6s", r.Method))
 	id := r.ID()
 	if cursor {
 		id = t.Bold.Render(id)
 	}
-	desc := ""
-	if r.Description != "" {
-		desc = " " + t.Dim.Render(output.Truncate(r.Description, width))
+	head := prefix + m.rowMark(r) + " " + t.Method(fmt.Sprintf("%-6s", r.Method)) + " " + id
+
+	badge, room := m.rowLayout(r, ansi.StringWidth(head), width)
+	if r.Description != "" && room >= minDesc {
+		// Truncate adds an ellipsis of its own, and the description is
+		// preceded by a space, so two columns of the budget are spoken for.
+		head += " " + t.Dim.Render(output.Truncate(r.Description, room-2))
 	}
-	return prefix + mark + " " + method + " " + id + desc
+	return alignRight(head, badge, width)
+}
+
+const (
+	rowGap  = 2  // blank columns between a row's text and its right-hand badge
+	minDesc = 10 // the narrowest description budget worth spending a row on
+)
+
+// rowLayout decides how much of a row survives its width. A description
+// that would be cut to a stub is worth less than the timing beside it, and
+// both are worth less than the status code, so the row sheds them in that
+// order. It returns the badge to draw and the columns left for everything
+// between the id and it.
+func (m *Model) rowLayout(r *httpfile.Request, headW, width int) (badge string, room int) {
+	desc := 0
+	if r.Description != "" {
+		desc = minDesc
+	}
+	full, short := m.rowBadge(r, false), m.rowBadge(r, true)
+	for _, try := range []struct {
+		badge string
+		desc  int
+	}{{full, desc}, {short, desc}, {full, 0}, {short, 0}, {"", 0}} {
+		room := width - headW - ansi.StringWidth(try.badge) - rowGap
+		if room >= try.desc {
+			return try.badge, room
+		}
+	}
+	return "", width - headW
+}
+
+// alignRight pads left so that right ends at width, and drops right when
+// the two cannot both fit.
+func alignRight(left, right string, width int) string {
+	if right == "" {
+		return left
+	}
+	gap := width - ansi.StringWidth(left) - ansi.StringWidth(right)
+	if gap < 1 {
+		return left
+	}
+	return left + strings.Repeat(" ", gap) + right
+}
+
+// rowBadge is the outcome of a request once it has run: the status code and
+// its round trip, or "error" when no response came back at all. The short
+// form drops the timing, for a pane with no room for it.
+func (m *Model) rowBadge(r *httpfile.Request, short bool) string {
+	t := m.theme
+	if rs := m.inflight; rs != nil && rs.reqs[rs.idx] == r {
+		return "" // the spinner in the mark says everything
+	}
+	res := m.results[r]
+	if res == nil || res.Response == nil {
+		if m.errs[r] != nil || res != nil {
+			if short {
+				return t.Fail.Render("err")
+			}
+			return t.Fail.Render("error")
+		}
+		return ""
+	}
+	code := t.StatusCode(res.Response.Status)
+	if short {
+		return code
+	}
+	return code + " " + t.Dim.Render(fmt.Sprintf("%dms", res.Response.DurationMs))
+}
+
+// rollup counts how the requests of one file have fared so far.
+type rollup struct{ total, pass, fail int }
+
+// rollups tallies the visible rows per file, so a heading can summarise the
+// same requests the filter left on screen.
+func (m *Model) rollups(v []item) map[string]rollup {
+	out := map[string]rollup{}
+	for _, it := range v {
+		if it.req == nil {
+			continue
+		}
+		r := out[it.file]
+		r.total++
+		switch {
+		case m.errs[it.req] != nil:
+			r.fail++
+		case m.results[it.req] != nil:
+			if m.results[it.req].OK {
+				r.pass++
+			} else {
+				r.fail++
+			}
+		}
+		out[it.file] = r
+	}
+	return out
+}
+
+// renderRollup is the right-hand side of a file heading: how many requests
+// it holds, and how many have passed or failed once any of them has run.
+func (m *Model) renderRollup(r rollup) string {
+	t := m.theme
+	if r.total == 0 {
+		return ""
+	}
+	if r.pass == 0 && r.fail == 0 {
+		return t.Dim.Render(strconv.Itoa(r.total))
+	}
+	var parts []string
+	if r.pass > 0 {
+		parts = append(parts, t.OK.Render("✓"+strconv.Itoa(r.pass)))
+	}
+	if r.fail > 0 {
+		parts = append(parts, t.Fail.Render("✗"+strconv.Itoa(r.fail)))
+	}
+	if rest := r.total - r.pass - r.fail; rest > 0 {
+		parts = append(parts, t.Dim.Render("·"+strconv.Itoa(rest)))
+	}
+	return strings.Join(parts, " ")
 }
 
 // rowMark is the one-character state of a request: running, passed, failed,

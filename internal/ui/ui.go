@@ -1,7 +1,8 @@
 // Package ui is the interactive terminal UI behind `apic ui`: a request list
-// on the left, a tabbed detail pane on the right, and a status bar. It is a
-// Bubble Tea model driven entirely by messages, so it is unit-testable
-// without a terminal.
+// on the left, a tabbed detail pane on the right, and a status bar. The
+// model is driven entirely by messages and renders to a string, so tests
+// call Update and View directly and need no terminal; program.go is the
+// only part that touches one.
 package ui
 
 import (
@@ -50,15 +51,16 @@ var tabNames = [tabCount]string{"preview", "response", "checks", "session"}
 
 // runState is the run in flight, if any.
 type runState struct {
-	id     int
-	reqs   []*httpfile.Request
-	idx    int
-	flow   bool
-	ctx    context.Context
-	cancel context.CancelFunc
+	id      int
+	reqs    []*httpfile.Request
+	idx     int
+	flow    bool
+	started time.Time
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-// Model is the Bubble Tea model.
+// Model is the whole UI state.
 type Model struct {
 	cfg    Config
 	theme  output.Theme
@@ -84,7 +86,8 @@ type Model struct {
 	showHeaders bool
 	showCurl    bool
 	vp          viewport
-	paneKey     string
+	paneKey     string // paneID of the content in the viewport
+	paneShown   string // paneTopic of that content; a change scrolls back to the top
 
 	width, height int
 	spin          spinner
@@ -136,7 +139,7 @@ func (m *Model) rebuild(selectID string) {
 		}
 	}
 	m.selected = m.selectedReq()
-	m.paneKey = ""
+	m.paneKey, m.paneShown = "", ""
 }
 
 func (m *Model) refreshDescs() {
@@ -228,16 +231,20 @@ func (m *Model) resize() {
 }
 
 // syncPane refreshes the viewport content when what it shows has changed.
+// The scroll position survives a re-render of the same subject — a result
+// arriving, a resize — and only resets when the pane turns to something
+// else.
 func (m *Model) syncPane() {
 	key := m.paneID()
 	if key == m.paneKey {
 		return
 	}
-	changedReq := !strings.HasPrefix(m.paneKey, m.paneReqID()+"|")
-	m.paneKey = key
+	topic := m.paneTopic()
+	changed := topic != m.paneShown
+	m.paneKey, m.paneShown = key, topic
 	content := m.renderPane(m.vp.width)
 	m.vp.setContent(ansi.Hardwrap(content, m.vp.width, true))
-	if changedReq {
+	if changed {
 		m.vp.gotoTop()
 	}
 }
@@ -247,6 +254,13 @@ func (m *Model) paneReqID() string {
 		return ""
 	}
 	return m.selected.ID()
+}
+
+// paneTopic identifies what the pane is about, ignoring content that
+// changes underneath it. Switching request, tab or overlay changes the
+// topic; a result landing on the request already shown does not.
+func (m *Model) paneTopic() string {
+	return fmt.Sprintf("%s|%d|%v|%v|%v", m.paneReqID(), m.tab, m.showCurl, m.showHelp, m.confirmClear)
 }
 
 func (m *Model) paneID() string {
@@ -265,6 +279,9 @@ func (m *Model) renderStatus() string {
 	if m.cfg.Demo {
 		parts = append(parts, t.Warn.Render("demo"))
 	}
+	if m.cfg.Redact {
+		parts = append(parts, t.Warn.Render("redact"))
+	}
 	parts = append(parts, t.Dim.Render(output.Truncate(m.cfg.Root, 30)))
 	env := m.env
 	if env == "" {
@@ -273,12 +290,14 @@ func (m *Model) renderStatus() string {
 	parts = append(parts, "env="+t.Bold.Render(env))
 	if m.inflight != nil {
 		rs := m.inflight
-		name := rs.reqs[rs.idx].ID()
+		running := m.theme.Accent.Render(m.spin.view()) + " running " + rs.reqs[rs.idx].ID()
 		if rs.flow {
-			parts = append(parts, m.theme.Accent.Render(m.spin.view())+" running "+name+fmt.Sprintf(" (%d/%d)", rs.idx+1, len(rs.reqs)))
-		} else {
-			parts = append(parts, m.theme.Accent.Render(m.spin.view())+" running "+name)
+			running += fmt.Sprintf(" (%d/%d)", rs.idx+1, len(rs.reqs))
 		}
+		if !rs.started.IsZero() {
+			running += " " + t.Dim.Render(shortDuration(time.Since(rs.started)))
+		}
+		parts = append(parts, running)
 	} else if m.lastSummary != "" {
 		parts = append(parts, "last: "+m.lastSummary)
 	}
@@ -311,6 +330,15 @@ func (m *Model) Result(req *httpfile.Request) *runner.Result { return m.results[
 
 // Status returns the transient status text (for tests).
 func (m *Model) Status() string { return m.status }
+
+// shortDuration renders a run clock: milliseconds under a second, then
+// tenths, so the status bar keeps a steady width while a request is out.
+func shortDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
+}
 
 func sortedKeys(mm map[string]string) []string {
 	keys := make([]string, 0, len(mm))

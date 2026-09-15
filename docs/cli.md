@@ -148,10 +148,11 @@ be reached. Feature paths must lie inside the project root.
 apic ui [--demo]
 ```
 
-Opens the [terminal UI](tui.md): requests on the left, and preview,
-response, checks and session tabs on the right. <kbd>enter</kbd> runs the
-selected request, <kbd>f</kbd> runs its file as a flow, <kbd>e</kbd> switches
-environment, <kbd>?</kbd> lists every key.
+Opens the [terminal UI](tui.md): requests on the left, each row carrying its
+status and round trip once it has run, and preview, response, checks and
+session tabs on the right. <kbd>enter</kbd> runs the selected request,
+<kbd>f</kbd> runs its file as a flow, <kbd>e</kbd> switches environment,
+<kbd>J</kbd>/<kbd>K</kbd> scroll the right pane, <kbd>?</kbd> lists every key.
 
 | Flag | Meaning |
 |---|---|
