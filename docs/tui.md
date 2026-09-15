@@ -27,6 +27,20 @@ the same process, and opens the UI on it. Quitting shuts the server down and
 removes the directory. It is the fastest way to see what apic does, and it
 needs no network access.
 
+`apic demo` is the two-terminal version: it writes the same project to
+`./apic-demo` (in the current directory) and serves the API. Because `apic
+ui` resolves `.http` files relative to `-C` (default: the current
+directory), running plain `apic ui` in a second terminal won't see that
+project — pass `-C apic-demo` (or `cd` into it first).
+
+## Projects are directory-scoped
+
+Every apic command, `ui` included, only ever looks at `.http`/`.rest` files
+under `-C` (default `.`). There is no global registry of projects and no
+upward search past that directory. If a request doesn't show up, or the UI
+opens empty, check you're pointed at the right directory before anything
+else.
+
 ## The screen
 
 **Requests** (left) lists every request grouped by file, each row showing
