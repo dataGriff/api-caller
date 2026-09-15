@@ -16,6 +16,7 @@ Enter                  Sleep 2s      # run the selected request
 Type "j"               Sleep 500ms
 Type "f"               Sleep 3s      # run the whole file as a flow
 Type "3"               Sleep 2s      # the checks tab
+Type "JJJJ"            Sleep 1500ms  # scroll the pane a line at a time
 Type "4"               Sleep 2s      # the session tab
 Type "/todo"           Sleep 1s  Enter  Sleep 1500ms
 Enter                  Sleep 2500ms

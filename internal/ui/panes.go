@@ -12,7 +12,8 @@ import (
 	"github.com/dataGriff/api-caller/internal/output"
 )
 
-// renderTabs draws the tab strip above the viewport.
+// renderTabs draws the tab strip above the viewport, with the scroll
+// position pushed to the right when the pane holds more than it can show.
 func (m *Model) renderTabs(width int) string {
 	t := m.theme
 	var parts []string
@@ -28,7 +29,33 @@ func (m *Model) renderTabs(width int) string {
 	if m.selected != nil {
 		line += "  " + t.Dim.Render(ansi.Truncate(m.selected.ID(), 30, "…"))
 	}
-	return ansi.Truncate(line, width, "…")
+	pos := m.scrollPosition()
+	if pos == "" {
+		return ansi.Truncate(line, width, "…")
+	}
+	pos = t.Dim.Render(pos)
+	room := width - ansi.StringWidth(pos) - 1
+	if room < 1 {
+		return ansi.Truncate(line, width, "…")
+	}
+	line = ansi.Truncate(line, room, "…")
+	return line + strings.Repeat(" ", room-ansi.StringWidth(line)+1) + pos
+}
+
+// scrollPosition says where the viewport sits in content taller than the
+// pane, and nothing at all when everything already fits.
+func (m *Model) scrollPosition() string {
+	span := len(m.vp.lines) - m.vp.height
+	if m.vp.height <= 0 || span <= 0 {
+		return ""
+	}
+	switch {
+	case m.vp.offset <= 0:
+		return "top ↓"
+	case m.vp.atBottom():
+		return "↑ end"
+	}
+	return fmt.Sprintf("↑ %d%% ↓", m.vp.offset*100/span)
 }
 
 // renderPane returns the content of the current tab.
