@@ -1,0 +1,24 @@
+### Who am I
+# @name whoami
+# @step I ask who I am on GitHub
+# @auth bearer {{token}}
+# @assert status == 200
+GET {{baseUrl}}/user
+
+### Fetch a public repo
+# @name get-repo
+# @step I fetch the repo
+# @description octocat/Hello-World needs no permissions, just a token to raise the rate limit
+# @auth bearer {{token}}
+# @assert status == 200
+# @assert body.$.name == "{{repo}}"
+GET {{baseUrl}}/repos/{{owner}}/{{repo}}
+
+### List open issues on that repo
+# @name list-issues
+# @step I list open issues on the repo
+# @auth bearer {{token}}
+# @assert status == 200
+GET {{baseUrl}}/repos/{{owner}}/{{repo}}/issues
+    ?state=open
+Accept: application/vnd.github+json

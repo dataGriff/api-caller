@@ -46,6 +46,20 @@ tasks:
       - ../../{{.BIN}} run users.http --env {{.ENV | default "dev"}} --keep-going
     deps: [build]
 
+  example:github:
+    desc: Run the GitHub example (needs your own token in examples/github/http-client.private.env.json)
+    dir: examples/github
+    cmds:
+      - ../../{{.BIN}} run repo.http --env {{.ENV | default "dev"}} --keep-going
+    deps: [build]
+
+  example:spotify:
+    desc: Run the Spotify example (needs your own client id/secret in examples/spotify/http-client.private.env.json)
+    dir: examples/spotify
+    cmds:
+      - ../../{{.BIN}} run search.http --env {{.ENV | default "dev"}} --keep-going
+    deps: [build]
+
   example:demo:
     desc: Run the built-in demo project (no network needed)
     deps: [build]
