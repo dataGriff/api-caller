@@ -20,8 +20,8 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `internal/curlexport`, `internal/openapi`, `internal/mcp` — the `curl`, `import` and `mcp` commands. The OpenAPI reader is a small yaml.Node walker (`model.go`) with local `$ref` resolution; do not add an OpenAPI library for it.
 - `internal/cli` — cobra commands, including `demo`, `init` and `ui`
 - `internal/ui` — the `apic ui` terminal UI: model/update/view (`ui.go`, `list.go`, `panes.go`, `run.go`), key bindings (`keys.go`), and its own small terminal layer (`term.go` input decoding, `viewport.go`, `program.go` event loop). Tests drive `Update`/`View` directly, so no terminal is needed
-- `internal/demoapi` — fake in-memory API (auth + a todos CRUD resource) and its embedded example project (`project/`), backing the `apic demo` command and its test suite
-- `examples/httpbin` — sample project targeting the real httpbin.org, for a live demo (needs network); `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/*.svg` are terminal screenshots generated from real output, not hand-drawn
+- `internal/demoapi` — fake in-memory API (auth + a todos CRUD resource) and its embedded example project (`project/`), backing the `apic demo` command and its test suite. This is the offline example — it's scaffolded on demand (`apic demo` writes it to `./apic-demo`), not a static copy under `examples/`
+- `examples/httpbin` — sample project targeting the real httpbin.org, for a live demo (needs network); the other example project, offline, lives in `internal/demoapi/project` (see above), not here; `docs/` — the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/*.svg` are terminal screenshots generated from real output, not hand-drawn
 
 ## Commands
 
