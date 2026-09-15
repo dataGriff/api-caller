@@ -61,6 +61,8 @@ resolve.
 exists so it can be a project default. `basic` base64-encodes
 `user:password`, which is the part you cannot do in a plain header.
 
+See `examples/github/repo.http` for `bearer` against the real GitHub API.
+
 ## aws
 
 ```http
@@ -121,6 +123,9 @@ with the refresh token when the server issued one, otherwise re-requested.
 `apic session` shows the cached entries and their remaining lifetime;
 `apic session clear` forgets them. `--no-session` fetches a fresh token on
 every run.
+
+See `examples/spotify/search.http` for `client_credentials` with
+`clientAuth=basic` against the real Spotify Web API.
 
 This covers Entra ID (Azure AD), Okta, Auth0, Keycloak, Cognito and most
 other providers for machine-to-machine access, since they all speak the

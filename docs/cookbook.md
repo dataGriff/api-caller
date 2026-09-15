@@ -4,6 +4,20 @@ Worked recipes for the jobs that come up most. Each one is self-contained;
 copy the parts you need. Recipes that use the fake API from `apic demo` can
 be run as they stand.
 
+## Real APIs, not just the fake one
+
+`examples/` in the repo has three runnable projects, each targeting a real
+public API instead of `apic demo`'s in-process fake:
+
+```sh
+apic run auth.http users.http -C examples/httpbin --env dev   # basic + bearer, no account needed
+apic run repo.http -C examples/github --env dev                # bearer, needs your own PAT
+apic run search.http -C examples/spotify --env dev             # oauth2 client_credentials, needs your own app
+```
+
+For `github` and `spotify`, drop your own credentials into that project's
+`http-client.private.env.json` first — see `examples/README.md`.
+
 ## Log in once and reuse the token everywhere
 
 The pattern apic is built around: one request captures the token, every

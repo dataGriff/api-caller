@@ -232,4 +232,8 @@ task lint
 ```
 
 Tests run against local `httptest` servers; no network is needed. The
-`examples/httpbin` project targets httpbin.org for a live demo instead.
+`examples/httpbin` project targets httpbin.org for a live demo instead. Two
+more real-world examples live under `examples/`: `github` (`bearer` auth,
+`task example:github`) and `spotify` (`oauth2` client-credentials,
+`task example:spotify`) — each needs your own credentials dropped into its
+`http-client.private.env.json` first; see `examples/README.md`.
