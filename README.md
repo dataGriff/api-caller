@@ -10,6 +10,7 @@
   <a href="https://datagriff.github.io/api-caller/"><img src="https://github.com/dataGriff/api-caller/actions/workflows/docs.yml/badge.svg" alt="Docs"></a>
   <a href="https://github.com/dataGriff/api-caller/releases/latest"><img src="https://img.shields.io/github/v/release/dataGriff/api-caller?color=7c5cff&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/go-1.25%2B-00ADD8" alt="Go 1.25+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-7c5cff" alt="MIT licence"></a>
 </p>
 
 <p align="center"><img src="docs/assets/apic-ui.svg" width="820" alt="apic ui: requests on the left, the response on the right"></p>
@@ -237,3 +238,12 @@ more real-world examples live under `examples/`: `github` (`bearer` auth,
 `task example:github`) and `spotify` (`oauth2` client-credentials,
 `task example:spotify`). Each needs your own credentials dropped into its
 `http-client.private.env.json` first; see `examples/README.md`.
+
+## Licence
+
+apic is released under the [MIT Licence](LICENSE).
+
+The binary links a handful of open source modules, each under its own
+permissive licence (MIT, BSD, Apache-2.0 and MPL-2.0). Every release archive
+ships a `THIRD_PARTY_NOTICES.md` reproducing them in full; regenerate it at any
+time with `task notices`.
