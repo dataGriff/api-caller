@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 )
@@ -472,5 +473,117 @@ func TestResolveMarksSecretHeaders(t *testing.T) {
 	}
 	if shown["X-Tenant"] != Masked || shown["Authorization"] != Masked || shown["X-Plain"] != "p" {
 		t.Fatalf("display headers: %v", shown)
+	}
+}
+
+// TestResultJSONRedactsResponse covers the half of --redact that used to be
+// missing: the response body, its headers and the values assertions carry.
+// Before this, `apic run login --redact` masked the captured token while
+// printing the response body it was captured from.
+func TestResultJSONRedactsResponse(t *testing.T) {
+	newResult := func() Result {
+		return Result{
+			OK:      false,
+			Request: Resolved{Method: "POST", URL: "https://example.com/login"},
+			Response: &Response{
+				Status: 200, StatusText: "200 OK", DurationMs: 12, Size: 44,
+				Headers: map[string]string{"content-type": "application/json", "set-cookie": "sid=abc123"},
+				Body:    map[string]any{"access_token": "secret-token"},
+			},
+			Asserts: []assert.Result{
+				{Expr: "body.$.access_token == secret-token", Expected: "secret-token", Actual: "secret-token"},
+			},
+			Captures: map[string]string{"token": "secret-token"},
+		}
+	}
+
+	// Without --redact the response stays intact so agents can chain it,
+	// except set-cookie, which is always masked.
+	res := newResult()
+	data, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "secret-token") || !strings.Contains(s, "application/json") {
+		t.Fatalf("without redact the response should be intact: %s", s)
+	}
+	if strings.Contains(s, "sid=abc123") {
+		t.Fatalf("set-cookie should be masked even without redact: %s", s)
+	}
+
+	// With --redact nothing that carries a value survives.
+	res = newResult()
+	res.Redact = true
+	data, err = json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = string(data)
+	for _, bad := range []string{"secret-token", "sid=abc123", "application/json"} {
+		if strings.Contains(s, bad) {
+			t.Fatalf("redacted json should not contain %q: %s", bad, s)
+		}
+	}
+
+	// Structure survives, so CI can still see what failed.
+	var decoded struct {
+		Response struct {
+			Status     int    `json:"status"`
+			DurationMs int64  `json:"duration_ms"`
+			Size       int    `json:"size"`
+			Body       any    `json:"body"`
+			StatusText string `json:"status_text"`
+		} `json:"response"`
+		Asserts []assert.Result `json:"asserts"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Response.Status != 200 || decoded.Response.DurationMs != 12 || decoded.Response.Size != 44 {
+		t.Fatalf("redact should keep status, timing and size: %s", s)
+	}
+	if decoded.Response.Body != Masked {
+		t.Fatalf("redacted body should be %q: %s", Masked, s)
+	}
+	if len(decoded.Asserts) != 1 || decoded.Asserts[0].Actual != Masked || decoded.Asserts[0].Expected != Masked {
+		t.Fatalf("redacted asserts should hide actual and expected: %s", s)
+	}
+	if decoded.Asserts[0].Expr != "body.$.access_token == "+Masked {
+		t.Fatalf("redacted expr should keep selector and operator: %q", decoded.Asserts[0].Expr)
+	}
+}
+
+// TestVarAndShellVarAreSecret pins that the documented CI secret channels are
+// treated as secret, so a header built from one is not printed in clear.
+func TestVarAndShellVarAreSecret(t *testing.T) {
+	dir := writeProject(t, map[string]string{
+		"api.http": "# @name get\nGET https://example.com/x\nX-Tenant: {{tenant}}\nX-Other: {{other}}\n",
+	})
+	t.Setenv("APIC_VAR_other", "shell-secret")
+
+	p, err := project.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := New(p, Options{Vars: map[string]string{"tenant": "var-secret"}, NoSession: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := p.Resolve("get")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Resolve(req[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SecretHeaders["X-Tenant"] || !res.SecretHeaders["X-Other"] {
+		t.Fatalf("--var and APIC_VAR_* should mark headers secret: %+v", res.SecretHeaders)
+	}
+	for _, h := range res.DisplayHeaders(false) {
+		if h.Value == "var-secret" || h.Value == "shell-secret" {
+			t.Fatalf("secret header value should be masked: %+v", h)
+		}
 	}
 }

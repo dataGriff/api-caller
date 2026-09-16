@@ -62,7 +62,7 @@ terminal and agents need:
 - **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out.
 - **Gherkin without Cucumber.** `apic test` runs `.feature` files with a built-in step vocabulary; `# @step a user named {name} exists` on a request makes features read as behaviour.
 - **A terminal UI.** `apic ui` browses the project, runs requests and flows, shows each row's status and round trip as it lands, and switches environment without leaving the keyboard.
-- **Safe to log.** Sensitive headers are masked in output; `--redact` masks everything for stored CI logs.
+- **Safe to log.** Sensitive headers are masked in output, on the request and the response; `--redact` masks both bodies, all header values, query values, captures and assertion values for stored CI logs, keeping status, timing and pass/fail.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
 - **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import openapi.yaml` scaffolds files from a spec.
@@ -193,6 +193,30 @@ Shell: `apic list --json`, `apic describe <id> --json`, `apic run <id> --json`.
 MCP: `claude mcp add api -- apic mcp --dir ./api --env dev`.
 See [docs/agents.md](docs/agents.md) for the JSON contract and a snippet to
 paste into your project's `AGENTS.md`.
+
+### Changes to the `--json` contract
+
+Unreleased, and worth knowing if you already parse `apic run --json`:
+
+- `--redact` now masks the **response** too — `response.body` becomes the
+  string `"***"`, every `response.headers` value is masked, and each
+  `asserts[]` entry has `actual`/`expected` masked with `expr` reduced to its
+  selector and operator. It previously masked only the request side, so a
+  redacted run printed the response body a token had just been captured from.
+  `status`, `status_text`, `duration_ms`, `size`, `pass` and `error` are
+  unchanged, so CI can still tell what failed.
+- `response.headers` masks `set-cookie` and `www-authenticate` **even without
+  `--redact`**, matching how `Authorization` is treated on the request side.
+  Captures still read the raw header, so `# @capture sid = header.set-cookie`
+  keeps working.
+- Values supplied by `--var` and `APIC_VAR_*` are now treated as secrets, so
+  they show as `***` in `apic env`, `apic describe` and any header built from
+  them. They are the documented way to pass a secret in CI, and `apic test`
+  already treated them this way.
+- `apic curl --redact` masks headers, body and query values and prints
+  `$TOKEN` / `$APIC_USER`:`$APIC_PASSWORD` instead of live `bearer` and
+  `basic` credentials. Without `--redact` the command is unchanged and still
+  runnable as printed.
 
 ## The format
 

@@ -186,7 +186,7 @@ func (a *App) curlCmd() *cobra.Command {
 				}
 				return r.MissingError(req, missing)
 			}
-			command := curlexport.Command(res)
+			command := curlexport.Command(res, a.g.redact)
 			if a.g.json {
 				return a.writeJSON(struct {
 					ID      string `json:"id"`

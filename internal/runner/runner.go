@@ -215,15 +215,21 @@ type Result struct {
 	raw      *selector.Response
 }
 
-// MarshalJSON masks sensitive request headers always, and everything
-// (headers, body, query values, captures) when Redact is set.
+// MarshalJSON masks sensitive request and response headers always, and
+// everything (headers, bodies, query values, captures and assertion values)
+// when Redact is set.
+//
+// The shadowing fields sit at a shallower depth than the embedded alias, so
+// encoding/json picks them over the originals.
 func (r Result) MarshalJSON() ([]byte, error) {
 	type alias Result
 	out := struct {
 		alias
 		Request  json.RawMessage   `json:"request"`
 		Captures map[string]string `json:"captures,omitempty"`
-	}{alias: alias(r), Captures: r.DisplayCaptures()}
+		Response *Response         `json:"response,omitempty"`
+		Asserts  []assert.Result   `json:"asserts,omitempty"`
+	}{alias: alias(r), Captures: r.DisplayCaptures(), Response: r.DisplayResponse(), Asserts: r.DisplayAsserts()}
 	req, err := r.Request.marshal(r.Redact)
 	if err != nil {
 		return nil, err

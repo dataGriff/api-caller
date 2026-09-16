@@ -21,7 +21,7 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--no-session` | Do not read or write `.apic/session.json`. |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. |
-| `--redact` | Mask every request header value, the body, query-string values and captured values in `run` output. Use it in CI logs that are stored. Sensitive headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) are masked even without it. |
+| `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
 
 ## Exit codes
 
@@ -108,8 +108,9 @@ apic run get-user --body-only | jq .email
 
 - `request.auth` names the auth type applied, when any; credentials apic adds are never included.
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
-- `response.body` is parsed JSON when the body is JSON, otherwise a string.
-- `response.headers` keys are lower-case; multiple values are joined with `, `.
+- `response.body` is parsed JSON when the body is JSON, otherwise a string. Under `--redact` it is the string `"***"`.
+- `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
+- `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
 - `errors` (omitted when empty) lists failed captures and other problems.
 - `ok` is false when any assertion or capture failed.
 - When a request could not be sent at all (missing variable, network), the
@@ -289,6 +290,13 @@ apic curl get-user | sh
 ```
 
 `--json` wraps it as `{"id": "get-user", "command": "curl -sS ..."}`.
+
+With `--redact` the command is safe to paste into a stored log but no longer
+runnable as printed: header values, the body and query-string values are
+masked, and `bearer`/`basic` credentials become `$TOKEN` and
+`$APIC_USER`/`$APIC_PASSWORD` — the same shell placeholders the `aws`,
+`oauth2` and `exec` exports already use. Without it, the command runs as
+printed, credentials included.
 
 ## apic validate
 

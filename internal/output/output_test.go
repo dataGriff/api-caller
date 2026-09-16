@@ -129,3 +129,59 @@ func TestRenderBodyLeavesNonJSONAlone(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// TestRedactMasksResponseEverywhere covers the three renderers that are
+// separate code paths from --json: the human report, --body-only and the flow
+// summary. Before this, a redacted run masked the captured token while
+// printing the response body it came from.
+func TestRedactMasksResponseEverywhere(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Set-Cookie", "sid=cookie-secret")
+		_, _ = w.Write([]byte(`{"access_token":"body-secret","name":"nope"}`))
+	}))
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	src := "### Login\n# @name login\n# @assert body.$.name == alice\n# @capture token = body.$.access_token\nGET {{baseUrl}}/login\nX-Api-Key: header-secret\n"
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := project.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := runner.New(p, runner.Options{
+		Vars: map[string]string{"baseUrl": srv.URL}, Session: session.NewMemory(), KeepGoing: true, Redact: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.RunAll(context.Background(), p.Requests())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	secrets := []string{"body-secret", "cookie-secret", "header-secret"}
+	renders := map[string]func() string{
+		"Human": func() string {
+			var b bytes.Buffer
+			Human(&b, res[0], true) // verbose: prints response headers too
+			return b.String()
+		},
+		"Body": func() string {
+			var b bytes.Buffer
+			Body(&b, res[0])
+			return b.String()
+		},
+		"SummaryTable": func() string { return SummaryTable(Default(), res) },
+		"Checks":       func() string { return Checks(Default(), res[0], 80, true) },
+	}
+	for name, render := range renders {
+		out := render()
+		for _, bad := range secrets {
+			if strings.Contains(out, bad) {
+				t.Errorf("%s leaked %q under --redact:\n%s", name, bad, out)
+			}
+		}
+	}
+}

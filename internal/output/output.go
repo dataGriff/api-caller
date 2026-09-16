@@ -24,7 +24,7 @@ func Body(w io.Writer, res *runner.Result) {
 	if res.Raw() == nil {
 		return
 	}
-	_, _ = w.Write(prettyJSON(res.Raw().Body))
+	_, _ = w.Write(prettyJSON(res.DisplayRawBody()))
 	_, _ = io.WriteString(w, "\n")
 }
 
