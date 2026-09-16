@@ -116,9 +116,11 @@ func TestAWSSignsThroughApply(t *testing.T) {
 	if err := Apply(context.Background(), s, req, body, &Env{Now: func() time.Time { return at }}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := http.DefaultClient.Do(req); err != nil {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	authz := got.Get("Authorization")
 	if !strings.HasPrefix(authz, "AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/20260912/eu-west-2/execute-api/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=") {
 		t.Fatalf("authorization: %s", authz)

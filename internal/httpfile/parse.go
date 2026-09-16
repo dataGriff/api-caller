@@ -50,7 +50,7 @@ var (
 
 // ParseFile reads and parses a .http file from disk.
 func ParseFile(path string) (*File, []Diagnostic, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // reading the .http file the user named is the whole job
 	if err != nil {
 		return nil, nil, err
 	}

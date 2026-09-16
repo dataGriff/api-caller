@@ -34,9 +34,47 @@ tasks:
       - go vet ./...
       - golangci-lint run ./...
 
+  race:
+    desc: Run the tests under the race detector
+    cmds:
+      - go test -race ./...
+
+  cover:
+    desc: Write coverage.out and print the per-package summary
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -func=coverage.out
+
+  vuln:
+    desc: Check the dependency tree for known vulnerabilities
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  fmt:
+    desc: Format the tree (lint only checks)
+    cmds:
+      - gofmt -w .
+
+  validate-examples:
+    desc: Validate the example projects, as CI does
+    cmds:
+      - for: [httpbin, github, spotify]
+        cmd: go run ./cmd/apic validate -C examples/{{.ITEM}}
+
+  clean:
+    desc: Remove build, docs and coverage output
+    cmds:
+      - rm -rf bin dist site coverage.out THIRD_PARTY_NOTICES.md
+
   check:
     desc: Everything CI runs
-    deps: [lint, test]
+    deps: [lint, test, race, licences, validate-examples]
+
+  licences:
+    desc: Check LICENSE is present and every compiled-in module has one
+    cmds:
+      - test -f LICENSE || (echo "LICENSE is missing" >&2; exit 1)
+      - sh scripts/notices.sh /tmp/THIRD_PARTY_NOTICES.md
 
   example:
     desc: Run the example project against the given environment (default dev = httpbin.org)

@@ -30,7 +30,14 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `task build` / `go build -o bin/apic ./cmd/apic`
 - `task test` / `go test ./...`: tests use `net/http/httptest`, no network needed
 - `task lint`: gofmt, go vet, golangci-lint (config in `.golangci.yml`)
-- `task check`: what CI runs
+- `task fmt`: actually format the tree (`lint` only checks)
+- `task race`: `go test -race ./...`
+- `task cover`: write `coverage.out` and print the per-package summary
+- `task vuln`: govulncheck against the dependency tree
+- `task validate-examples`: the example projects, as CI checks them
+- `task licences`: LICENSE present, and every compiled-in module has one
+- `task check`: what CI runs — lint, test, race, licences and validate-examples
+- `task clean`: remove `bin/`, `dist/`, `site/`, `coverage.out`, notices
 - `task notices`: regenerate THIRD_PARTY_NOTICES.md (goreleaser runs this before packaging)
 - `task shots`: regenerate `docs/assets/apic-ui.svg` and `apic-run.svg` from real output (needs port 8089 free)
 - `task docs` / `task docs:build`: preview or strictly build the docs site (`pip install "mkdocs<2" "mkdocs-material<10"`)
@@ -46,6 +53,27 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer and the OpenAPI reader are the precedents). Check the stripped binary size with `task build && ls -la bin/apic` when adding a dependency.
 - Add a test next to any parser or runner change; parser cases go in `internal/httpfile/testdata/sample.http`.
 - A new step in the vocabulary needs: its regex and shapes in `internal/phrase/builtin.go` (`Builtin`), a handler bound by name in `internal/bdd/steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.
+
+## CI and linting
+
+- `.golangci.yml` runs the standard set plus `bodyclose`, `copyloopvar`,
+  `errorlint`, `gosec`, `misspell` and `unparam`. Each was measured against the
+  tree before being enabled, so the config is quiet: a new finding means
+  something. Deliberately left off: `nilerr` (its hits in `cli/test.go` are
+  correct), `predeclared` and `usestdlibvars` (pure style).
+- A `//nolint:gosec` needs a reason on the same line saying why the call is
+  safe. The existing ones mark deliberate decisions — reading the file the user
+  named, scaffolding a project directory the user then edits, `$randomInt` not
+  being a nonce — and are the place to look before adding another.
+- `errorlint` is on because exit codes are a public contract: `runner.ExitCode`
+  uses `errors.As`, so wrapping a `TransportError` cannot silently turn a
+  documented 3 into a 2. There is a test for exactly that.
+- CI also runs `govulncheck`, CodeQL (weekly and per PR) and a coverage job
+  that uploads `coverage.out` as an artifact. Dependabot watches `gomod` and
+  `github-actions` weekly.
+- Workflows declare `permissions: contents: read` at the top and widen only
+  where a job needs it (`docs.yml` for Pages, `codeql.yml` for
+  security-events, `release.yml` for the release upload).
 
 ## Licensing
 

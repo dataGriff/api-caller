@@ -61,7 +61,7 @@ func Parse(text string) (*Phrase, error) {
 	b.WriteString("$")
 	p.Regex = b.String()
 	if _, err := regexp.Compile(p.Regex); err != nil {
-		return nil, fmt.Errorf("@step %q: %v", text, err)
+		return nil, fmt.Errorf("@step %q: %w", text, err)
 	}
 	return p, nil
 }

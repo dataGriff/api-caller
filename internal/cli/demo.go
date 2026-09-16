@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -60,8 +61,18 @@ Run it, then in another terminal (substituting your --out if you set one):
 				fmt.Fprintf(a.Stdout, "demo api listening on %s\n", url)
 				fmt.Fprintf(a.Stdout, "try: apic run login whoami -C %s --env local\n", out)
 			}
-			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			return http.ListenAndServe(addr, demoapi.New())
+			// Timeouts rather than http.ListenAndServe: the demo server is
+			// short-lived and local, but a server with no read timeout is
+			// still a server a single stalled connection can tie up.
+			srv := &http.Server{
+				Addr:              fmt.Sprintf("127.0.0.1:%d", port),
+				Handler:           demoapi.New(),
+				ReadHeaderTimeout: 10 * time.Second,
+				ReadTimeout:       30 * time.Second,
+				WriteTimeout:      30 * time.Second,
+				IdleTimeout:       60 * time.Second,
+			}
+			return srv.ListenAndServe()
 		},
 	}
 	cmd.Flags().StringVarP(&out, "out", "o", "apic-demo", "directory to write the example project into")

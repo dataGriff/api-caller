@@ -38,7 +38,7 @@ func Parse(raw string) (*Spec, error) {
 	}
 	fields, err := split(raw)
 	if err != nil {
-		return nil, fmt.Errorf("@auth %q: %v", raw, err)
+		return nil, fmt.Errorf("@auth %q: %w", raw, err)
 	}
 	s := &Spec{Type: strings.ToLower(fields[0]), Options: map[string]string{}, Raw: raw}
 	if _, ok := Types[s.Type]; !ok {

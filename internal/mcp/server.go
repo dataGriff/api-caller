@@ -324,7 +324,8 @@ func (s *service) readFile(_ context.Context, req *sdk.ReadResourceRequest) (*sd
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(real)
+	// real is allowlisted against the project's own .http files by resourcePath.
+	data, err := os.ReadFile(real) //nolint:gosec // allowlisted project file
 	if err != nil {
 		return nil, err
 	}

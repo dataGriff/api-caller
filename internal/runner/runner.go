@@ -289,7 +289,8 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		if err != nil {
 			return nil, err
 		}
-		data, err := os.ReadFile(path)
+		// path is resolved and confined to the project root by bodyFilePath.
+		data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
 		if err != nil {
 			return nil, usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
 		}

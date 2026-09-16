@@ -163,7 +163,9 @@ func (r *Runner) builtin(expr string) (string, bool, bool, error) {
 		if hi <= lo {
 			return "", false, false, fmt.Errorf("$randomInt max must be greater than min")
 		}
-		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, false, nil
+		// {{$randomInt}} is a convenience for sample payloads, not a nonce or
+		// a token; nothing in apic derives a credential from it.
+		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, false, nil //nolint:gosec // not used for anything security-sensitive
 	case "$processEnv":
 		if len(args) != 1 {
 			return "", false, false, fmt.Errorf("$processEnv needs a variable name")
