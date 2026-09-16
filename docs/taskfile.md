@@ -162,6 +162,6 @@ one `task`.
 example projects with it: `task example:demo` runs the bundled offline demo
 end to end, `task example` runs `examples/httpbin` against httpbin.org
 (`ENV=dev`, needs network), and `task example:github` / `task example:spotify`
-run the GitHub and Spotify examples — each needs your own credentials in
-that project's `http-client.private.env.json` first. All are small working
+run the GitHub and Spotify examples, each of which needs your own credentials
+in that project's `http-client.private.env.json` first. All are small working
 instances of these patterns.

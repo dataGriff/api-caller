@@ -96,7 +96,7 @@ It needs an interactive terminal, and says which condition failed:
 - `--json` was given: the UI has no machine output by design.
 - On Windows, use Windows Terminal or PowerShell; Git Bash's mintty needs
   `winpty apic ui`.
-- Below 70×16 it reports the terminal is too small rather than drawing a
+- Below 70x16 it reports the terminal is too small rather than drawing a
   broken screen.
 
 ## Where is the colour?
@@ -111,7 +111,7 @@ Yes:
 
 ```sh
 APIC_VERSION=v1.2.3 curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
-APIC_INSTALL_DIR=~/bin curl -fsSL … | sh
+APIC_INSTALL_DIR=~/bin curl -fsSL ... | sh
 ```
 
 The installer downloads the release archive for your platform, verifies it
@@ -121,10 +121,9 @@ against the published `checksums.txt`, and refuses to install on a mismatch.
 
 That is the point. apic runs the common subset of the `.http` format shared
 by VS Code REST Client, JetBrains HTTP Client, kulala.nvim and httpyac, and
-everything it adds is a `# @directive` comment those tools ignore. One file,
-both worlds. `# @note` and `# @prompt` from REST Client are accepted and
-ignored, so a file that uses them still parses (pass prompted values with
-`--var`).
+everything it adds is a `# @directive` comment those tools ignore. `# @note`
+and `# @prompt` from REST Client are accepted and ignored, so a file that
+uses them still parses (pass prompted values with `--var`).
 
 ## What is not supported?
 

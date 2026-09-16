@@ -88,7 +88,7 @@ apic run get-user --body-only | jq .email
   "request": {
     "name": "get-user", "file": "users.http", "line": 10,
     "method": "GET", "url": "https://dev.example.com/users/42",
-    "headers": {"Accept": "application/json", "Authorization": "Bearer eyJ…"},
+    "headers": {"Accept": "application/json", "Authorization": "Bearer eyJ..."},
     "body": "",
     "auth": "aws"
   },
@@ -265,7 +265,7 @@ apic session clear [--all]
 `session` prints captured values per environment from `.apic/session.json`
 (in clear text, since this is the one place you may need to see them).
 Tokens cached by `# @auth oauth2` and `# @auth exec ttl=` appear as
-`$oauth2:…` and `$exec:…` entries with their remaining lifetime.
+`$oauth2:<hash>` and `$exec:<hash>` entries with their remaining lifetime.
 `clear` forgets the current environment's values, or every environment with
 `--all`.
 
@@ -288,7 +288,7 @@ apic curl create-user --env staging
 apic curl get-user | sh
 ```
 
-`--json` wraps it as `{"id": "get-user", "command": "curl -sS …"}`.
+`--json` wraps it as `{"id": "get-user", "command": "curl -sS ..."}`.
 
 ## apic validate
 

@@ -12,16 +12,16 @@ Put this in the project's `AGENTS.md` or `CLAUDE.md`:
 
 Requests live in `api/*.http` and are run with `apic` (install: see README).
 
-- `apic list --json` — every request with id, method, URL and description
-- `apic describe <id> --json` — variables the request needs and whether it is ready
-- `apic run <id> --json` — send it; prints one JSON object with `ok`, `request`, `response`, `captures`, `asserts`
-- `apic run <id> --body-only` — just the response body, for piping to jq
-- `apic run <file>.http --json` — run a whole file in order as a flow (NDJSON)
-- `apic run <id> --var name=value` — override a variable
-- `apic run <id> --env staging` — pick an environment from http-client.env.json
-- `apic curl <id>` — the equivalent curl command
-- `apic test --json` — run the Gherkin features in features/; `apic test --steps --json` lists the steps you may use
-- `apic validate --json` — parse every file and report problems before running anything
+- `apic list --json`: every request with id, method, URL and description
+- `apic describe <id> --json`: variables the request needs and whether it is ready
+- `apic run <id> --json`: send it; prints one JSON object with `ok`, `request`, `response`, `captures`, `asserts`
+- `apic run <id> --body-only`: just the response body, for piping to jq
+- `apic run <file>.http --json`: run a whole file in order as a flow (NDJSON)
+- `apic run <id> --var name=value`: override a variable
+- `apic run <id> --env staging`: pick an environment from http-client.env.json
+- `apic curl <id>`: the equivalent curl command
+- `apic test --json`: run the Gherkin features in features/; `apic test --steps --json` lists the steps you may use
+- `apic validate --json`: parse every file and report problems before running anything
 
 Exit codes: 0 ok, 1 assertion failed, 2 usage/parse/missing variable, 3 network.
 Values captured with `# @capture` (like a login token) persist in `.apic/session.json`,
@@ -34,7 +34,7 @@ The `--json` shape is stable:
 ```json
 {
   "ok": true,
-  "request": {"name": "get-user", "file": "users.http", "line": 10, "method": "GET", "url": "https://…", "headers": {"Accept": "application/json"}},
+  "request": {"name": "get-user", "file": "users.http", "line": 10, "method": "GET", "url": "https://...", "headers": {"Accept": "application/json"}},
   "response": {"status": 200, "status_text": "OK", "headers": {"content-type": "application/json"}, "body": {"id": 42}, "duration_ms": 87, "size": 412},
   "captures": {"email": "a@b.c"},
   "asserts": [{"expr": "status == 200", "pass": true, "actual": "200", "expected": "200"}],
@@ -43,7 +43,7 @@ The `--json` shape is stable:
 ```
 
 `response.body` is parsed JSON when the body is JSON, otherwise a string.
-`request.auth` names the auth type applied (`aws`, `oauth2`, …) without
+`request.auth` names the auth type applied (`aws`, `oauth2` and so on) without
 exposing credentials, and sensitive request headers are shown as `***`;
 see [auth.md](auth.md). URL, body and captures are real values so an agent
 can chain them. When the output is going into a stored log rather than to

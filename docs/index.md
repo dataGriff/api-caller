@@ -48,8 +48,8 @@ claude mcp add api -- apic mcp      # let an agent call the same requests as too
     ```
 
 `--demo` serves a small fake API inside the same process and opens the
-[terminal UI](tui.md) on an example project that targets it. Nothing to sign
-up for, nothing to clone, nothing left behind when you quit.
+[terminal UI](tui.md) on an example project that targets it. There is
+nothing to sign up for or clone, and nothing is left behind when you quit.
 
 !!! tip "Prefer the plain CLI?"
     `apic demo` writes the same example project to `./apic-demo` and serves
