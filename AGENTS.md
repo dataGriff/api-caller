@@ -46,3 +46,11 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer and the OpenAPI reader are the precedents). Check the stripped binary size with `task build && ls -la bin/apic` when adding a dependency.
 - Add a test next to any parser or runner change; parser cases go in `internal/httpfile/testdata/sample.http`.
 - A new step in the vocabulary needs: its regex and shapes in `internal/phrase/builtin.go` (`Builtin`), a handler bound by name in `internal/bdd/steps.go`, a row in `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in `docs/testing.md`.
+
+## Licensing
+
+- apic is MIT (`LICENSE`, root). Keep it there: CI's `licences` job fails without it, and goreleaser ships it in every archive.
+- `task notices` (`scripts/notices.sh`) regenerates `THIRD_PARTY_NOTICES.md`, which is generated rather than committed (it is in `.gitignore`); goreleaser runs it before packaging.
+- The generator unions the module set across every released GOOS/GOARCH, not just the host: cobra pulls in `mousetrap` on Windows only. It also reproduces each module's `NOTICE` (required by Apache-2.0 4(d)) and `PATENTS` files, and exits non-zero if a module has no licence file at all.
+- Keep new dependencies permissive (MIT, BSD, Apache-2.0; the MPL-2.0 modules godog pulls in are the existing exception). Anything reciprocal — GPL or LGPL — would change apic's own terms, so it is off the table for a statically linked binary.
+- Write the AWS signer and the OpenAPI reader style of code from the spec, not by copying from another project; the tree carries no third-party source files and should stay that way.
