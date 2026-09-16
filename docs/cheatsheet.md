@@ -55,7 +55,7 @@ Written as comments before the request line, so editors ignore them.
 | `# @description text` | One line shown by `list` and `describe` |
 | `# @capture name = selector` | Store a value from the response for later runs |
 | `# @assert selector op value` | Check the response; failures exit 1 |
-| `# @auth type ...` | `none`, `bearer`, `basic`, `aws`, `oauth2`, `exec` — see [auth](auth.md) |
+| `# @auth type ...` | `none`, `bearer`, `basic`, `aws`, `oauth2`, `exec`; see [auth](auth.md) |
 | `# @step a user named {name} exists` | Gherkin phrase that runs this request |
 | `# @no-redirect` | Do not follow 3xx |
 | `# @no-session` | Do not persist this request's captures |
@@ -166,7 +166,7 @@ api/
 ## Terminal UI keys
 
 <kbd>enter</kbd> run · <kbd>f</kbd> run the file · <kbd>a</kbd> run all ·
-<kbd>/</kbd> filter · <kbd>1</kbd>–<kbd>4</kbd> tabs · <kbd>H</kbd> headers ·
+<kbd>/</kbd> filter · <kbd>1</kbd>-<kbd>4</kbd> tabs · <kbd>H</kbd> headers ·
 <kbd>c</kbd> curl · <kbd>e</kbd> environment · <kbd>r</kbd> reload ·
 <kbd>o</kbd> edit · <kbd>x</kbd> clear session · <kbd>?</kbd> help ·
 <kbd>q</kbd> quit. Full list in [the TUI guide](tui.md#keys).

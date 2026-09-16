@@ -181,7 +181,7 @@ apic does not know about.
 
 | Type | curl flags |
 |---|---|
-| `bearer` | `-H 'Authorization: Bearer …'` |
+| `bearer` | `-H 'Authorization: Bearer <token>'` |
 | `basic` | `--user 'user:password'` |
 | `aws` | `--aws-sigv4 'aws:amz:<region>:<service>' --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"` plus the session token header |
 | `oauth2` | a placeholder `$TOKEN` header with a comment naming the token URL |

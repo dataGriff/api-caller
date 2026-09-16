@@ -25,9 +25,9 @@ claude mcp add api -- apic mcp      # let an agent call the same requests as too
 
 ## Try it in 30 seconds
 
-No account, no API key, no git clone. `apic ui --demo` serves a small fake
-API in-process and opens the terminal UI on an example project that targets
-it:
+No account or API key needed, and nothing to clone. `apic ui --demo` serves
+a small fake API in-process and opens the terminal UI on an example project
+that targets it:
 
 ```sh
 go install github.com/dataGriff/api-caller/cmd/apic@latest
@@ -75,7 +75,7 @@ additions are comments.
 # Go 1.25+
 go install github.com/dataGriff/api-caller/cmd/apic@latest
 
-# Linux / macOS — downloads the release binary and verifies its checksum
+# Linux / macOS: downloads the release binary and verifies its checksum
 curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
 
 # Windows and everything else: download from GitHub Releases
@@ -129,9 +129,9 @@ error: auth.http:14: missing variable
 $ apic run login --env dev
 POST https://dev.example.com/auth/login
 200 OK · 87 ms · 412 B
-{ "access_token": "eyJ…" }
+{ "access_token": "eyJ..." }
 ✓ status == 200
-↳ token = eyJ…
+↳ token = eyJ...
 
 $ apic run whoami --env dev
 GET https://dev.example.com/me
@@ -161,7 +161,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 
-All commands take `--json` and `-C <dir>`, and none of them prompt — `apic ui`
+All commands take `--json` and `-C <dir>`, and none of them prompt. `apic ui`
 is the one exception, and it refuses to start without a terminal. Colour is
 disabled when output is not a terminal or `NO_COLOR` is set.
 
@@ -235,5 +235,5 @@ Tests run against local `httptest` servers; no network is needed. The
 `examples/httpbin` project targets httpbin.org for a live demo instead. Two
 more real-world examples live under `examples/`: `github` (`bearer` auth,
 `task example:github`) and `spotify` (`oauth2` client-credentials,
-`task example:spotify`) — each needs your own credentials dropped into its
+`task example:spotify`). Each needs your own credentials dropped into its
 `http-client.private.env.json` first; see `examples/README.md`.

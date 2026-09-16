@@ -41,7 +41,7 @@ its state, method, id and description:
 | spinner | In flight. |
 
 Once a request has run, its status code and round trip sit at the right of
-the row — `200 12ms` — and the file heading above it rolls its requests up
+the row (`200 12ms`), and the file heading above it rolls its requests up
 as `✓9 ✗1`, so a flow over a long file reads at a glance. A narrow pane
 sheds the timing first and the description second; the status code and the
 mark always stay. The colour of a status code is its class, not its verdict:
@@ -56,7 +56,7 @@ the request that would provide them.
 and syntax-highlighted, and the assertions and captures underneath. <kbd>H</kbd>
 adds the request and response headers; <kbd>c</kbd> swaps in the equivalent
 curl command. When a tab holds more than fits, the right of the tab strip
-says where you are in it — `top ↓`, `↑ 40% ↓`, `↑ end`.
+says where you are in it: `top ↓`, `↑ 40% ↓`, `↑ end`.
 
 **Checks** shows each assertion with its actual *and* expected value, which
 is the fastest way to see why a check failed, plus everything the request
@@ -106,8 +106,8 @@ force, so a screenshot never hides that values were masked.
 - **Captures apply immediately.** After `login` passes, requests that need
   `{{token}}` flip from `○` to `●` without a reload.
 - **Scrolling stays put.** Reading down a long response and it finishes
-  changing underneath you — a later step of a flow landing, the terminal
-  being resized — leaves you where you were. Moving to another request, tab
+  changing underneath you (a later step of a flow landing, the terminal
+  being resized) leaves you where you were. Moving to another request, tab
   or overlay starts at the top again.
 - **Switching environment rebuilds the project** with that environment's
   variables and session, and clears the results on screen, since they came
@@ -130,11 +130,11 @@ force, so a screenshot never hides that values were masked.
   output. `apic run --json` and `apic list --json` do.
 - On Windows, run it in Windows Terminal or PowerShell. Git Bash's mintty
   needs `winpty apic ui`.
-- Below 70×16 the UI says the terminal is too small rather than drawing a
+- Below 70x16 the UI says the terminal is too small rather than drawing a
   scrambled screen.
 
 !!! note "About the screenshot"
     The picture at the top is not a drawing. `task shots` serves the demo
     API in process, drives the UI the way the keys above do, and renders the
-    frame it produces — escape codes and all — as SVG, so what the docs show
+    frame it produces, escape codes and all, as SVG, so what the docs show
     is what the terminal shows.

@@ -4,7 +4,7 @@ Worked recipes for the jobs that come up most. Each one is self-contained;
 copy the parts you need. Recipes that use the fake API from `apic demo` can
 be run as they stand.
 
-## Real APIs, not just the fake one
+## Running against real APIs
 
 `examples/` in the repo has three runnable projects, each targeting a real
 public API instead of `apic demo`'s in-process fake:
@@ -16,7 +16,7 @@ apic run search.http -C examples/spotify --env dev             # oauth2 client_c
 ```
 
 For `github` and `spotify`, drop your own credentials into that project's
-`http-client.private.env.json` first — see `examples/README.md`.
+`http-client.private.env.json` first; see `examples/README.md`.
 
 ## Log in once and reuse the token everywhere
 
@@ -164,9 +164,9 @@ GET {{baseUrl}}/reports/daily
 
 ```json
 // http-client.env.json
-{ "prod": { "tokenUrl": "https://login.example.com/oauth2/v2.0/token", "clientId": "…" } }
+{ "prod": { "tokenUrl": "https://login.example.com/oauth2/v2.0/token", "clientId": "..." } }
 // http-client.private.env.json
-{ "prod": { "clientSecret": "…" } }
+{ "prod": { "clientSecret": "..." } }
 ```
 
 The token is fetched on first use, cached in the session for the

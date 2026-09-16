@@ -180,10 +180,10 @@ apic run login
 POST https://dev.example.com/auth/login
 200 OK · 87 ms · 412 B
 
-{ "access_token": "eyJ…" }
+{ "access_token": "eyJ..." }
 
 ✓ status == 200
-↳ token = eyJ…
+↳ token = eyJ...
 ```
 
 The token is now in `api/.apic/session.json` for the `dev` environment (the
