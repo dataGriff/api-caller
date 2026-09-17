@@ -62,7 +62,7 @@ func Load(root string) (*Project, error) {
 		return nil, err
 	}
 	p := &Project{Root: abs, byName: map[string][]*httpfile.Request{}, byPath: map[string]*httpfile.File{}}
-	if data, err := os.ReadFile(filepath.Join(abs, ConfigFile)); err == nil {
+	if data, err := os.ReadFile(filepath.Join(abs, ConfigFile)); err == nil { //nolint:gosec // reading the project's own apic.yaml
 		if err := yaml.Unmarshal(data, &p.Config); err != nil {
 			return nil, fmt.Errorf("%s: %w", ConfigFile, err)
 		}

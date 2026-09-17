@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Go modules. AGENTS.md asks for a small dependency list, so these come as
+  # individual PRs to be judged on their merits rather than batched in.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+
+  # The workflows pin actions by major tag, so this is what keeps them current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore"

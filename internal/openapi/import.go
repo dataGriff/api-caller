@@ -58,7 +58,7 @@ type Options struct {
 
 // Import reads an OpenAPI document (JSON or YAML) and writes .http files.
 func Import(specPath string, opts Options) (*Result, error) {
-	data, err := os.ReadFile(specPath)
+	data, err := os.ReadFile(specPath) //nolint:gosec // the OpenAPI spec the user named on the command line
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func Import(specPath string, opts Options) (*Result, error) {
 	if opts.OutDir == "" {
 		opts.OutDir = "."
 	}
-	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
+	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil { //nolint:gosec // a scaffolded project directory the user browses and edits
 		return nil, err
 	}
 
@@ -152,6 +152,7 @@ func Import(specPath string, opts Options) (*Result, error) {
 				if _, err := os.Stat(sidePath); err == nil && !opts.Force {
 					res.Skipped = append(res.Skipped, sidePath) // kept, like an existing .http file
 				} else {
+					//nolint:gosec // a request body file the user edits and commits; it holds no credentials
 					if err := os.WriteFile(sidePath, []byte(o.Body), 0o644); err != nil { // verbatim: no added newline
 						return nil, err
 					}
@@ -161,7 +162,7 @@ func Import(specPath string, opts Options) (*Result, error) {
 			b.WriteString(o.render())
 			res.Requests++
 		}
-		if err := os.WriteFile(file, []byte(b.String()), 0o644); err != nil {
+		if err := os.WriteFile(file, []byte(b.String()), 0o644); err != nil { //nolint:gosec // a .http file the user edits and commits
 			return nil, err
 		}
 		res.Files = append(res.Files, file)
@@ -171,7 +172,9 @@ func Import(specPath string, opts Options) (*Result, error) {
 	if _, err := os.Stat(envFile); err != nil || opts.Force {
 		env := map[string]map[string]string{opts.EnvName: {"baseUrl": res.BaseURL}}
 		data, _ := json.MarshalIndent(env, "", "  ")
-		if err := os.WriteFile(envFile, append(data, '\n'), 0o644); err != nil {
+		// The public env file: base URLs only. Secrets belong in
+		// http-client.private.env.json, which apic writes 0600.
+		if err := os.WriteFile(envFile, append(data, '\n'), 0o644); err != nil { //nolint:gosec // public, non-secret project file
 			return nil, err
 		}
 		res.EnvFile = envFile

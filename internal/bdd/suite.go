@@ -274,7 +274,7 @@ func checkGherkin(o Options) error {
 		return err
 	}
 	for _, f := range files {
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(f) //nolint:gosec // a .feature file discovered inside the project
 		if err != nil {
 			return &runner.UsageError{Msg: err.Error()}
 		}

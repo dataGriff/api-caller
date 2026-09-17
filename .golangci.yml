@@ -1,6 +1,20 @@
 version: "2"
 linters:
   default: standard
+  # Beyond the standard set (errcheck, govet, ineffassign, staticcheck,
+  # unused). Each of these was measured against the tree before being turned
+  # on, so the list stays quiet enough that a new finding means something.
+  #
+  # Deliberately not enabled: nilerr (its four hits in cli/test.go are correct
+  # — "does not exist yet: nothing to alias"), predeclared and usestdlibvars
+  # (pure style, and renaming `max`/`real`/`close` buys nothing).
+  enable:
+    - bodyclose # apic is an HTTP client; a leaked response body is a real bug
+    - copyloopvar
+    - errorlint # exit codes are a public contract, so error identity matters
+    - gosec # it handles credentials
+    - misspell
+    - unparam
   settings:
     errcheck:
       exclude-functions:
@@ -8,3 +22,11 @@ linters:
         - fmt.Fprintln
         - fmt.Fprint
         - (*text/tabwriter.Writer).Flush
+  exclusions:
+    rules:
+      # Test fixtures write 0644 temp files and pass fixed arguments to
+      # helpers; neither is a finding worth a nolint on every line.
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam

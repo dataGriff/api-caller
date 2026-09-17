@@ -177,3 +177,65 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+// TestReadFileServesOnlyProjectFiles pins that the resource reader is not a
+// general "any file under the root" reader. The private env file, .env and
+// the session cache all live under the project root and hold credentials.
+func TestReadFileServesOnlyProjectFiles(t *testing.T) {
+	root := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(root, "api.http"), []byte("# @name get\nGET https://example.com/x\n"), 0o644))
+	must(t, os.MkdirAll(filepath.Join(root, ".apic"), 0o700))
+	secrets := map[string]string{
+		"http-client.private.env.json": `{"dev":{"token":"super-secret"}}`,
+		".env":                         "API_KEY=super-secret\n",
+		".apic/session.json":           `{"dev":{"token":"super-secret"}}`,
+		"notes.txt":                    "super-secret",
+	}
+	for name, content := range secrets {
+		must(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), []byte(content), 0o600))
+	}
+
+	s := &service{root: root}
+	for name := range secrets {
+		uri := "file://" + filepath.ToSlash(filepath.Join(root, filepath.FromSlash(name)))
+		res, err := s.readFile(context.Background(), &sdk.ReadResourceRequest{Params: &sdk.ReadResourceParams{URI: uri}})
+		if err == nil {
+			t.Fatalf("%s should not be readable as a resource, got %+v", name, res)
+		}
+		if strings.Contains(err.Error(), "super-secret") {
+			t.Fatalf("%s: error should not echo the file contents: %v", name, err)
+		}
+	}
+
+	// The project's own .http file is still served.
+	uri := "file://" + filepath.ToSlash(filepath.Join(root, "api.http"))
+	res, err := s.readFile(context.Background(), &sdk.ReadResourceRequest{Params: &sdk.ReadResourceParams{URI: uri}})
+	if err != nil {
+		t.Fatalf("api.http should be readable: %v", err)
+	}
+	if len(res.Contents) != 1 || !strings.Contains(res.Contents[0].Text, "GET https://example.com/x") {
+		t.Fatalf("unexpected contents: %+v", res.Contents)
+	}
+}
+
+// TestReadFileServesFileAddedAfterStart pins that the allowlist is rebuilt per
+// read rather than snapshotted at New, matching the tools, which re-load the
+// project on every call.
+func TestReadFileServesFileAddedAfterStart(t *testing.T) {
+	root := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(root, "api.http"), []byte("# @name get\nGET https://example.com/x\n"), 0o644))
+	if _, err := New(Config{Dir: root}); err != nil {
+		t.Fatal(err)
+	}
+	must(t, os.WriteFile(filepath.Join(root, "late.http"), []byte("# @name late\nGET https://example.com/late\n"), 0o644))
+
+	s := &service{root: root}
+	uri := "file://" + filepath.ToSlash(filepath.Join(root, "late.http"))
+	res, err := s.readFile(context.Background(), &sdk.ReadResourceRequest{Params: &sdk.ReadResourceParams{URI: uri}})
+	if err != nil {
+		t.Fatalf("a file added after start should be readable: %v", err)
+	}
+	if len(res.Contents) != 1 || !strings.Contains(res.Contents[0].Text, "example.com/late") {
+		t.Fatalf("unexpected contents: %+v", res.Contents)
+	}
+}

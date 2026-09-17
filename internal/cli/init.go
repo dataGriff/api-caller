@@ -70,7 +70,7 @@ unless --force is given.`,
 // writeInitProject writes the starter files, skipping ones that exist unless
 // force is set. The .gitignore is appended to rather than replaced.
 func writeInitProject(dir, baseURL, envName string, force bool) (written, skipped []string, err error) {
-	if err := os.MkdirAll(filepath.Join(dir, "features"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "features"), 0o755); err != nil { //nolint:gosec // a scaffolded project directory the user browses and edits
 		return nil, nil, err
 	}
 	write := func(name, content string, mode fs.FileMode) error {
@@ -111,7 +111,7 @@ func writeInitProject(dir, baseURL, envName string, force bool) (written, skippe
 func ensureGitignore(dir string, written *[]string) error {
 	target := filepath.Join(dir, ".gitignore")
 	lines := []string{"http-client.private.env.json", ".apic/"}
-	existing, err := os.ReadFile(target)
+	existing, err := os.ReadFile(target) //nolint:gosec // the project's own .gitignore, in the directory the user named
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -129,7 +129,8 @@ func ensureGitignore(dir string, written *[]string) error {
 		content += "\n"
 	}
 	content += strings.Join(add, "\n") + "\n"
-	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+	// Non-secret scaffolding. The private env file is written 0600 above.
+	if err := os.WriteFile(target, []byte(content), 0o644); err != nil { //nolint:gosec // public project file the user edits and commits
 		return err
 	}
 	*written = append(*written, target)

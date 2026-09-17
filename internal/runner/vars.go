@@ -29,12 +29,16 @@ type VarInfo struct {
 // request, walking the precedence layers.
 func (r *Runner) lookup(req *httpfile.Request, name string, depth int) (VarInfo, bool, error) {
 	info := VarInfo{Name: name}
+	// --var and APIC_VAR_* are the documented way to inject a secret in CI
+	// (docs/getting-started.md, docs/cookbook.md), and apic test already
+	// treats them as secret. Mark them so here too, rather than leaving the
+	// two halves of the product disagreeing about what a secret is.
 	if v, ok := r.Opts.Vars[name]; ok {
-		info.Value, info.Source = v, "--var"
+		info.Value, info.Source, info.Secret = v, "--var", true
 		return info, true, nil
 	}
 	if v, ok := os.LookupEnv("APIC_VAR_" + name); ok {
-		info.Value, info.Source = v, "shell APIC_VAR_"+name
+		info.Value, info.Source, info.Secret = v, "shell APIC_VAR_"+name, true
 		return info, true, nil
 	}
 	if v, ok := r.captured[name]; ok {
@@ -159,7 +163,9 @@ func (r *Runner) builtin(expr string) (string, bool, bool, error) {
 		if hi <= lo {
 			return "", false, false, fmt.Errorf("$randomInt max must be greater than min")
 		}
-		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, false, nil
+		// {{$randomInt}} is a convenience for sample payloads, not a nonce or
+		// a token; nothing in apic derives a credential from it.
+		return strconv.Itoa(lo + rand.IntN(hi-lo)), true, false, nil //nolint:gosec // not used for anything security-sensitive
 	case "$processEnv":
 		if len(args) != 1 {
 			return "", false, false, fmt.Errorf("$processEnv needs a variable name")

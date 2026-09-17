@@ -104,12 +104,14 @@ func applyExec(ctx context.Context, s *Spec, req *http.Request, env *Env) error 
 		}
 	}
 	if token == "" {
-		cmd := exec.CommandContext(ctx, s.Args[0], s.Args[1:]...)
+		// The command comes from the project's own .http file and only runs
+		// when apic.yaml opts in with auth.allowExec; see apply's gate above.
+		cmd := exec.CommandContext(ctx, s.Args[0], s.Args[1:]...) //nolint:gosec // operator-supplied by design, gated by auth.allowExec
 		var stderr strings.Builder
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
 		if err != nil {
-			return fmt.Errorf("@auth exec %s: %v: %s", s.Args[0], err, strings.TrimSpace(stderr.String()))
+			return fmt.Errorf("@auth exec %s: %w: %s", s.Args[0], err, strings.TrimSpace(stderr.String()))
 		}
 		token = strings.TrimSpace(string(out))
 		if token == "" {

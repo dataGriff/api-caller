@@ -50,20 +50,21 @@ func StatusLine(t Theme, res *runner.Result) string {
 	return fmt.Sprintf("%s %s %s %s %s\n", status, t.Dim.Render("·"), t.Latency(res.Response.DurationMs), t.Dim.Render("·"), t.Dim.Render(Size(res.Response.Size)))
 }
 
-// ResponseHeaders renders the response headers sorted and lower-cased.
+// ResponseHeaders renders the response headers sorted and lower-cased, with
+// sensitive values masked and every value masked when redacting.
 func ResponseHeaders(t Theme, res *runner.Result) string {
-	if res.Raw() == nil {
+	headers := res.Response.DisplayHeaders(res.Redact)
+	if len(headers) == 0 {
 		return ""
 	}
-	raw := res.Raw()
-	keys := make([]string, 0, len(raw.Headers))
-	for k := range raw.Headers {
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	var b strings.Builder
 	for _, k := range keys {
-		fmt.Fprintf(&b, "%s %s\n", t.Header.Render(strings.ToLower(k)+":"), strings.Join(raw.Headers[k], ", "))
+		fmt.Fprintf(&b, "%s %s\n", t.Header.Render(strings.ToLower(k)+":"), headers[k])
 	}
 	return b.String()
 }
@@ -86,7 +87,7 @@ func Checks(t Theme, res *runner.Result, width int, expected bool) string {
 		width = 80
 	}
 	var b strings.Builder
-	for _, a := range res.Asserts {
+	for _, a := range res.DisplayAsserts() {
 		switch {
 		case a.Error != "":
 			fmt.Fprintf(&b, "%s %s %s\n", t.Fail.Render("✗"), a.Expr, t.Dim.Render("("+a.Error+")"))
@@ -131,8 +132,8 @@ func Result(t Theme, res *runner.Result, o Options) string {
 	if o.Verbose {
 		b.WriteString(ResponseHeaders(t, res))
 	}
-	if raw := res.Raw(); len(raw.Body) > 0 {
-		b.WriteString("\n" + RenderBody(t, raw.Body) + "\n")
+	if body := res.DisplayRawBody(); len(body) > 0 {
+		b.WriteString("\n" + RenderBody(t, body) + "\n")
 	}
 	if checks := Checks(t, res, o.Width, false); checks != "" {
 		b.WriteString("\n" + checks)
@@ -198,7 +199,7 @@ func resultName(r *runner.Result) string {
 
 // firstProblem is the one-line reason a result is not OK.
 func firstProblem(r *runner.Result) string {
-	for _, a := range r.Asserts {
+	for _, a := range r.DisplayAsserts() {
 		if a.Error != "" {
 			return a.Expr + " (" + a.Error + ")"
 		}

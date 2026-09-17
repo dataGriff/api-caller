@@ -64,7 +64,7 @@ so a later invocation can use them. Use --no-session to disable.`,
 					}
 					if res.Response == nil && runErr != nil && i == len(results)-1 {
 						// The error is printed by Execute; show the request line for context.
-						fmt.Fprintf(a.Stdout, "%s %s\n", res.Request.Method, res.Request.URL)
+						fmt.Fprintf(a.Stdout, "%s %s\n", res.Request.Method, res.Request.DisplayURL(res.Redact))
 						continue
 					}
 					output.Human(a.Stdout, res, verbose)

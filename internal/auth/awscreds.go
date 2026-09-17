@@ -111,7 +111,7 @@ func exportCredentials(ctx context.Context, cli, profile string) (AWSCredentials
 // key = value lines. Missing files yield an empty map.
 func readINI(path string) map[string]map[string]string {
 	out := map[string]map[string]string{}
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // the user's own ~/.aws credentials file
 	if err != nil {
 		return out
 	}

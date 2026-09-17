@@ -4,6 +4,10 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing in this workflow writes to the repository; jobs that need more say so.
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
@@ -17,6 +21,10 @@ jobs:
           go-version-file: go.mod
       - run: go build ./...
       - run: go test ./...
+      # The race detector is slow on the Windows runner and the suite is
+      # already cross-platform, so one leg carries it.
+      - run: go test -race ./...
+        if: matrix.os == 'ubuntu-latest'
 
   lint:
     runs-on: ubuntu-latest
@@ -41,6 +49,31 @@ jobs:
       - run: test -f LICENSE || (echo "LICENSE is missing" >&2; exit 1)
       # Fails if any module compiled into a released binary has no licence file.
       - run: sh scripts/notices.sh /tmp/THIRD_PARTY_NOTICES.md
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -coverprofile=coverage.out ./...
+      - run: go tool cover -func=coverage.out | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Reports known CVEs in the dependency tree, and only those the binary
+      # actually reaches, so a finding here is worth acting on.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   validate-examples:
     runs-on: ubuntu-latest

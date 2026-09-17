@@ -159,7 +159,7 @@ func (c *Config) maskXML(data []byte) ([]byte, error) {
 	enc := xml.NewEncoder(&out)
 	for {
 		tok, err := dec.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

@@ -59,6 +59,10 @@ func New(cfg Config) (*sdk.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// This advertised list is a snapshot, so a file added later is not listed
+	// until the server restarts. Reads are re-validated against the project
+	// as it is on disk (see resourcePath), so the two cannot drift into
+	// serving something they should not.
 	for _, f := range p.Files {
 		abs := filepath.Join(root, filepath.FromSlash(f.Path))
 		srv.AddResource(&sdk.Resource{URI: "file://" + filepath.ToSlash(abs), Name: f.Path, MIMEType: "text/plain",
@@ -316,31 +320,66 @@ func (s *service) runFeatures(ctx context.Context, _ *sdk.CallToolRequest, in fe
 }
 
 func (s *service) readFile(_ context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
-	path := strings.TrimPrefix(req.Params.URI, "file://")
-	abs, err := filepath.Abs(filepath.FromSlash(path))
-	if err != nil {
-		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
-	}
-	root, err := filepath.EvalSymlinks(s.root)
+	real, err := s.resourcePath(req.Params.URI)
 	if err != nil {
 		return nil, err
 	}
-	real, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
-	}
-	rel, err := filepath.Rel(root, real)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return nil, fmt.Errorf("resource outside project: %s", req.Params.URI)
-	}
-	data, err := os.ReadFile(real)
+	// real is allowlisted against the project's own .http files by resourcePath.
+	data, err := os.ReadFile(real) //nolint:gosec // allowlisted project file
 	if err != nil {
 		return nil, err
 	}
 	return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: req.Params.URI, MIMEType: "text/plain", Text: string(data)}}}, nil
+}
+
+// resourcePath resolves a resource URI to a file this server is willing to
+// serve, or an error. Only the project's own .http files qualify: the private
+// env file, .env and .apic/session.json all sit under the root and would
+// otherwise be readable by any client that guessed the path.
+//
+// The allowlist is rebuilt per read rather than taken from the snapshot New
+// registered, so a file added after the server started is readable, matching
+// the tools, which re-load the project on every call.
+func (s *service) resourcePath(uri string) (string, error) {
+	path, ok := strings.CutPrefix(uri, "file://")
+	if !ok {
+		return "", fmt.Errorf("no such resource: %s", uri)
+	}
+	abs, err := filepath.Abs(filepath.FromSlash(path))
+	if err != nil {
+		return "", fmt.Errorf("resource outside project: %s", uri)
+	}
+	root, err := filepath.EvalSymlinks(s.root)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		return "", fmt.Errorf("resource outside project: %s", uri)
+	}
+	rel, err := filepath.Rel(root, real)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("resource outside project: %s", uri)
+	}
+	p, err := project.Load(s.root)
+	if err != nil {
+		return "", err
+	}
+	for _, f := range p.Files {
+		known, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(f.Path)))
+		if err != nil {
+			continue
+		}
+		if known == real {
+			return real, nil
+		}
+	}
+	// One message for "not a project file" and "does not exist", so the
+	// server is not an existence oracle for files under the root.
+	return "", fmt.Errorf("no such resource: %s", uri)
 }
 
 func single(r *runner.Runner, target string) (*httpfile.Request, error) {

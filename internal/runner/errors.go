@@ -1,6 +1,9 @@
 package runner
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Exit codes returned by the CLI.
 const (
@@ -26,13 +29,17 @@ func usagef(format string, args ...any) error {
 }
 
 // ExitCode maps an error to the CLI exit code.
+//
+// The exit codes are a public contract, so this unwraps rather than switching
+// on the concrete type: wrapping a TransportError with %w anywhere on the way
+// up would otherwise turn a documented 3 into a 2.
 func ExitCode(err error) int {
-	switch err.(type) {
-	case nil:
+	if err == nil {
 		return ExitOK
-	case *TransportError:
-		return ExitTransport
-	default:
-		return ExitUsage
 	}
+	var te *TransportError
+	if errors.As(err, &te) {
+		return ExitTransport
+	}
+	return ExitUsage
 }

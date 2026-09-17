@@ -70,7 +70,7 @@ func generate(dir string) error {
 			return fmt.Errorf("%s: %w", s.file, err)
 		}
 		path := filepath.Join(dir, s.file)
-		if err := os.WriteFile(path, []byte(SVG(s.title, frame)), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(SVG(s.title, frame)), 0o644); err != nil { //nolint:gosec // a committed docs asset
 			return err
 		}
 		fmt.Println("wrote", path)

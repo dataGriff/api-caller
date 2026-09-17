@@ -46,8 +46,10 @@ The `--json` shape is stable:
 `request.auth` names the auth type applied (`aws`, `oauth2` and so on) without
 exposing credentials, and sensitive request headers are shown as `***`;
 see [auth.md](auth.md). URL, body and captures are real values so an agent
-can chain them. When the output is going into a stored log rather than to
-an agent, add `--redact`.
+can chain them, and `set-cookie` is masked in the response headers. When the
+output is going into a stored log rather than to an agent, add `--redact`,
+which masks the response body and headers as well as the request — so a
+redacted run is for logs, not for chaining.
 
 A session usually looks like this:
 
@@ -97,7 +99,12 @@ Tools exposed:
 | `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
 
 Each `.http` file is also exposed as a resource so the agent can read the
-definitions. Assertion failures return `ok: false` rather than a tool error;
+definitions. Only the project's own `.http` and `.rest` files can be read this
+way: any other path is refused, so `http-client.private.env.json`, `.env` and
+`.apic/session.json` are never served to the agent even though they sit inside
+the project. The readable set is checked against the project on each read, so a
+file added after the server started can be read (it is not listed until the
+server restarts). Assertion failures return `ok: false` rather than a tool error;
 transport and usage problems return an error message the agent can act on.
 
 ## Writing requests as an agent

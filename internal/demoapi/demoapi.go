@@ -33,7 +33,7 @@ var projectFS embed.FS
 // pointing at http://localhost:<port>. Files that already exist are left
 // alone unless force is set.
 func WriteProject(dir string, port int, force bool) (written, skipped []string, err error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // a scaffolded project directory the user browses and edits
 		return nil, nil, err
 	}
 
@@ -65,7 +65,7 @@ func WriteProject(dir string, port int, force bool) (written, skipped []string, 
 			if path == "project" {
 				return nil
 			}
-			return os.MkdirAll(filepath.Join(dir, filepath.FromSlash(rel)), 0o755)
+			return os.MkdirAll(filepath.Join(dir, filepath.FromSlash(rel)), 0o755) //nolint:gosec // as above: scaffolded project directory
 		}
 		content, err := fs.ReadFile(projectFS, path)
 		if err != nil {

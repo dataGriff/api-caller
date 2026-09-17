@@ -104,7 +104,7 @@ func merge(base, over map[string]string) map[string]string {
 
 func loadJSON(path string, found *[]string) (map[string]map[string]string, error) {
 	out := map[string]map[string]string{}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // reading the project's env file by path is the whole job
 	if errors.Is(err, fs.ErrNotExist) {
 		return out, nil
 	}

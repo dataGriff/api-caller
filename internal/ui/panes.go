@@ -129,8 +129,8 @@ func (m *Model) renderResponse(width int) string {
 	} else {
 		b.WriteString(t.Dim.Render("H shows headers") + "\n")
 	}
-	if raw := res.Raw(); len(raw.Body) > 0 {
-		b.WriteString("\n" + output.RenderBody(t, raw.Body) + "\n")
+	if body := res.DisplayRawBody(); len(body) > 0 {
+		b.WriteString("\n" + output.RenderBody(t, body) + "\n")
 	}
 	if summary := output.Checks(t, res, width-4, false); summary != "" {
 		b.WriteString("\n" + summary)
@@ -149,9 +149,9 @@ func (m *Model) curlFor() string {
 		return m.theme.Fail.Render("✗ ") + err.Error()
 	}
 	if d := m.descs[r]; d != nil && !d.Ready {
-		return m.theme.Warn.Render("some variables are missing; the command below is incomplete") + "\n\n" + curlexport.Command(resolved)
+		return m.theme.Warn.Render("some variables are missing; the command below is incomplete") + "\n\n" + curlexport.Command(resolved, m.cfg.Redact)
 	}
-	return curlexport.Command(resolved)
+	return curlexport.Command(resolved, m.cfg.Redact)
 }
 
 func (m *Model) renderChecks(width int) string {
