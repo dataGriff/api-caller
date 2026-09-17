@@ -194,30 +194,6 @@ MCP: `claude mcp add api -- apic mcp --dir ./api --env dev`.
 See [docs/agents.md](docs/agents.md) for the JSON contract and a snippet to
 paste into your project's `AGENTS.md`.
 
-### Changes to the `--json` contract
-
-Unreleased, and worth knowing if you already parse `apic run --json`:
-
-- `--redact` now masks the **response** too — `response.body` becomes the
-  string `"***"`, every `response.headers` value is masked, and each
-  `asserts[]` entry has `actual`/`expected` masked with `expr` reduced to its
-  selector and operator. It previously masked only the request side, so a
-  redacted run printed the response body a token had just been captured from.
-  `status`, `status_text`, `duration_ms`, `size`, `pass` and `error` are
-  unchanged, so CI can still tell what failed.
-- `response.headers` masks `set-cookie` and `www-authenticate` **even without
-  `--redact`**, matching how `Authorization` is treated on the request side.
-  Captures still read the raw header, so `# @capture sid = header.set-cookie`
-  keeps working.
-- Values supplied by `--var` and `APIC_VAR_*` are now treated as secrets, so
-  they show as `***` in `apic env`, `apic describe` and any header built from
-  them. They are the documented way to pass a secret in CI, and `apic test`
-  already treated them this way.
-- `apic curl --redact` masks headers, body and query values and prints
-  `$TOKEN` / `$APIC_USER`:`$APIC_PASSWORD` instead of live `bearer` and
-  `basic` credentials. Without `--redact` the command is unchanged and still
-  runnable as printed.
-
 ## The format
 
 See [docs/format.md](docs/format.md) for the full spec: structure,

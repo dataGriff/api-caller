@@ -31,4 +31,6 @@ changelog:
     exclude: ["^docs:", "^chore:"]
 
 release:
-  draft: false
+  # Draft for v0.1.0, the first release, so the archives and checksums can be
+  # inspected before anything is public. Set back to false afterwards.
+  draft: true
