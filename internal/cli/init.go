@@ -110,7 +110,9 @@ func writeInitProject(dir, baseURL, envName string, force bool) (written, skippe
 
 func ensureGitignore(dir string, written *[]string) error {
 	target := filepath.Join(dir, ".gitignore")
-	lines := []string{"http-client.private.env.json", ".apic/"}
+	// .env belongs here too: env.Load reads it and vars.go marks its values
+	// secret, so it is a credential file like the private env file.
+	lines := []string{"http-client.private.env.json", ".env", ".apic/"}
 	existing, err := os.ReadFile(target) //nolint:gosec // the project's own .gitignore, in the directory the user named
 	if err != nil && !os.IsNotExist(err) {
 		return err

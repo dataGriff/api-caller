@@ -184,9 +184,14 @@ func (p *parser) parseBlock(b *block) *Request {
 		p.errorf(b.nums[i], "expected a header (`Name: value`) or a blank line before the body, got %q", t)
 	}
 
-	// Body: the rest of the block, trailing blank lines trimmed.
+	// Body: the rest of the block, trailing blank lines trimmed. Editor-only
+	// handler blocks are lifted out first so they are ignored rather than sent.
 	if i < len(b.lines) {
-		body := strings.Join(b.lines[i:], "\n")
+		bodyLines, handlers := splitHandlerBlocks(b.lines[i:], b.nums[i:])
+		for _, h := range handlers {
+			p.warn(h.line, "ignoring %s (apic has no scripting; see docs/comparison.md)", h.what)
+		}
+		body := strings.Join(bodyLines, "\n")
 		body = strings.TrimRight(body, "\n\t ")
 		body = strings.TrimLeft(body, "\n")
 		if t := strings.TrimSpace(body); strings.HasPrefix(t, "<@ ") || strings.HasPrefix(t, "< ") {
@@ -235,4 +240,53 @@ func (p *parser) parseComment(req *Request, text string, line int) {
 			p.warn(line, "unknown directive @%s (ignored)", key)
 		}
 	}
+}
+
+// handlerBlock is an editor-only script block found in a request body.
+type handlerBlock struct {
+	line int
+	what string
+}
+
+// splitHandlerBlocks removes the response-handler and pre-request-script
+// blocks that VS Code REST Client and JetBrains allow after a body, returning
+// the real body lines and what was dropped.
+//
+// Without this they are not "ignored" as docs/comparison.md promises: a
+// "> {% ... %}" handler is sent as part of the request body, and a leading
+// "< {%" is mistaken for the "< ./file" body-file syntax and fails at run time
+// looking for a file called "{%". Note "< ./body.json" is a real body file and
+// must survive; only "< {%" is a script.
+func splitHandlerBlocks(lines []string, nums []int) ([]string, []handlerBlock) {
+	var body []string
+	var found []handlerBlock
+	for i := 0; i < len(lines); i++ {
+		t := strings.TrimSpace(lines[i])
+		num := 0
+		if i < len(nums) {
+			num = nums[i]
+		}
+		switch {
+		case strings.HasPrefix(t, "> {%"), strings.HasPrefix(t, "< {%"):
+			what := "response handler block"
+			if strings.HasPrefix(t, "< {%") {
+				what = "pre-request script block"
+			}
+			found = append(found, handlerBlock{line: num, what: what})
+			// Consume to the closing %}, or to the end of the block if the
+			// file never closes it.
+			for ; i < len(lines); i++ {
+				if strings.Contains(lines[i], "%}") {
+					break
+				}
+			}
+		case strings.HasPrefix(t, ">> "), strings.HasPrefix(t, ">>! "):
+			found = append(found, handlerBlock{line: num, what: "response redirect"})
+		case strings.HasPrefix(t, "> ") && !strings.HasPrefix(t, ">> "):
+			found = append(found, handlerBlock{line: num, what: "response handler file"})
+		default:
+			body = append(body, lines[i])
+		}
+	}
+	return body, found
 }

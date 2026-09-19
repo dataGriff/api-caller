@@ -7,6 +7,7 @@ package session
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -114,9 +115,14 @@ func (s *Store) Save() error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	// Refuse to write tokens into a directory that is not ignored: this file
+	// is what keeps a captured OAuth2 access and refresh token out of a
+	// commit, so failing to create it is not something to shrug off.
 	gi := filepath.Join(dir, ".gitignore")
 	if _, err := os.Stat(gi); errors.Is(err, fs.ErrNotExist) {
-		_ = os.WriteFile(gi, []byte("# created by apic; session state must not be committed\n*\n"), 0o600)
+		if err := os.WriteFile(gi, []byte("# created by apic; session state must not be committed\n*\n"), 0o600); err != nil {
+			return fmt.Errorf("%s: %w", gi, err)
+		}
 	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

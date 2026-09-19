@@ -41,7 +41,10 @@ type Options struct {
 	Insecure  bool              // skip TLS verification
 	KeepGoing bool              // in a flow, continue after a failure
 	Redact    bool              // mask every request value and capture in output (for CI logs)
-	Session   *session.Store    // use this store instead of opening .apic/session.json (tests use session.NewMemory())
+	// MaxBodyBytes caps the response body read into memory; zero means
+	// apic.yaml's maxBodyBytes, then DefaultMaxBodyBytes.
+	MaxBodyBytes int64
+	Session      *session.Store // use this store instead of opening .apic/session.json (tests use session.NewMemory())
 }
 
 // Runner executes requests for one project.
@@ -543,7 +546,10 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 		return nil, &TransportError{Err: err}
 	}
 	defer func() { _ = httpResp.Body.Close() }()
-	data, err := io.ReadAll(httpResp.Body)
+	// Bounded: an unbounded ReadAll lets one hostile or oversized response take
+	// the process down, and the body is held more than once while it is parsed
+	// and rendered.
+	data, err := readBody(httpResp.Body, r.maxBodyBytes())
 	if err != nil {
 		return nil, &TransportError{Err: err}
 	}
@@ -746,8 +752,36 @@ func (r *Runner) client(req *httpfile.Request) *http.Client {
 	c := &http.Client{Transport: tr}
 	if _, noRedirect := req.Directive("no-redirect"); noRedirect {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		return c
 	}
+	c.CheckRedirect = stripSensitiveOnCrossHostRedirect
 	return c
+}
+
+// stripSensitiveOnCrossHostRedirect drops apic's own credential headers when a
+// redirect leaves the host that was originally addressed.
+//
+// net/http already does this for Authorization, Cookie and
+// Proxy-Authorization, but its list is fixed and ours is not: the SigV4 signer
+// sets X-Amz-Security-Token, "# @auth exec header=..." sets whatever the
+// project asks for, and a file can write X-Api-Key: {{secret}} by hand. Those
+// would otherwise follow a redirect to any host that answers.
+func stripSensitiveOnCrossHostRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if len(via) == 0 {
+		return nil
+	}
+	if strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+		return nil
+	}
+	for name := range req.Header {
+		if sensitiveHeaders[strings.ToLower(name)] {
+			req.Header.Del(name)
+		}
+	}
+	return nil
 }
 
 func cloneDefaultTransport() *http.Transport {

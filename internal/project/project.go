@@ -25,11 +25,14 @@ const ConfigFile = "apic.yaml"
 
 // Config is the content of apic.yaml.
 type Config struct {
-	Env     string     `yaml:"env"`     // default environment
-	Dir     string     `yaml:"dir"`     // directory holding .http files, relative to the project root
-	Timeout string     `yaml:"timeout"` // default request timeout, e.g. "30s"
-	Auth    AuthConfig `yaml:"auth"`
-	Test    TestConfig `yaml:"test"`
+	Env     string `yaml:"env"`     // default environment
+	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
+	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
+	// MaxBodyBytes caps how much of a response apic will read into memory.
+	// Zero means the built-in default; see runner.DefaultMaxBodyBytes.
+	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
+	Auth         AuthConfig `yaml:"auth"`
+	Test         TestConfig `yaml:"test"`
 }
 
 // TestConfig is the `test:` section of apic.yaml.

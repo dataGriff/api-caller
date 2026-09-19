@@ -587,3 +587,116 @@ func TestVarAndShellVarAreSecret(t *testing.T) {
 		}
 	}
 }
+
+// TestRedirectStripsSensitiveHeadersCrossHost pins that apic's own credential
+// headers do not follow a redirect off the host they were addressed to.
+// net/http strips Authorization, Cookie and Proxy-Authorization itself; the
+// rest of sensitiveHeaders is ours to handle, and X-Amz-Security-Token is set
+// by our own SigV4 signer.
+func TestRedirectStripsSensitiveHeadersCrossHost(t *testing.T) {
+	var got http.Header
+	final := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(final.Close)
+
+	var sameHost http.Header
+	var start *httptest.Server
+	start = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/away":
+			http.Redirect(w, r, final.URL+"/landed", http.StatusFound)
+		case "/local":
+			http.Redirect(w, r, start.URL+"/here", http.StatusFound)
+		case "/here":
+			sameHost = r.Header.Clone()
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		}
+	}))
+	t.Cleanup(start.Close)
+
+	src := "# @name away\nGET {{base}}/away\nX-Api-Key: api-secret\nX-Amz-Security-Token: sess-secret\nAuthorization: Bearer bearer-secret\nAccept: application/json\n\n" +
+		"### \n# @name local\nGET {{base}}/local\nX-Api-Key: api-secret\n"
+	dir := writeProject(t, map[string]string{"api.http": src})
+	p, err := project.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := New(p, Options{Vars: map[string]string{"base": start.URL}, NoSession: true, KeepGoing: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs, err := p.Resolve("away")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(context.Background(), reqs[0]); err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range []string{"X-Api-Key", "X-Amz-Security-Token", "Authorization"} {
+		if v := got.Get(h); v != "" {
+			t.Errorf("%s should not cross to another host on redirect, got %q", h, v)
+		}
+	}
+	// Non-credential headers still travel.
+	if got.Get("Accept") != "application/json" {
+		t.Errorf("Accept should survive the redirect, got %q", got.Get("Accept"))
+	}
+
+	// A same-host redirect keeps them: the credential was meant for that host.
+	reqs, err = p.Resolve("local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Run(context.Background(), reqs[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sameHost.Get("X-Api-Key") != "api-secret" {
+		t.Errorf("a same-host redirect should keep the header, got %q", sameHost.Get("X-Api-Key"))
+	}
+}
+
+// TestResponseBodyIsBounded pins that an oversized response is an error rather
+// than an unbounded read into memory.
+func TestResponseBodyIsBounded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(make([]byte, 4096))
+	}))
+	t.Cleanup(srv.Close)
+	dir := writeProject(t, map[string]string{"api.http": "# @name big\nGET {{base}}/big\n"})
+	p, err := project.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := New(p, Options{Vars: map[string]string{"base": srv.URL}, NoSession: true, MaxBodyBytes: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs, err := p.Resolve("big")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Run(context.Background(), reqs[0])
+	if err == nil {
+		t.Fatal("an oversized body should be an error, not a silent truncation")
+	}
+	if !strings.Contains(err.Error(), "maxBodyBytes") {
+		t.Errorf("the error should say how to raise the limit, got %q", err)
+	}
+
+	// Under the cap it reads normally.
+	r2, err := New(p, Options{Vars: map[string]string{"base": srv.URL}, NoSession: true, MaxBodyBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r2.Run(context.Background(), reqs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Response.Size != 4096 {
+		t.Errorf("size = %d, want 4096", res.Response.Size)
+	}
+}
