@@ -119,7 +119,13 @@ This exact file ships with `apic demo`, so
 
 `apic validate` on its own is a cheap pull-request check: it parses every
 file, reports duplicate names, bad selectors, unknown auth options and
-missing body files, and exits 2 if anything is an error.
+missing body files, and exits 2 if anything is an error. With
+`--format github` each finding becomes an annotation on the pull request
+at the exact line and column:
+
+```yaml
+- run: apic validate -C api --format github
+```
 
 ## AWS API Gateway with SigV4
 

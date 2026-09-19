@@ -32,7 +32,7 @@ Content-Type: application/json
 | `apic curl <id>` | The equivalent curl command |
 | `apic init [dir]` | Scaffold a project |
 | `apic import <spec>` | `.http` files from an OpenAPI 3 document |
-| `apic validate` | Parse everything and report problems (CI) |
+| `apic validate` | Parse everything and report problems (CI); `--format github\|sarif` |
 | `apic mcp` | Serve the project to agents over MCP |
 | `apic demo` | Scaffold and serve the bundled fake API |
 

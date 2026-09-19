@@ -301,7 +301,7 @@ printed, credentials included.
 ## apic validate
 
 ```
-apic validate
+apic validate [--format text|json|github|sarif]
 ```
 
 Parses every `.http` file and reports errors (bad directive syntax, header
@@ -310,15 +310,66 @@ unparsable assertions) and warnings (unknown `# @` directives, duplicate
 request names). Exit code 2 when there are errors. Meant for CI and
 pre-commit.
 
+Every diagnostic points at the offending text, not just its line, and
+carries a stable code:
+
+```
+users.http:12:11: error: assert "bogus == 1": unknown selector "bogus" (unknown-selector)
+  # @assert bogus == 1
+            ^^^^^
+```
+
+The source line and caret appear when stdout is a terminal.
+
+| Flag | Meaning |
+|---|---|
+| `-f, --format text` | The default above. |
+| `-f, --format json` | Same as `--json`. |
+| `-f, --format github` | GitHub Actions workflow commands (`::error file=…,line=…,col=…::…`), so a `validate` step annotates the pull request at the right place. |
+| `-f, --format sarif` | SARIF 2.1.0, with one rule per code, for `github/codeql-action/upload-sarif` or any SARIF viewer. |
+
 `--json`:
 
 ```json
 {
   "ok": false, "files": 2, "requests": 5,
   "diagnostics": [
-    {"path": "users.http", "line": 12, "severity": "error", "message": "assert \"status\": expected `<selector> <op> <value>`"}
+    {"path": "users.http", "line": 12, "column": 11, "end_line": 12, "end_column": 16,
+     "severity": "error", "code": "unknown-selector",
+     "message": "assert \"bogus == 1\": unknown selector \"bogus\""}
   ]
 }
+```
+
+`line` and `column` are 1-based; `column` counts bytes from the start of
+the line, and `end_column` is exclusive. The span fields and `code` are
+omitted when a diagnostic has no useful span (a problem in `apic.yaml`).
+They were added in 0.2; the earlier keys are unchanged.
+
+Codes:
+
+| Code | Meaning |
+|---|---|
+| `orphan-directives` | Directives that are not followed by a request line. |
+| `bad-name` | `# @name` without a value. |
+| `bad-capture` | `# @capture` that is not `name = selector`. |
+| `bad-assert` | `# @assert` that is not `selector op value`. |
+| `bad-header` | A line in the header section that is not `Name: value`. |
+| `unknown-directive` | A `# @directive` apic does not know; ignored (warning). |
+| `editor-script` | An editor-only script or redirect block; skipped, not sent (warning). |
+| `duplicate-name` | A request name used more than once in the project (warning). |
+| `bad-auth` | An `# @auth` spec that does not parse. |
+| `exec-disabled` | `# @auth exec` without `auth.allowExec` in `apic.yaml` (warning). |
+| `bad-config-auth` | `auth.default` in `apic.yaml` does not parse. |
+| `bad-step` | A `# @step` phrase that does not parse. |
+| `ambiguous-step` | A `# @step` phrase that matches the same text as another step. |
+| `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
+| `missing-body-file` | A `< file` body whose file does not exist. |
+
+In a GitHub Actions workflow:
+
+```yaml
+- run: apic validate -C api --format github
 ```
 
 ## apic import

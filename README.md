@@ -167,7 +167,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
-| `apic validate` | Parse every file and report problems; non-zero exit on errors. Use it in CI. |
+| `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 

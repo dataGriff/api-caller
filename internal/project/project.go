@@ -215,22 +215,33 @@ func (p *Project) notFound(name string) error {
 	return fmt.Errorf("no request named %q; known: %s (run `apic list`)", name, strings.Join(names, ", "))
 }
 
+// diag builds a diagnostic spanning [col, end) on line; zero columns mean
+// the whole line.
+func diag(path, severity, code string, line, col, end int, msg string) httpfile.Diagnostic {
+	d := httpfile.Diagnostic{Path: path, Line: line, Severity: severity, Code: code, Message: msg}
+	if col > 0 {
+		d.Column, d.EndLine, d.EndColumn = col, line, end
+	}
+	return d
+}
+
 // Validate returns parse diagnostics plus project-level checks.
 func (p *Project) Validate() []httpfile.Diagnostic {
 	diags := append([]httpfile.Diagnostic(nil), p.Diagnostics...)
 	for name, rs := range p.byName {
 		if len(rs) > 1 {
 			for _, r := range rs {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: r.Line, Severity: "warning",
-					Message: fmt.Sprintf("request name %q is also used elsewhere; `apic run %s` will be ambiguous", name, name)})
+				line, col, end := r.DirectiveSpan("name")
+				diags = append(diags, diag(r.File.Path, "warning", "duplicate-name", line, col, end,
+					fmt.Sprintf("request name %q is also used elsewhere; `apic run %s` will be ambiguous", name, name)))
 			}
 		}
 	}
 	if p.Config.Auth.Default != "" {
 		if spec, err := auth.Parse(p.Config.Auth.Default); err != nil {
-			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "error", Message: "auth.default: " + err.Error()})
+			diags = append(diags, diag(ConfigFile, "error", "bad-config-auth", 0, 0, 0, "auth.default: "+err.Error()))
 		} else if spec.Type == "exec" && !p.Config.Auth.AllowExec {
-			diags = append(diags, httpfile.Diagnostic{Path: ConfigFile, Line: 0, Severity: "warning", Message: "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"})
+			diags = append(diags, diag(ConfigFile, "warning", "exec-disabled", 0, 0, 0, "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"))
 		}
 	}
 	type declared struct {
@@ -244,18 +255,19 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			if d.Key != "step" {
 				continue
 			}
+			col, end := d.Column, d.Column+len(d.Value)
 			ph, err := phrase.Parse(d.Value)
 			if err != nil {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+				diags = append(diags, diag(r.File.Path, "error", "bad-step", d.Line, col, end, err.Error()))
 				continue
 			}
 			if err := ph.ConflictsWithBuiltin(); err != nil {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+				diags = append(diags, diag(r.File.Path, "error", "ambiguous-step", d.Line, col, end, err.Error()))
 			}
 			for _, other := range phrases {
 				if ph.ConflictsWith(other.ph) {
-					diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error",
-						Message: fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.line)})
+					diags = append(diags, diag(r.File.Path, "error", "ambiguous-step", d.Line, col, end,
+						fmt.Sprintf("@step %q matches the same text as @step %q on %s (%s:%d)", ph.Text, other.ph.Text, other.req.ID(), other.req.File.Path, other.line)))
 				}
 			}
 			phrases = append(phrases, declared{r, ph, d.Line})
@@ -264,34 +276,41 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			if d.Key != "auth" {
 				continue
 			}
+			col, end := d.Column, d.Column+len(d.Value)
 			spec, err := auth.Parse(d.Value)
 			if err != nil {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "error", Message: err.Error()})
+				diags = append(diags, diag(r.File.Path, "error", "bad-auth", d.Line, col, end, err.Error()))
 			} else if spec.Type == "exec" && !p.Config.Auth.AllowExec {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: d.Line, Severity: "warning", Message: "@auth exec will be refused until apic.yaml sets auth.allowExec: true"})
+				diags = append(diags, diag(r.File.Path, "warning", "exec-disabled", d.Line, col, end, "@auth exec will be refused until apic.yaml sets auth.allowExec: true"))
 			}
 		}
 		for _, a := range r.Asserts {
 			expr, err := assert.Parse(a.Expr)
 			if err != nil {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: a.Line, Severity: "error", Message: err.Error()})
+				diags = append(diags, diag(r.File.Path, "error", "bad-assert", a.Line, a.Column, a.Column+len(a.Expr), err.Error()))
 				continue
 			}
 			if !validSelector(expr.Selector) {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: a.Line, Severity: "error",
-					Message: fmt.Sprintf("assert %q: unknown selector %q", a.Expr, expr.Selector)})
+				// The selector opens the expression, so its span starts where
+				// the expression does.
+				diags = append(diags, diag(r.File.Path, "error", "unknown-selector", a.Line, a.Column, a.Column+len(expr.Selector),
+					fmt.Sprintf("assert %q: unknown selector %q", a.Expr, expr.Selector)))
 			}
 		}
 		for _, c := range r.Captures {
 			if !validSelector(c.Selector) {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: c.Line, Severity: "error",
-					Message: fmt.Sprintf("capture %q: unknown selector %q", c.Name, c.Selector)})
+				diags = append(diags, diag(r.File.Path, "error", "unknown-selector", c.Line, c.Column, c.Column+len(c.Selector),
+					fmt.Sprintf("capture %q: unknown selector %q", c.Name, c.Selector)))
 			}
 		}
 		if r.BodyFile != "" {
 			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), r.BodyFile)); errors.Is(err, fs.ErrNotExist) {
-				diags = append(diags, httpfile.Diagnostic{Path: r.File.Path, Line: r.Line, Severity: "error",
-					Message: fmt.Sprintf("body file %s not found", r.BodyFile)})
+				line := r.BodyFileLine
+				if line == 0 {
+					line = r.Line
+				}
+				diags = append(diags, diag(r.File.Path, "error", "missing-body-file", line, r.BodyFileColumn, r.BodyFileColumn+len(r.BodyFile),
+					fmt.Sprintf("body file %s not found", r.BodyFile)))
 			}
 		}
 	}
@@ -299,7 +318,10 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 		if diags[i].Path != diags[j].Path {
 			return diags[i].Path < diags[j].Path
 		}
-		return diags[i].Line < diags[j].Line
+		if diags[i].Line != diags[j].Line {
+			return diags[i].Line < diags[j].Line
+		}
+		return diags[i].Column < diags[j].Column
 	})
 	return diags
 }

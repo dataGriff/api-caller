@@ -18,24 +18,31 @@ type Var struct {
 }
 
 // Directive is a `# @key value` comment placed before a request line.
+// Column is the 1-based byte column where Value starts on the line, or
+// where `@key` starts when there is no value.
 type Directive struct {
-	Key   string
-	Value string
-	Line  int
+	Key    string
+	Value  string
+	Line   int
+	Column int
 }
 
 // Capture declares that a value selected from the response should be stored
 // under Name for later requests: `# @capture token = body.$.access_token`.
+// Column is where Selector starts on the line.
 type Capture struct {
 	Name     string
 	Selector string
 	Line     int
+	Column   int
 }
 
-// Assert is a raw assertion expression: `# @assert status == 200`.
+// Assert is a raw assertion expression: `# @assert status == 200`. Column
+// is where Expr starts on the line.
 type Assert struct {
-	Expr string
-	Line int
+	Expr   string
+	Line   int
+	Column int
 }
 
 // Header is a raw, un-templated request header.
@@ -61,7 +68,20 @@ type Request struct {
 	Body              string // raw template, empty when none
 	BodyFile          string // set when the body is `< ./file`
 	BodyFileTemplated bool   // `<@ ./file`: substitute {{vars}} inside the file too
+	BodyFileLine      int    // line of the `< ./file` reference, for diagnostics
+	BodyFileColumn    int    // column where the path starts on that line
 	Line              int    // line number of the request line
+}
+
+// DirectiveSpan returns the line and the [col, end) columns of the value of
+// the first directive with the given key, or zeros when there is none.
+func (r *Request) DirectiveSpan(key string) (line, col, end int) {
+	for _, d := range r.Directives {
+		if d.Key == key {
+			return d.Line, d.Column, d.Column + len(d.Value)
+		}
+	}
+	return 0, 0, 0
 }
 
 // ID returns the stable identifier used on the command line: the request's
