@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -198,5 +199,44 @@ func TestSavedFileShape(t *testing.T) {
 	}
 	if out.Envs["dev"]["token"] != "t" {
 		t.Errorf("unexpected shape: %s", data)
+	}
+}
+
+// TestSaveFailsIfGitignoreCannotBeWritten pins that apic refuses to drop
+// OAuth2 tokens into a directory it could not mark as ignored, rather than
+// swallowing the error and writing them anyway.
+//
+// The .gitignore is a dangling symlink into a directory that does not exist:
+// Stat follows it and reports ErrNotExist (so Save tries to create it), and
+// the write then fails. That works whatever the uid, unlike chmod, which root
+// ignores.
+func TestSaveFailsIfGitignoreCannotBeWritten(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need a privilege on Windows")
+	}
+	root := t.TempDir()
+	dir := filepath.Join(root, Dir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	gi := filepath.Join(dir, ".gitignore")
+	if err := os.Symlink(filepath.Join(root, "no-such-dir", "target"), gi); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	s, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Set("dev", map[string]string{"token": "secret-token"})
+	err = s.Save()
+	if err == nil {
+		t.Fatal("Save should fail when the .gitignore cannot be created")
+	}
+	if !strings.Contains(err.Error(), ".gitignore") {
+		t.Errorf("the error should name the file, got %q", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, File)); statErr == nil {
+		t.Error("tokens should not be written when the directory could not be marked ignored")
 	}
 }

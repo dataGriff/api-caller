@@ -449,6 +449,7 @@ ids and `.http` file names, and `--env` completes the environments in
 env: dev        # default --env
 dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
+maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
   allowExec: false                # permit # @auth exec

@@ -49,7 +49,8 @@ agents. JetBrains has its own CLI runner (`ijhttp`), which needs a JVM.
 What the editors have that apic does not: JetBrains' JavaScript response
 handlers, and the in-editor response viewer. apic reads the common subset
 and ignores what it does not know, so a file with editor-only features still
-parses; run `apic validate` to see what is skipped.
+parses: a `> {% … %}` response handler or a `< {% … %}` pre-request script is
+skipped rather than sent, and `apic validate` lists what was skipped.
 
 ## Against httpyac
 

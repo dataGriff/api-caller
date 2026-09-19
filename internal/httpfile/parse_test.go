@@ -1,6 +1,7 @@
 package httpfile
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -97,5 +98,54 @@ func TestParseTokenHeaderNames(t *testing.T) {
 	f, diags = Parse("t.http", "### a\nGET http://x\n#X-Trace: v\nX#Y: 1\n")
 	if len(diags) != 0 || len(f.Requests) != 1 || len(f.Requests[0].Headers) != 1 || f.Requests[0].Headers[0].Name != "X#Y" {
 		t.Fatalf("a leading # is a comment, an inner # is part of the name: %v %+v", diags, f.Requests[0].Headers)
+	}
+}
+
+// TestEditorHandlerBlocksAreIgnored pins the promise docs/comparison.md makes:
+// "apic reads the common subset and ignores what it does not know, so a file
+// with editor-only features still parses". Before this, a VS Code REST Client
+// or JetBrains response handler was sent as part of the request body — apic
+// POSTed the user's script to their own API.
+func TestEditorHandlerBlocksAreIgnored(t *testing.T) {
+	src := "### Login\n# @name login\nPOST https://api.example.com/login\nContent-Type: application/json\n\n" +
+		"{\"user\": \"alice\"}\n\n" +
+		"> {%\n    client.global.set(\"token\", response.body.access_token);\n%}\n"
+	f, diags := Parse("x.http", src)
+	if len(f.Requests) != 1 {
+		t.Fatalf("expected one request, got %d", len(f.Requests))
+	}
+	got := f.Requests[0].Body
+	if got != `{"user": "alice"}` {
+		t.Fatalf("handler block leaked into the body:\n%q", got)
+	}
+	for _, bad := range []string{"client.global.set", "%}", "> {%"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("body should not contain %q:\n%q", bad, got)
+		}
+	}
+	// It is skipped, and said to be skipped — `apic validate` surfaces this.
+	if len(diags) != 1 || diags[0].Severity != "warning" {
+		t.Fatalf("expected one warning diagnostic, got %+v", diags)
+	}
+}
+
+// TestPreRequestScriptIsNotABodyFile pins the nastier half: "< {%" used to hit
+// the "< ./file" body-file branch and became BodyFile "{%", failing at run
+// time with "body file: no such file". A real "< ./body.json" must still work.
+func TestPreRequestScriptIsNotABodyFile(t *testing.T) {
+	f, _ := Parse("x.http", "# @name a\nPOST https://api.example.com/x\n\n< {%\n  request.variables.set(\"n\", 1);\n%}\n")
+	if got := f.Requests[0].BodyFile; got != "" {
+		t.Errorf("a pre-request script is not a body file, got BodyFile=%q", got)
+	}
+	if got := f.Requests[0].Body; got != "" {
+		t.Errorf("a pre-request script should not become the body, got %q", got)
+	}
+
+	f2, diags := Parse("y.http", "# @name b\nPOST https://api.example.com/x\n\n< ./body.json\n")
+	if len(diags) != 0 {
+		t.Fatalf("a real body file reference should parse cleanly: %+v", diags)
+	}
+	if got := f2.Requests[0].BodyFile; got != "./body.json" {
+		t.Errorf("BodyFile = %q, want ./body.json", got)
 	}
 }
