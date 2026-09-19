@@ -25,6 +25,8 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `setup-apic/`: the composite GitHub Action (`uses: dataGriff/api-caller/setup-apic@v0`) that installs a release with the same checksum verification as `install.sh`, on all three runner OSes. `.github/workflows/action-test.yml` runs it against the latest release when it or `install.sh` changes
 - `docs/`: the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/apic-ui.svg` and `apic-run.svg` are terminal screenshots generated from real output, not hand-drawn
 - `scripts/shot`: the generator behind those screenshots (`task shots`). It serves the demo API in-process, drives the UI through `ui.Model.Press` and renders the frames the CLI and the UI really write, ANSI and all, as SVG. Regenerate them whenever anything on screen changes
+- `docs/learn/`: the "From zero to apic" course, one page per lesson, written from `_template.md`. Fenced blocks preceded by `<!-- learn -->` are executed by CI
+- `scripts/learncheck`: the harness behind that (`task learn:check`). It builds apic, serves `apic demo` in a scratch directory and runs every marked block with `sh -e` in page order
 - `scripts/schemas`: generates `docs/schemas/*.json`, the JSON schemas for `apic.yaml` (reflected from `project.Config`, every key needs a description in the generator), the env files and the session file (`task schemas`). Its test fails when the committed files are stale, so a new `apic.yaml` key means a description and a regeneration
 
 ## Commands

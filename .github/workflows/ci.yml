@@ -75,6 +75,18 @@ jobs:
       # actually reaches, so a finding here is worth acting on.
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+  # The course pages under docs/learn carry runnable blocks marked with
+  # <!-- learn -->; this builds apic, serves the demo API and runs them, so
+  # a lesson cannot quietly stop working.
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go run ./scripts/learncheck
+
   validate-examples:
     runs-on: ubuntu-latest
     steps:
