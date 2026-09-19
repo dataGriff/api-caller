@@ -83,7 +83,11 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 ```
 
 `APIC_VERSION=v1.2.3` pins a version and `APIC_INSTALL_DIR=~/bin` chooses
-where the binary lands.
+where the binary lands. The installer verifies the archive against the
+published `checksums.txt` and refuses to install on a mismatch.
+
+Every release is signed with cosign and ships an SPDX SBOM per archive; see
+[docs/verifying.md](docs/verifying.md) to check a download before trusting it.
 
 ## 60-second tour
 
@@ -238,6 +242,16 @@ more real-world examples live under `examples/`: `github` (`bearer` auth,
 `task example:github`) and `spotify` (`oauth2` client-credentials,
 `task example:spotify`). Each needs your own credentials dropped into its
 `http-client.private.env.json` first; see `examples/README.md`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
+[AGENTS.md](AGENTS.md) if you are an AI agent working in this repository.
+
+## Security
+
+apic handles credentials, so if you find a way one escapes — output that is not
+masked, a file mode that is wrong, a header that follows a redirect it should
+not — please report it privately rather than in an issue. The policy, the scope
+and what apic already promises are in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
