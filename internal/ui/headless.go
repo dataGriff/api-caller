@@ -45,17 +45,31 @@ func (m *Model) PressAll(keys string) {
 	}
 }
 
+// PressWatch is Press with a callback after every piece of background work
+// the key started has landed: for `f`, once per request of the flow, so a
+// caller can capture the screen as rows light up one by one. The callback
+// also runs once at the end, after the last message.
+func (m *Model) PressWatch(name string, each func()) {
+	m.settleWatch(m.Update(ParseKey(name)), each)
+	each()
+}
+
 // settle resolves a command chain inline. Work the event loop would do in
 // the background — a request, the next step of a flow — runs here and its
 // message goes straight back to the model. Anything that needs the real
 // program (a timer, the editor, quitting) ends the chain instead.
-func (m *Model) settle(cmd Cmd) {
+func (m *Model) settle(cmd Cmd) { m.settleWatch(cmd, nil) }
+
+func (m *Model) settleWatch(cmd Cmd, each func()) {
 	for i := 0; cmd != nil && i < settleLimit; i++ {
 		switch msg := cmd().(type) {
 		case nil, quitMsg, delayMsg, execMsg:
 			return
 		case asyncMsg:
 			cmd = m.Update(msg.run())
+			if each != nil {
+				each()
+			}
 		case Cmd:
 			cmd = msg
 		default:

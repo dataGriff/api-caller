@@ -87,6 +87,22 @@ jobs:
           go-version-file: go.mod
       - run: go run ./scripts/learncheck
 
+  # The screenshots and the animated demo are generated from real output;
+  # rendering them here proves a UI change did not break the generator,
+  # and the artifact lets a reviewer look at the frames.
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go run ./scripts/shot -out shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: shots
+
   validate-examples:
     runs-on: ubuntu-latest
     steps:

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -55,23 +56,53 @@ type run struct {
 // SVG renders frame — a whole terminal screen, lines separated by \n — as an
 // SVG window titled with the command that produced it.
 func SVG(title, frame string) string {
-	lines := strings.Split(strings.TrimRight(frame, "\n"), "\n")
-	cols := 0
-	parsed := make([][]run, len(lines))
-	for i, line := range lines {
-		parsed[i] = split(line)
-		// The full width, trailing spaces and all: a UI frame pads every
-		// line to the terminal width, and the window has to be that wide
-		// even though blank runs are never drawn.
-		if w := ansi.StringWidth(ansi.Strip(line)); w > cols {
-			cols = w
+	return AnimatedSVG(title, []Frame{{Text: frame}})
+}
+
+// Frame is one screen of an animation: what the terminal showed, how long
+// to hold it, and a caption drawn in the title bar (the key that was
+// pressed, say). A zero Hold means the frame is static.
+type Frame struct {
+	Text    string
+	Hold    time.Duration
+	Caption string
+}
+
+// AnimatedSVG renders frames as one SVG window that cycles through them
+// with SMIL timing, which browsers run even inside an <img>, so the README
+// and the docs get a moving picture with no GIF, no video and no script.
+// The first frame is what a viewer without animation sees. With a single
+// frame the output is a plain static screenshot.
+func AnimatedSVG(title string, frames []Frame) string {
+	cols, rows := 0, 0
+	parsed := make([][][]run, len(frames))
+	for f, fr := range frames {
+		lines := strings.Split(strings.TrimRight(fr.Text, "\n"), "\n")
+		if len(lines) > rows {
+			rows = len(lines)
+		}
+		parsed[f] = make([][]run, len(lines))
+		for i, line := range lines {
+			parsed[f][i] = split(line)
+			// The full width, trailing spaces and all: a UI frame pads
+			// every line to the terminal width, and the window has to be
+			// that wide even though blank runs are never drawn.
+			if w := ansi.StringWidth(ansi.Strip(line)); w > cols {
+				cols = w
+			}
 		}
 	}
 	if cols < ansi.StringWidth(title)+8 {
 		cols = ansi.StringWidth(title) + 8
 	}
 	width := roundTo(2*padX + float64(cols)*cellW)
-	height := roundTo(firstBase + float64(len(lines)-1)*lineH + bottomMargin)
+	height := roundTo(firstBase + float64(rows-1)*lineH + bottomMargin)
+
+	var total time.Duration
+	for _, fr := range frames {
+		total += fr.Hold
+	}
+	animated := len(frames) > 1 && total > 0
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" `+
@@ -86,16 +117,58 @@ func SVG(title, frame string) string {
 	fmt.Fprintf(&b, `<text x="%g" y="23.5" fill="%s" text-anchor="middle" font-size="12">%s</text>`+"\n",
 		float64(width)/2, titleFG, escape(title))
 
-	for i, runs := range parsed {
-		y := firstBase + float64(i)*lineH
-		for _, r := range runs {
-			if s := r.render(y); s != "" {
-				b.WriteString(s + "\n")
+	var at time.Duration
+	for f, fr := range frames {
+		if animated {
+			// Each frame is a group whose opacity steps to 1 for its slot
+			// of the loop and back to 0, with discrete timing so nothing
+			// fades. keyTimes are fractions of the whole loop.
+			from := at.Seconds() / total.Seconds()
+			to := (at + fr.Hold).Seconds() / total.Seconds()
+			values, keyTimes := "0;1;0", fmt.Sprintf("0;%s;%s", frac(from), frac(to))
+			initial := "0"
+			switch {
+			case f == 0 && f == len(frames)-1:
+				values, keyTimes, initial = "1", "0", "1"
+			case f == 0:
+				values, keyTimes, initial = "1;0", fmt.Sprintf("0;%s", frac(to)), "1"
+			case f == len(frames)-1:
+				values, keyTimes = "0;1", fmt.Sprintf("0;%s", frac(from))
 			}
+			fmt.Fprintf(&b, `<g opacity="%s"><animate attributeName="opacity" calcMode="discrete" values="%s" keyTimes="%s" dur="%ss" repeatCount="indefinite"/>`+"\n",
+				initial, values, keyTimes, frac(total.Seconds()))
+			at += fr.Hold
+		}
+		if fr.Caption != "" {
+			fmt.Fprintf(&b, `<text x="%g" y="23.5" fill="%s" text-anchor="end" font-size="12">%s</text>`+"\n",
+				float64(width)-padX, titleFG, escape(fr.Caption))
+		}
+		for i, runs := range parsed[f] {
+			y := firstBase + float64(i)*lineH
+			for _, r := range runs {
+				if s := r.render(y); s != "" {
+					b.WriteString(s + "\n")
+				}
+			}
+		}
+		if animated {
+			b.WriteString("</g>\n")
 		}
 	}
 	b.WriteString("</svg>\n")
 	return b.String()
+}
+
+// frac formats a fraction of the loop, or a duration in seconds, to four
+// decimals with trailing zeros dropped: precise to a millisecond over a
+// short loop, and readable in a diff.
+func frac(f float64) string {
+	s := strconv.FormatFloat(f, 'f', 4, 64)
+	s = strings.TrimRight(strings.TrimRight(s, "0"), ".")
+	if s == "" || s == "-" {
+		return "0"
+	}
+	return s
 }
 
 // render draws one run: its background, if it has one, then the characters
