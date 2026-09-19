@@ -76,6 +76,77 @@ func TestParseSample(t *testing.T) {
 	if warnings != 1 || errors != 1 {
 		t.Errorf("diags = %v", diags)
 	}
+	// Diagnostics carry a code and the span of the offending text, so an
+	// editor can underline `@frobnicate` and `nope` rather than whole lines.
+	want := []Diagnostic{
+		{Path: "testdata/sample.http", Line: 19, Column: 3, EndLine: 19, EndColumn: 14, Severity: "warning", Code: "unknown-directive", Message: "unknown directive @frobnicate (ignored)"},
+		{Path: "testdata/sample.http", Line: 39, Column: 12, EndLine: 39, EndColumn: 16, Severity: "error", Code: "bad-capture", Message: "@capture must look like `name = selector`, got \"nope\""},
+	}
+	for i, w := range want {
+		if i >= len(diags) || diags[i] != w {
+			t.Errorf("diag %d = %+v, want %+v", i, diags[i], w)
+		}
+	}
+	if d := want[1]; d.String() != "testdata/sample.http:39:12: error: @capture must look like `name = selector`, got \"nope\"" {
+		t.Errorf("String() = %q", d.String())
+	}
+	// Columns on the AST point at the parts later checks report on.
+	if c := login.Captures[0]; c.Column != 20 {
+		t.Errorf("capture selector column = %d, want 20 (%q)", c.Column, "# @capture token = body.$.access_token")
+	}
+	if a := get.Asserts[0]; a.Column != 11 {
+		t.Errorf("assert expr column = %d, want 11", a.Column)
+	}
+	if up.BodyFileLine != 35 || up.BodyFileColumn != 3 {
+		t.Errorf("body file position = %d:%d, want 35:3", up.BodyFileLine, up.BodyFileColumn)
+	}
+}
+
+func TestSpanFindsValueAfterKey(t *testing.T) {
+	// `# @name name`: the value repeats the key, and must be found after it.
+	f, _ := Parse("x.http", "# @name name\nGET http://x\n")
+	if d := f.Requests[0].Directives[0]; d.Column != 9 {
+		t.Fatalf("column = %d, want 9", d.Column)
+	}
+	if col, end := Span("  X: 1", "X: 1", 0); col != 3 || end != 7 {
+		t.Fatalf("span = %d,%d", col, end)
+	}
+	if col, end := Span("abc", "", 0); col != 0 || end != 0 {
+		t.Fatalf("empty span = %d,%d", col, end)
+	}
+	if col, end := Span("abc", "zzz", 0); col != 0 || end != 0 {
+		t.Fatalf("missing span = %d,%d", col, end)
+	}
+}
+
+func TestDiagnosticSpans(t *testing.T) {
+	src := "### orphan\n# @name a\n\n### b\n# @name\nGET http://x\n  Bogus header line\n\n> {% client.log(1) %}\n"
+	_, diags := Parse("x.http", src)
+	got := map[string]Diagnostic{}
+	for _, d := range diags {
+		got[d.Code] = d
+	}
+	cases := map[string]Diagnostic{
+		"orphan-directives": {Line: 2, Column: 3, EndColumn: 8},
+		"bad-name":          {Line: 5, Column: 3, EndColumn: 8},
+		"bad-header":        {Line: 7, Column: 3, EndColumn: 20},
+		"editor-script":     {Line: 9, Column: 1, EndColumn: 22},
+	}
+	for code, want := range cases {
+		d, ok := got[code]
+		if !ok {
+			t.Errorf("no %s diagnostic in %+v", code, diags)
+			continue
+		}
+		if d.Line != want.Line || d.Column != want.Column || d.EndLine != want.Line || d.EndColumn != want.EndColumn {
+			t.Errorf("%s at %d:%d-%d:%d, want %d:%d-%d", code, d.Line, d.Column, d.EndLine, d.EndColumn, want.Line, want.Column, want.EndColumn)
+		}
+	}
+	for code := range got {
+		if _, ok := Codes[code]; !ok {
+			t.Errorf("code %q is not in Codes", code)
+		}
+	}
 }
 
 func TestParseCRLFAndImplicitGet(t *testing.T) {

@@ -87,9 +87,15 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 # Windows and everything else: download from GitHub Releases
 ```
 
+```yaml
+# GitHub Actions, any runner OS: verified, cached, on PATH
+- uses: dataGriff/api-caller/setup-apic@v0
+```
+
 `APIC_VERSION=v1.2.3` pins a version and `APIC_INSTALL_DIR=~/bin` chooses
 where the binary lands. The installer verifies the archive against the
-published `checksums.txt` and refuses to install on a mismatch.
+published `checksums.txt` and refuses to install on a mismatch; the action
+does the same and takes `with: version: v1.2.3`.
 
 Every release is signed with cosign and ships an SPDX SBOM per archive; see
 [docs/verifying.md](docs/verifying.md) to check a download before trusting it.
@@ -167,7 +173,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
-| `apic validate` | Parse every file and report problems; non-zero exit on errors. Use it in CI. |
+| `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 

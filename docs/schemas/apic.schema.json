@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "auth": {
+      "type": "object",
+      "properties": {
+        "allowExec": {
+          "type": "boolean",
+          "description": "Permit `# @auth exec ...`, which runs a command from a request file. Off by default because agents edit request files."
+        },
+        "default": {
+          "type": "string",
+          "description": "An auth spec applied to every request without its own `# @auth`, for example `aws region=eu-west-2` or `bearer {{token}}`. May use {{variables}}.",
+          "examples": [
+            "bearer {{token}}",
+            "aws service=execute-api region=eu-west-2"
+          ]
+        }
+      },
+      "description": "Project-wide authentication defaults; see the Authentication guide.",
+      "additionalProperties": false
+    },
+    "dir": {
+      "type": "string",
+      "description": "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",
+      "examples": [
+        "api",
+        "requests"
+      ]
+    },
+    "env": {
+      "type": "string",
+      "description": "Environment from http-client.env.json to use when --env is not given.",
+      "examples": [
+        "dev",
+        "staging"
+      ]
+    },
+    "maxBodyBytes": {
+      "type": "integer",
+      "description": "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
+      "minimum": 0
+    },
+    "test": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Feature files or directories `apic test` runs when none are given, relative to the project root. Default: features.",
+          "examples": [
+            [
+              "features",
+              "smoke.feature"
+            ]
+          ]
+        }
+      },
+      "description": "Defaults for `apic test`.",
+      "additionalProperties": false
+    },
+    "timeout": {
+      "type": "string",
+      "description": "Default request timeout as a Go duration, for example 10s or 1m30s. Default 30s. `--timeout` and `# @timeout` override it.",
+      "examples": [
+        "10s",
+        "1m"
+      ],
+      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+    }
+  },
+  "$id": "https://datagriff.github.io/api-caller/schemas/apic.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "apic.yaml",
+  "description": "Per-project defaults for apic, read from apic.yaml in the project root. Every key is optional.",
+  "additionalProperties": false
+}

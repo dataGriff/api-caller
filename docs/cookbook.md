@@ -102,13 +102,16 @@ This exact file ships with `apic demo`, so
 
 ```yaml
 # .github/workflows/smoke.yml
-- run: curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
-- run: apic validate -C api
+- uses: dataGriff/api-caller/setup-apic@v0
+- run: apic validate -C api --format github
 - run: apic run auth.http smoke.http -C api --env staging --json --redact
   env:
     APIC_VAR_password: ${{ secrets.API_PASSWORD }}
 ```
 
+- `setup-apic` installs a release verified against `checksums.txt`, cached
+  per version and platform, on every runner OS; `with: version: v0.1.2`
+  pins one. Elsewhere, `install.sh` does the same.
 - `APIC_VAR_<name>` overrides any variable from the shell, so no secret
   needs to reach the runner's disk.
 - `--redact` masks header values, bodies, query values and captured values
@@ -119,7 +122,13 @@ This exact file ships with `apic demo`, so
 
 `apic validate` on its own is a cheap pull-request check: it parses every
 file, reports duplicate names, bad selectors, unknown auth options and
-missing body files, and exits 2 if anything is an error.
+missing body files, and exits 2 if anything is an error. With
+`--format github` each finding becomes an annotation on the pull request
+at the exact line and column:
+
+```yaml
+- run: apic validate -C api --format github
+```
 
 ## AWS API Gateway with SigV4
 

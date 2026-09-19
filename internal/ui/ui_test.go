@@ -129,16 +129,16 @@ func TestTooSmall(t *testing.T) {
 
 func TestNavigationSkipsFileHeadings(t *testing.T) {
 	f := newFixture(t, runner.Options{})
-	f.press("j", "j", "j")
-	if f.m.Selected().ID() != "oauth2-token" {
-		t.Fatalf("after 3 downs got %s", f.m.Selected().ID())
+	f.press("j", "j", "j", "j")
+	if f.m.Selected().ID() != "api-key" {
+		t.Fatalf("after 4 downs got %s", f.m.Selected().ID())
 	}
 	f.press("j")
-	if f.m.Selected().ID() != "list-todos" {
+	if f.m.Selected().ID() != "health" {
 		t.Fatalf("moving past a file heading should land on the next request, got %s", f.m.Selected().ID())
 	}
 	f.press("k")
-	if f.m.Selected().ID() != "oauth2-token" {
+	if f.m.Selected().ID() != "api-key" {
 		t.Fatalf("up got %s", f.m.Selected().ID())
 	}
 	f.press("G")
@@ -210,14 +210,14 @@ func TestFlowRunsWholeFileLive(t *testing.T) {
 	// Resolve just the first step and check the list shows it before the rest run.
 	first := f.step(cmd)
 	v := f.view()
-	if !strings.Contains(v, "✓ POST   login") || !strings.Contains(v, "running whoami (2/4)") {
+	if !strings.Contains(v, "✓ POST   login") || !strings.Contains(v, "running whoami (2/5)") {
 		t.Fatalf("after the first step the list should show login passed and whoami running:\n%s", v)
 	}
 	f.drain(first)
 	if f.m.Running() {
 		t.Fatal("flow should finish")
 	}
-	if v := f.view(); !strings.Contains(v, "last: 4 passed") {
+	if v := f.view(); !strings.Contains(v, "last: 5 passed") {
 		t.Fatalf("summary missing:\n%s", v)
 	}
 }
@@ -226,7 +226,7 @@ func TestRunAllReportsFailures(t *testing.T) {
 	f := newFixture(t, runner.Options{})
 	f.drain(f.press("a"))
 	v := f.view()
-	if !strings.Contains(v, "1 failed, 13 passed") || !strings.Contains(v, "✗ GET    not-found") {
+	if !strings.Contains(v, "1 failed, 23 passed") || !strings.Contains(v, "✗ GET    not-found") {
 		t.Fatalf("expected the deliberate failure in the summary and list:\n%s", v)
 	}
 }
@@ -480,10 +480,10 @@ func TestRowsCarryTheOutcomeAndFilesRollUp(t *testing.T) {
 	if !strings.Contains(v, "200 ") {
 		t.Fatalf("a request that ran should show its status:\n%s", v)
 	}
-	if !strings.Contains(v, "✓4") {
-		t.Fatalf("auth.http should roll up four passes:\n%s", v)
+	if !strings.Contains(v, "✓5") {
+		t.Fatalf("auth.http should roll up five passes:\n%s", v)
 	}
-	if !strings.Contains(v, "last: 4 passed") {
+	if !strings.Contains(v, "last: 5 passed") {
 		t.Fatalf("status bar should summarise the flow:\n%s", v)
 	}
 }

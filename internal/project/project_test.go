@@ -5,7 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dataGriff/api-caller/internal/httpfile"
 )
+
+func httpfileCodes() map[string]string { return httpfile.Codes }
 
 func TestValidateChecksAssertSelector(t *testing.T) {
 	dir := t.TempDir()
@@ -23,6 +27,56 @@ GET https://example.com
 	diags := p.Validate()
 	if len(diags) == 0 || diags[0].Severity != "error" || !strings.Contains(diags[0].Message, "unknown selector") {
 		t.Fatalf("diagnostics: %+v", diags)
+	}
+	// The span covers just the selector, `bogus`, on `# @assert bogus == 1`.
+	if d := diags[0]; d.Code != "unknown-selector" || d.Line != 3 || d.Column != 11 || d.EndLine != 3 || d.EndColumn != 16 {
+		t.Fatalf("span/code: %+v", d)
+	}
+}
+
+// TestValidateSpansAndCodes pins the code and span of each project-level
+// check, since editors and the github/sarif formats key on them.
+func TestValidateSpansAndCodes(t *testing.T) {
+	dir := t.TempDir()
+	src := "### a\n# @name dup\n# @step I run {x}\n# @auth bogus\n# @capture v = nope.$\nGET https://example.com\n\n### b\n# @name dup\n# @assert status =\nPOST https://example.com\n\n< ./missing.json\n"
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type span struct{ line, col, end int }
+	want := map[string][]span{
+		"duplicate-name":    {{2, 9, 12}, {9, 9, 12}},
+		"ambiguous-step":    {{3, 9, 18}},
+		"bad-auth":          {{4, 9, 14}},
+		"unknown-selector":  {{5, 16, 22}},
+		"bad-assert":        {{10, 11, 19}},
+		"missing-body-file": {{13, 3, 17}},
+	}
+	got := map[string][]span{}
+	for _, d := range p.Validate() {
+		got[d.Code] = append(got[d.Code], span{d.Line, d.Column, d.EndColumn})
+		if d.Column > 0 && d.EndLine != d.Line {
+			t.Errorf("%s: end line %d != line %d", d.Code, d.EndLine, d.Line)
+		}
+	}
+	for code, spans := range want {
+		if len(got[code]) != len(spans) {
+			t.Errorf("%s: got %v, want %v", code, got[code], spans)
+			continue
+		}
+		for i := range spans {
+			if got[code][i] != spans[i] {
+				t.Errorf("%s[%d]: got %v, want %v", code, i, got[code][i], spans[i])
+			}
+		}
+	}
+	for code := range got {
+		if _, ok := httpfileCodes()[code]; !ok {
+			t.Errorf("code %q is not documented in httpfile.Codes", code)
+		}
 	}
 }
 

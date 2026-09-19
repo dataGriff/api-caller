@@ -97,7 +97,12 @@ func uiFrame(root string) (string, error) {
 		Theme:  output.Default(),
 	})
 	m.Resize(uiCols, uiRows)
-	m.PressAll("a g j j j j")
+	// `a` runs everything, `g` goes to the top, then down past auth.http,
+	// explore.http and jobs.http to the first request in todos.http.
+	m.PressAll("a g j j j j j j j j j j j j")
+	if m.Selected() == nil || m.Selected().ID() != "list-todos" {
+		return "", fmt.Errorf("the ui frame should show list-todos, got %v", m.Selected())
+	}
 	return m.View(), nil
 }
 

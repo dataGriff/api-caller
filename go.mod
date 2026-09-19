@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/cucumber/gherkin/go/v42 v42.0.1
 	github.com/cucumber/godog v0.16.0
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-isatty v0.0.24
@@ -25,7 +26,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cucumber/messages/go/v34 v34.2.0 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-memdb v1.3.5 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect

@@ -1,0 +1,34 @@
+### Is the API up? No auth needed
+# @name health
+# @step the API is up
+# @assert status == 200
+# @assert body.$.status == ok
+# @assert body.$.version exists
+GET {{baseUrl}}/health
+
+### A slow endpoint, given more time than the default
+# @name slow
+# @timeout 5s
+# @assert status == 200
+# @assert body.$.slept_ms == 300
+# @assert duration >= 300
+GET {{baseUrl}}/slow?ms=300
+
+### A CSV download: not JSON, so assert on headers and the raw body
+# @name daily-report
+# @assert status == 200
+# @assert header.content-type contains text/csv
+# @assert body startsWith date,total,done,open
+GET {{baseUrl}}/reports/daily.csv
+
+### GraphQL is just a JSON POST
+# @name graphql
+# @step I ask GraphQL for the done todos
+# @assert status == 200
+# @assert body.$.data.todos.# >= 1
+# @assert body.$.data.todos[0].done == true
+POST {{baseUrl}}/graphql
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"query": "query Todos($done: Boolean) { todos(done: $done) { id title done } }", "variables": {"done": true}}

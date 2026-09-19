@@ -1,2 +1,3 @@
+# yaml-language-server: $schema=https://datagriff.github.io/api-caller/schemas/apic.schema.json
 # Default environment when --env is not given.
 env: local
