@@ -27,14 +27,20 @@ const (
 
 	// maxSlowMillis caps GET /slow so a typo cannot park a request for an hour.
 	maxSlowMillis = 10_000
-	// defaultPageSize is the page size of GET /todos when limit is not given.
+	// defaultPageSize is the page size of GET /todos when limit is not given,
+	// and maxPageSize caps what limit= may ask for.
 	defaultPageSize = 20
+	maxPageSize     = 100
 	// maxUploadBytes bounds what POST /upload buffers in memory.
 	maxUploadBytes = 8 << 20
 )
 
 //go:embed project
 var projectFS embed.FS
+
+// Version is reported by GET /health. The CLI sets it to the apic version;
+// it is "dev" otherwise.
+var Version = "dev"
 
 // WriteProject writes the bundled example project into dir (creating it if
 // needed): apic.yaml, http-client.private.env.json, the .http files and
@@ -131,7 +137,7 @@ type job struct {
 //	GET  /reports/daily.csv                 text/csv
 //	GET  /slow?ms=                          sleeps, capped at 10 s
 //	GET  /status/{code}, GET /redirect      any status; a 302 to /status/200
-//	GET  /health                            uptime, no auth
+//	GET  /health                            version and uptime, no auth
 func New() http.Handler {
 	mux := http.NewServeMux()
 	started := time.Now()
@@ -212,10 +218,15 @@ func New() http.Handler {
 		}
 		page := positiveInt(q.Get("page"), 1)
 		limit := positiveInt(q.Get("limit"), defaultPageSize)
+		if limit > maxPageSize {
+			limit = maxPageSize
+		}
 		all := listTodos(done)
-		start := (page - 1) * limit
-		if start > len(all) {
-			start = len(all)
+		// Bound the window without multiplying first: a huge page would
+		// overflow (page-1)*limit into a negative start and panic the slice.
+		start := len(all)
+		if page-1 <= len(all)/limit {
+			start = (page - 1) * limit
 		}
 		end := start + limit
 		if end > len(all) {
@@ -416,6 +427,7 @@ func New() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":         "ok",
 			"service":        "apic-demo",
+			"version":        Version,
 			"uptime_seconds": int(time.Since(started).Seconds()),
 		})
 	})

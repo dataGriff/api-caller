@@ -88,6 +88,20 @@ func TestTodosFilterAndPaginate(t *testing.T) {
 	if res.StatusCode != 400 || obj["error"] == nil {
 		t.Fatalf("bad done value: %d %v", res.StatusCode, obj)
 	}
+	// Absurd page and limit values must not overflow into a panic: past the
+	// end is an empty page, and limit is capped.
+	for _, q := range []string{"page=9223372036854775807&limit=9223372036854775807", "page=9223372036854775807", "page=3&limit=1"} {
+		res, _, arr := call(t, srv, "GET", "/todos?"+q, "", nil)
+		if res.StatusCode != 200 || len(arr) != 0 {
+			t.Errorf("%s: status=%d len=%d, want an empty page", q, res.StatusCode, len(arr))
+		}
+	}
+	for _, q := range []string{"limit=1000", "limit=9223372036854775807"} {
+		res, _, arr := call(t, srv, "GET", "/todos?"+q, "", nil)
+		if res.StatusCode != 200 || len(arr) != 2 {
+			t.Errorf("%s: a limit above the cap still lists everything that exists: status=%d len=%d", q, res.StatusCode, len(arr))
+		}
+	}
 }
 
 func TestCreateTodoValidates(t *testing.T) {
@@ -217,7 +231,7 @@ func TestAPIKeyCSVSlowAndHealth(t *testing.T) {
 	}
 
 	res, obj, _ = call(t, srv, "GET", "/health", "", nil)
-	if res.StatusCode != 200 || obj["status"] != "ok" || obj["uptime_seconds"] == nil {
+	if res.StatusCode != 200 || obj["status"] != "ok" || obj["uptime_seconds"] == nil || obj["version"] != "dev" {
 		t.Fatalf("health: %d %v", res.StatusCode, obj)
 	}
 }

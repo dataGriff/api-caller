@@ -3,6 +3,7 @@
 # @step the API is up
 # @assert status == 200
 # @assert body.$.status == ok
+# @assert body.$.version exists
 GET {{baseUrl}}/health
 
 ### A slow endpoint, given more time than the default

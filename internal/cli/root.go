@@ -16,6 +16,7 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
 
+	"github.com/dataGriff/api-caller/internal/demoapi"
 	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
@@ -48,6 +49,7 @@ type App struct {
 // New builds the command tree.
 func New() *App {
 	a := &App{Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin}
+	demoapi.Version = Version // GET /health on the demo API reports it
 	root := &cobra.Command{
 		Use:   "apic",
 		Short: "Run .http request files from the terminal, CI, or an AI agent",
