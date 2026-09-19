@@ -51,6 +51,9 @@ func generate(dir string) error {
 	// ask lipgloss for colour explicitly, the way a real session has it.
 	lipgloss.SetColorProfile(termenv.ANSI256)
 
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // the docs assets directory the caller named
+		return err
+	}
 	root, stop, err := startDemo()
 	if err != nil {
 		return err
