@@ -2,11 +2,11 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "scopeName": "apic.directives.injection",
   "injectionSelector": "L:source.http, L:text.http",
-  "comment": "Highlights apic's `# @directive value` comment lines inside .http files without owning the language: REST Client (or another extension) keeps providing the http grammar, and this is layered on top.",
+  "comment": "Highlights apic's `# @directive value` comment lines inside .http files without owning the language: REST Client (or another extension) keeps providing the http grammar, and this is layered on top. The list of known directives in the first pattern mirrors KnownDirectives in internal/httpfile/parse.go; a Go test (TestGrammarMatchesKnownDirectives) fails when they drift.",
   "patterns": [
     {
       "name": "meta.directive.apic",
-      "match": "^\\s*((?:#|//)\\s*)(@(?:name|description|capture|assert|auth|step|ref|retry|timeout|no-redirect|no-session|note|prompt|disabled|sleep))\\b(.*)$",
+      "match": "^\\s*((?:#|//)\\s*)(@(?:name|description|capture|assert|auth|step|no-redirect|no-session|timeout|note|prompt))\\b(.*)$",
       "captures": {
         "1": { "name": "punctuation.definition.comment.apic" },
         "2": { "name": "keyword.control.directive.apic" },

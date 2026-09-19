@@ -15,8 +15,6 @@ nav:
       - Cheat sheet: cheatsheet.md
   - Learn:
       - From zero to apic: learn/index.md
-      - Writing a lesson: learn/_template.md
-      - Episode template: learn/_episode-template.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md

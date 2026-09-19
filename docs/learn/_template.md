@@ -15,9 +15,12 @@ each section, and add the page to the **Learn** tab in `mkdocs.yml`.
   about a real API. Nobody gets stuck at a login page.
 - **Mark runnable blocks** with an HTML comment on the line before the
   fence, `<!-- learn -->`. CI extracts those blocks, starts `apic demo`
-  in a scratch directory, and runs them in order with `sh -e`, so a lesson
-  cannot rot. Blocks that need credentials, an editor or a browser are
-  left unmarked. Run the check yourself with `task learn:check`.
+  in a scratch directory (writing `apic-demo/` there), and runs them in
+  order with `sh -e`, so a lesson cannot rot. Blocks that need
+  credentials, an editor or a browser are left unmarked, and so is the
+  block that tells the reader to start `apic demo`: the harness has
+  already started it, on a free port, and a second one would fight it.
+  Run the check yourself with `task learn:check`.
 - **The checkpoint is one command** whose output settles whether the
   lesson took. Make it the last runnable block.
 - **The episode script lives on the page**, collapsed at the end, so the
@@ -39,17 +42,14 @@ request from a `.http` file against a local API and read the result.
 - `apic demo` running in another terminal (lesson 1 shows how), or start it
   now:
 
-<!-- learn -->
 ```sh
-apic demo --out apic-demo --force >/dev/null 2>&1 &
-sleep 1
+apic demo --out apic-demo
 ```
 
 !!! note
-    The harness runs this block too, so a lesson that starts the demo
-    itself works both for a reader and in CI. If the demo is already
-    running on the default port, use `--port` and pass the same port in
-    `http-client.env.json`.
+    This block is deliberately not marked for the harness: in CI the demo
+    is already running, in a scratch directory, on a free port. Every
+    block after it can be marked, since `apic-demo/` exists either way.
 
 ## Steps
 

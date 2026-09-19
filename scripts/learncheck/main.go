@@ -62,7 +62,7 @@ func Extract(file string, content string) []Block {
 		start := i
 		var body []string
 		for i++; i < len(lines); i++ {
-			if t := strings.TrimSpace(lines[i]); strings.HasPrefix(t, fence) && strings.TrimSpace(strings.TrimPrefix(t, fence)) == "" {
+			if closesFence(lines[i], fence) {
 				break
 			}
 			body = append(body, strings.TrimPrefix(lines[i], indent))
@@ -73,6 +73,17 @@ func Extract(file string, content string) []Block {
 		armed = false
 	}
 	return out
+}
+
+// closesFence reports whether line closes a block opened with fence: the
+// same character, at least as many of them (CommonMark allows more), and
+// nothing else on the line.
+func closesFence(line, fence string) bool {
+	t := strings.TrimSpace(line)
+	if !strings.HasPrefix(t, fence) {
+		return false
+	}
+	return strings.Trim(t, fence[:1]) == ""
 }
 
 func main() {

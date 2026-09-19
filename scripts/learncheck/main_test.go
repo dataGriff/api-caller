@@ -28,6 +28,31 @@ func TestExtractTakesOnlyMarkedFences(t *testing.T) {
 	}
 }
 
+// TestExtractAcceptsLongerClosingFences pins CommonMark's rule that a
+// closing fence may be longer than the opening one: ``` closed by ````
+// must end the block rather than swallow the rest of the page.
+func TestExtractAcceptsLongerClosingFences(t *testing.T) {
+	src := "<!-- learn -->\n```sh\necho one\n````\n\nprose that is not code\n\n<!-- learn -->\n~~~\necho two\n~~~~~\n\n<!-- learn -->\n```\necho ``` inside is fine\n```  \n"
+	got := Extract("x.md", src)
+	if len(got) != 3 {
+		t.Fatalf("want 3 blocks, got %d: %+v", len(got), got)
+	}
+	if got[0].Code != "echo one\n" || got[1].Code != "echo two\n" || got[2].Code != "echo ``` inside is fine\n" {
+		t.Errorf("blocks = %+v", got)
+	}
+	for _, c := range []struct {
+		line, fence string
+		want        bool
+	}{
+		{"```", "```", true}, {"````", "```", true}, {"  ```  ", "```", true}, {"~~~~", "~~~", true},
+		{"``", "```", false}, {"```sh", "```", false}, {"~~~", "```", false}, {"echo ```", "```", false},
+	} {
+		if got := closesFence(c.line, c.fence); got != c.want {
+			t.Errorf("closesFence(%q, %q) = %v, want %v", c.line, c.fence, got, c.want)
+		}
+	}
+}
+
 func TestExtractHandlesCRLF(t *testing.T) {
 	got := Extract("x.md", "<!-- learn -->\r\n```sh\r\necho hi\r\n```\r\n")
 	if len(got) != 1 || got[0].Code != "echo hi\n" {
