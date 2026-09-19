@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.5
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/cucumber/gherkin/go/v42 v42.0.0
+	github.com/cucumber/gherkin/go/v42 v42.0.1
 	github.com/cucumber/godog v0.16.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
