@@ -120,8 +120,15 @@ func uiAnimation(root string) ([]Frame, error) {
 	add(2500*time.Millisecond, "enter · send the request")
 	m.Press("j")
 	add(1500*time.Millisecond, "j · whoami is ready: login captured the token")
-	// Down to the first request in todos.http.
-	for m.Selected() != nil && m.Selected().ID() != "list-todos" {
+	// Down to the first request in todos.http. The loop is bounded by the
+	// project size so a renamed request fails loudly instead of spinning.
+	for i := len(r.Project.Requests()); ; i-- {
+		if sel := m.Selected(); sel != nil && sel.ID() == "list-todos" {
+			break
+		}
+		if i == 0 {
+			return nil, fmt.Errorf("the demo project has no list-todos request to move the cursor to")
+		}
 		m.Press("j")
 	}
 	add(time.Second, "j … · todos.http")

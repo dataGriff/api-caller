@@ -6,7 +6,7 @@
 <circle cx="35" cy="19" r="5.5" fill="#febc2e"/>
 <circle cx="52" cy="19" r="5.5" fill="#28c840"/>
 <text x="455.5" y="23.5" fill="#8b93a7" text-anchor="middle" font-size="12">apic ui --demo</text>
-<g opacity="1"><animate attributeName="opacity" calcMode="discrete" values="1;0" keyTimes="0;0.0891" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="1"><animate attributeName="opacity" calcMode="discrete" values="1;0;0" keyTimes="0;0.0891;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">the project: requests left, preview right</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -127,7 +127,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.0891;0.2004" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.0891;0.2004;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">enter · send the request</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -251,7 +251,7 @@
 <text x="487.0 494.8 502.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.2004;0.2673" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.2004;0.2673;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">j · whoami is ready: login captured the token</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -359,7 +359,7 @@
 <text x="487.0 494.8 502.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.2673;0.3118" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.2673;0.3118;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">j … · todos.http</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -467,7 +467,7 @@
 <text x="487.0 494.8 502.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.3118;0.3318" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.3118;0.3318;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -492,9 +492,9 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">200 OK</text>
 <text x="369.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="385.4 393.2 401.0 408.8 416.7" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">33 ms</text>
-<text x="432.3" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="447.9 455.7 463.6 471.4" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">97 B</text>
+<text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">8 ms</text>
+<text x="424.5" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
+<text x="440.1 447.9 455.7 463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">97 B</text>
 <text x="33.6" y="114.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">●</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="114.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9" y="114.0" fill="#d6dae4" xml:space="preserve"> whoami </text>
@@ -607,11 +607,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" xml:space="preserve"> running list-open-todos (2/12) </text>
-<text x="573.0 580.8 588.6 596.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">33ms</text>
-<text x="604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
-<text x="627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
+<text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">8ms</text>
+<text x="596.4 604.3 612.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
+<text x="619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.3318;0.3519" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.3318;0.3519;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -747,11 +747,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running create-todo (3/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">35ms</text>
-<text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
-<text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
+<text x="541.7 549.5 557.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">9ms</text>
+<text x="565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
+<text x="588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.3519;0.3719" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.3519;0.3719;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -774,7 +774,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">201 Created</text>
 <text x="408.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="424.5 432.3 440.1 447.9" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
+<text x="424.5 432.3 440.1 447.9" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">1 ms</text>
 <text x="463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="479.2 487.0 494.8 502.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">45 B</text>
 <text x="33.6" y="114.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">●</text>
@@ -884,11 +884,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-todo (4/12) </text>
-<text x="518.3 526.1 533.9 541.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">36ms</text>
+<text x="518.3 526.1 533.9 541.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">11ms</text>
 <text x="549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.3719;0.392" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.3719;0.392;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1018,11 +1018,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running update-todo (5/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">36ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">11ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.392;0.412" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.392;0.412;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1153,11 +1153,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-updated (6/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">37ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">12ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.412;0.4321" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.412;0.4321;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1289,11 +1289,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running delete-todo (7/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">38ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">13ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.4321;0.4521" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.4321;0.4521;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1411,11 +1411,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-deleted (8/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">39ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">14ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.4521;0.4722" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.4521;0.4722;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1541,11 +1541,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4" y="384.0" fill="#d6dae4" xml:space="preserve"> running create-todo-invalid (9/12) </text>
-<text x="604.3 612.1 619.9 627.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">40ms</text>
+<text x="604.3 612.1 619.9 627.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">14ms</text>
 <text x="635.5 643.3 651.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.4722;0.4922" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.4722;0.4922;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1682,11 +1682,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1" y="384.0" fill="#d6dae4" xml:space="preserve"> running not-found (10/12) </text>
-<text x="533.9 541.7 549.5 557.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">40ms</text>
+<text x="533.9 541.7 549.5 557.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">15ms</text>
 <text x="565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.4922;0.5122" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.4922;0.5122;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1815,11 +1815,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6" y="384.0" fill="#d6dae4" xml:space="preserve"> running redirect-followed (11/12) </text>
-<text x="596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">41ms</text>
+<text x="596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">16ms</text>
 <text x="627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.5122;0.5323" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.5122;0.5323;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -1840,7 +1840,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">200 OK</text>
 <text x="369.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">1 ms</text>
+<text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
 <text x="424.5" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="440.1 447.9 455.7 463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">15 B</text>
 <text x="33.6" y="114.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">●</text>
@@ -1935,7 +1935,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-followed</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -1948,11 +1948,11 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5" y="384.0" fill="#d6dae4" xml:space="preserve"> running redirect-raw (12/12) </text>
-<text x="557.4 565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">43ms</text>
+<text x="557.4 565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">17ms</text>
 <text x="588.6 596.4 604.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.5323;0.6214" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.5323;0.6214;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">f · run the whole file, live</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -2059,7 +2059,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -2083,7 +2083,7 @@
 <text x="510.5 518.3 526.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.6214;0.7327" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.6214;0.7327;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">3 · checks: actual against expected</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -2188,7 +2188,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -2212,7 +2212,7 @@
 <text x="510.5 518.3 526.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.7327;0.8218" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.7327;0.8218;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">4 · session: what was captured</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -2314,7 +2314,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -2338,7 +2338,7 @@
 <text x="510.5 518.3 526.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0" keyTimes="0;0.8218;0.9332" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;0;0" keyTimes="0;0.8218;0.9332;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">? · every key</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -2459,7 +2459,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -2485,7 +2485,7 @@
 <text x="510.5 518.3 526.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
-<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1" keyTimes="0;0.9332" dur="22.45s" repeatCount="indefinite"/>
+<g opacity="0"><animate attributeName="opacity" calcMode="discrete" values="0;1;1" keyTimes="0;0.9332;1" dur="22.45s" repeatCount="indefinite"/>
 <text x="893" y="23.5" fill="#8b93a7" text-anchor="end" font-size="12">esc · back to it</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
@@ -2597,7 +2597,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>

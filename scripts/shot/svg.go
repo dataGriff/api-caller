@@ -123,17 +123,18 @@ func AnimatedSVG(title string, frames []Frame) string {
 			// Each frame is a group whose opacity steps to 1 for its slot
 			// of the loop and back to 0, with discrete timing so nothing
 			// fades. keyTimes are fractions of the whole loop.
+			// Every keyTimes list starts at 0 and ends at 1, which every
+			// reading of the SMIL spec accepts; the value at 1 repeats the
+			// last slot so the loop's final instant draws the right frame.
 			from := at.Seconds() / total.Seconds()
 			to := (at + fr.Hold).Seconds() / total.Seconds()
-			values, keyTimes := "0;1;0", fmt.Sprintf("0;%s;%s", frac(from), frac(to))
+			values, keyTimes := "0;1;0;0", fmt.Sprintf("0;%s;%s;1", frac(from), frac(to))
 			initial := "0"
 			switch {
-			case f == 0 && f == len(frames)-1:
-				values, keyTimes, initial = "1", "0", "1"
 			case f == 0:
-				values, keyTimes, initial = "1;0", fmt.Sprintf("0;%s", frac(to)), "1"
+				values, keyTimes, initial = "1;0;0", fmt.Sprintf("0;%s;1", frac(to)), "1"
 			case f == len(frames)-1:
-				values, keyTimes = "0;1", fmt.Sprintf("0;%s", frac(from))
+				values, keyTimes = "0;1;1", fmt.Sprintf("0;%s;1", frac(from))
 			}
 			fmt.Fprintf(&b, `<g opacity="%s"><animate attributeName="opacity" calcMode="discrete" values="%s" keyTimes="%s" dur="%ss" repeatCount="indefinite"/>`+"\n",
 				initial, values, keyTimes, frac(total.Seconds()))

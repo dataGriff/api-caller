@@ -48,6 +48,9 @@ suite("apic extension", () => {
     const { apic } = await api();
     const info = await apic.version();
     assert.ok(info.version, `version info: ${JSON.stringify(info)}`);
+    // The command itself: it runs the binary and shows a message, and must
+    // return rather than throw.
+    await vscode.commands.executeCommand("apic.showVersion");
     const res = await apic.json<{ requests: { id: string }[] }>(["list"], {
       project: vscode.workspace.workspaceFolders![0].uri.fsPath,
     });
