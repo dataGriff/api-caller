@@ -43,7 +43,12 @@ project to a directory and serves the API, so you can run it by hand:
 ```sh
 apic demo                                  # terminal 1: writes ./apic-demo, serves the API
 apic run login whoami -C apic-demo         # terminal 2
+apic ui -C apic-demo --env local           # or the UI, same directory
 ```
+
+Every command resolves `.http` files relative to `-C` (default: the current
+directory), so `apic ui` on its own in that second terminal won't see the
+project `apic demo` just wrote — point it at the directory explicitly.
 
 <p align="center"><img src="docs/assets/apic-run.svg" width="620" alt="apic run output: status, timing, highlighted body, assertions and captures"></p>
 

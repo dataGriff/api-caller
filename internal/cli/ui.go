@@ -28,6 +28,10 @@ press ? for every key.
 This is the one apic command that needs a terminal. It refuses to start when
 stdout is not a TTY or --json is given; use apic run / apic list there.
 
+Like every apic command, ui resolves .http files relative to -C (default:
+the current directory) — it has no project registry, so it won't find a
+project written elsewhere unless you cd into it or pass -C.
+
 --demo needs nothing set up: it serves the built-in fake API in-process and
 opens the UI on the example project that targets it.`,
 		Example: `  apic ui
