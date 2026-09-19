@@ -241,12 +241,20 @@ Exit codes make apic safe in `set -e` scripts and CI steps:
 
 ```yaml
 # .github/workflows/smoke.yml
-- run: curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
-- run: apic validate -C api
+- uses: dataGriff/api-caller/setup-apic@v0
+- run: apic validate -C api --format github
 - run: apic run auth.http users.http -C api --env staging --json --redact
   env:
     APIC_VAR_password: ${{ secrets.API_PASSWORD }}
 ```
+
+The `setup-apic` action installs the latest release (or `with: version:
+v0.1.2` to pin one), verifies it against the published checksums, caches
+it and puts it on `PATH`, on Linux, macOS and Windows runners. On any
+other CI system, `curl -fsSL
+https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh`
+does the same job. `--format github` turns each validation problem into
+an annotation on the pull request at the right line.
 
 `APIC_VAR_<name>` environment variables override values from the env files,
 so secrets never need to be in a file on the runner. `--redact` masks

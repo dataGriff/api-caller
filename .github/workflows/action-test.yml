@@ -1,0 +1,47 @@
+name: setup-apic
+# Exercises the composite action in setup-apic/ against the latest release
+# on every runner OS, so a change to the action or to the archive naming
+# cannot break `uses: dataGriff/api-caller/setup-apic@v0` unnoticed.
+on:
+  pull_request:
+    paths: [setup-apic/**, install.sh, .github/workflows/action-test.yml]
+  push:
+    branches: [main]
+    paths: [setup-apic/**, install.sh, .github/workflows/action-test.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: apic
+        uses: ./setup-apic
+      - shell: bash
+        run: |
+          test -n "${{ steps.apic.outputs.version }}"
+          test -d "${{ steps.apic.outputs.path }}"
+          apic version --json
+      - run: apic validate -C examples/httpbin --format github
+
+  pinned:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./setup-apic
+        with:
+          version: v0.1.2
+      # goreleaser stamps the version without the leading v.
+      - run: |
+          apic version --json | grep -F '"version": "0.1.2"'
+      # A second call for the same version comes from the cache and must
+      # still put a working binary on PATH.
+      - uses: ./setup-apic
+        with:
+          version: 0.1.2
+      - run: apic version

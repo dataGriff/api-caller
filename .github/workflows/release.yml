@@ -8,6 +8,10 @@ permissions:
 
 jobs:
   goreleaser:
+    # Only version tags (v0.1.2) release. The moving major tag (v0) that the
+    # last step maintains for the setup-apic action also matches `v*`, and
+    # must not start a release of its own.
+    if: contains(github.ref_name, '.')
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release and upload its assets
@@ -30,3 +34,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # `uses: dataGriff/api-caller/setup-apic@v0` follows the newest 0.x
+      # release, the way actions/checkout@v4 does: move the major tag to
+      # this commit once the release is out.
+      - name: Move the major tag for setup-apic
+        run: |
+          major="${GITHUB_REF_NAME%%.*}"
+          git tag -f "$major" "$GITHUB_REF_NAME"
+          git push -f origin "refs/tags/$major"

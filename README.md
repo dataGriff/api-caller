@@ -87,9 +87,15 @@ curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.s
 # Windows and everything else: download from GitHub Releases
 ```
 
+```yaml
+# GitHub Actions, any runner OS: verified, cached, on PATH
+- uses: dataGriff/api-caller/setup-apic@v0
+```
+
 `APIC_VERSION=v1.2.3` pins a version and `APIC_INSTALL_DIR=~/bin` chooses
 where the binary lands. The installer verifies the archive against the
-published `checksums.txt` and refuses to install on a mismatch.
+published `checksums.txt` and refuses to install on a mismatch; the action
+does the same and takes `with: version: v1.2.3`.
 
 Every release is signed with cosign and ships an SPDX SBOM per archive; see
 [docs/verifying.md](docs/verifying.md) to check a download before trusting it.
