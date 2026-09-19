@@ -67,6 +67,11 @@ unless --force is given.`,
 	return cmd
 }
 
+// schemaModeline is the first line of a scaffolded apic.yaml: the YAML
+// language server (and so VS Code, JetBrains and Neovim with it) picks up
+// the published schema for completion and validation.
+const schemaModeline = "# yaml-language-server: $schema=https://datagriff.github.io/api-caller/schemas/apic.schema.json"
+
 // writeInitProject writes the starter files, skipping ones that exist unless
 // force is set. The .gitignore is appended to rather than replaced.
 func writeInitProject(dir, baseURL, envName string, force bool) (written, skipped []string, err error) {
@@ -91,7 +96,7 @@ func writeInitProject(dir, baseURL, envName string, force bool) (written, skippe
 		name, content string
 		mode          fs.FileMode
 	}{
-		{"apic.yaml", fmt.Sprintf("# Default environment when --env is not given.\nenv: %s\n", envName), 0o644},
+		{"apic.yaml", fmt.Sprintf("%s\n# Default environment when --env is not given.\nenv: %s\n", schemaModeline, envName), 0o644},
 		{"http-client.env.json", fmt.Sprintf("{\n  \"$shared\": {},\n  %q: {\n    \"baseUrl\": %q\n  }\n}\n", envName, baseURL), 0o644},
 		{"http-client.private.env.json", fmt.Sprintf("{\n  %q: {\n    \"apiKey\": \"change-me\"\n  }\n}\n", envName), 0o600},
 		{"api.http", initHTTP, 0o644},

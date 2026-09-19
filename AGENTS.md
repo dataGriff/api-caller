@@ -24,6 +24,7 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - `examples/`: static sample projects, each `apic validate`-checked in CI (`validate-examples` job). `httpbin` (basic/bearer auth, needs network but no keys), `github` (bearer auth against a real token, `repo.http`), `spotify` (`oauth2` client-credentials against a real app, `search.http`); `github` and `spotify` need the reader's own credentials in their `http-client.private.env.json` to run live; see `examples/README.md`
 - `docs/`: the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/apic-ui.svg` and `apic-run.svg` are terminal screenshots generated from real output, not hand-drawn
 - `scripts/shot`: the generator behind those screenshots (`task shots`). It serves the demo API in-process, drives the UI through `ui.Model.Press` and renders the frames the CLI and the UI really write, ANSI and all, as SVG. Regenerate them whenever anything on screen changes
+- `scripts/schemas`: generates `docs/schemas/*.json`, the JSON schemas for `apic.yaml` (reflected from `project.Config`, every key needs a description in the generator), the env files and the session file (`task schemas`). Its test fails when the committed files are stale, so a new `apic.yaml` key means a description and a regeneration
 
 ## Commands
 
@@ -90,4 +91,3 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - Each archive gets an SPDX 2.3 SBOM from syft, per archive rather than per release because the module set differs by platform (cobra pulls in `mousetrap` on Windows only).
 - `cosign` and `syft` are installed by `release.yml`; neither ships with the runner or with goreleaser-action. goreleaser tries to sign even on a snapshot and fails hard without cosign, so `task snapshot` passes `--skip=sign,sbom` — a local snapshot is a build sanity check, not a release.
 - Before a tag: `task check`, then `task snapshot` to prove archive names, contents and version injection. `apic version` from an extracted archive must report the version, not `dev` — a typo in the ldflags path fails silently.
-- `install.sh` builds its URL from the tag with the leading `v` stripped, which is what goreleaser's `.Version` gives; changing `archives.name_template` breaks the installer.

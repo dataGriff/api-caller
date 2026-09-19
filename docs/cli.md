@@ -503,6 +503,7 @@ ids and `.http` file names, and `--env` completes the environments in
 `apic.yaml` in the project root, all keys optional:
 
 ```yaml
+# yaml-language-server: $schema=https://datagriff.github.io/api-caller/schemas/apic.schema.json
 env: dev        # default --env
 dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
@@ -513,6 +514,23 @@ auth:
 test:
   paths: [features, smoke.feature] # what `apic test` runs by default
 ```
+
+The first line is optional. It points the YAML language server (VS Code
+with the YAML extension, JetBrains, Neovim) at the published schema, which
+gives completion, descriptions and validation for every key; `apic init`
+writes it for you. The schemas are generated from apic's own types, so
+they cannot drift from what the binary reads:
+
+| File | Schema |
+|---|---|
+| `apic.yaml` | [`schemas/apic.schema.json`](schemas/apic.schema.json) |
+| `http-client.env.json`, `http-client.private.env.json` | [`schemas/http-client.env.schema.json`](schemas/http-client.env.schema.json) |
+| `.apic/session.json` | [`schemas/session.schema.json`](schemas/session.schema.json) |
+
+For the JSON files, add `"$schema"` is not part of the format the other
+`.http` tools read, so associate the schema in the editor instead: in VS
+Code, `json.schemas` in settings with `fileMatch: ["http-client*.env.json"]`
+and the URL above.
 
 ## Files apic reads and writes
 
