@@ -222,6 +222,25 @@ func TestFlowRunsWholeFileLive(t *testing.T) {
 	}
 }
 
+// TestPressWatchYieldsAFramePerRequest pins the headless hook the animated
+// screenshot uses: running a file with f calls back once per request as it
+// lands, then once more at the end.
+func TestPressWatchYieldsAFramePerRequest(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	var views []string
+	f.m.PressWatch("f", func() { views = append(views, f.m.View()) })
+	// auth.http has five requests: five landings plus the final call.
+	if len(views) != 6 {
+		t.Fatalf("got %d frames, want 6", len(views))
+	}
+	if !strings.Contains(views[0], "✓ POST   login") || strings.Contains(views[0], "last: 5 passed") {
+		t.Fatalf("first frame should show only login landed:\n%s", views[0])
+	}
+	if !strings.Contains(views[5], "last: 5 passed") || f.m.Running() {
+		t.Fatalf("last frame should show the finished flow:\n%s", views[5])
+	}
+}
+
 func TestRunAllReportsFailures(t *testing.T) {
 	f := newFixture(t, runner.Options{})
 	f.drain(f.press("a"))

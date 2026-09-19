@@ -1,0 +1,3 @@
+### A request in a subdirectory of the project
+# @name deep
+GET {{baseUrl}}/todos

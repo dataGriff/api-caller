@@ -151,4 +151,7 @@ force, so a screenshot never hides that values were masked.
     The picture at the top is not a drawing. `task shots` serves the demo
     API in process, drives the UI the way the keys above do, and renders the
     frame it produces, escape codes and all, as SVG, so what the docs show
-    is what the terminal shows.
+    is what the terminal shows. The moving picture on the [home page](index.md)
+    and the README is made the same way: twenty such frames captured after
+    real key presses, cycled with SVG's own timing, so it needs no GIF and
+    cannot drift from what the UI draws.

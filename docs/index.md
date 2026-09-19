@@ -10,7 +10,7 @@ hide:
 
 <p>Run API requests from plain <code>.http</code> files, in the terminal, in CI, or from an AI agent, on any platform, with one static binary.</p>
 
-<img src="assets/apic-ui.svg" alt="apic ui: requests on the left, the response on the right">
+<img src="assets/apic-demo.svg" alt="apic ui --demo: send a request, run a file as a flow, read the checks, see what was captured">
 </div>
 
 ```sh

@@ -1,0 +1,2 @@
+# yaml-language-server: $schema=https://datagriff.github.io/api-caller/schemas/apic.schema.json
+env: dev

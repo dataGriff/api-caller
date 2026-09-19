@@ -45,6 +45,20 @@ publishing), `task docs` (preview the documentation site).
 - **A commit message that says why.** What changed is in the diff; the reason is
   not.
 
+## Writing a course lesson
+
+The **Learn** tab of the docs is the "From zero to apic" course, one page
+per lesson under `docs/learn/`. [Writing a lesson](docs/learn/_template.md)
+is the template and the rules; the short version:
+
+- Second person, one concept per lesson, every command copy-pasteable with
+  its output shown, every step against `apic demo`.
+- Put `<!-- learn -->` on the line before a fenced block that should be
+  run in CI. `task learn:check` builds apic, serves the demo and runs those
+  blocks in page order; CI does the same on every pull request.
+- The episode script and chapter timestamps live on the page, collapsed at
+  the end, so the video and the text cannot drift apart.
+
 ## Conventions that are easy to trip over
 
 - **The `.http` dialect stays compatible** with VS Code REST Client and

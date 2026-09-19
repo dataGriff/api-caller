@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-7c5cff" alt="MIT licence"></a>
 </p>
 
-<p align="center"><img src="docs/assets/apic-ui.svg" width="820" alt="apic ui: requests on the left, the response on the right"></p>
+<p align="center"><img src="docs/assets/apic-demo.svg" width="820" alt="apic ui --demo: send a request, run a file as a flow, read the checks, see what was captured"></p>
 
 ```sh
 apic ui --demo                      # a fake API and a UI to poke it with, no setup
@@ -198,6 +198,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Authentication](docs/auth.md) | AWS SigV4, OAuth2, basic, bearer, exec |
 | [Testing with Gherkin](docs/testing.md) | `.feature` files, the step vocabulary, reports |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
+| [Editors](docs/editors.md) | VS Code (REST Client plus the apic extension), JetBrains, Neovim |
 | [FAQ](docs/faq.md) | Missing variables, 403s, secrets in logs, Windows |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |

@@ -1,7 +1,8 @@
 # A VHS script (https://github.com/charmbracelet/vhs) for recording the
-# animated demo: `vhs docs/assets/demo.tape`. The checked-in SVGs are
-# generated from real output and need no tooling; this is here for when a
-# moving picture is wanted.
+# demo as a GIF or video: `vhs docs/assets/demo.tape`. The docs and the
+# README use apic-demo.svg instead, an animated SVG that `task shots`
+# generates from real frames with no tooling; this tape is for when a
+# real recording is wanted, for example as b-roll in a course episode.
 Output docs/assets/demo.gif
 
 Set Shell "bash"

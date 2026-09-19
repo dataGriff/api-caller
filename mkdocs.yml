@@ -13,12 +13,15 @@ nav:
       - Getting started: getting-started.md
       - Terminal UI: tui.md
       - Cheat sheet: cheatsheet.md
+  - Learn:
+      - From zero to apic: learn/index.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
       - Testing with Gherkin: testing.md
       - Cookbook: cookbook.md
       - Agents and MCP: agents.md
+      - Editors: editors.md
       - Taskfile: taskfile.md
   - Reference:
       - CLI reference: cli.md

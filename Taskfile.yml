@@ -131,6 +131,11 @@ tasks:
     cmds:
       - go run ./scripts/schemas
 
+  learn:check:
+    desc: Run every marked command block in the course pages (docs/learn) against apic demo
+    cmds:
+      - go run ./scripts/learncheck
+
   docs:
     desc: Serve the documentation site locally (needs `pip install "mkdocs<2" "mkdocs-material<10"`)
     cmds:
