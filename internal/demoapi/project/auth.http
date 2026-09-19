@@ -31,3 +31,11 @@ GET {{baseUrl}}/basic-auth/{{user}}/{{password}}
 # @auth oauth2 tokenUrl={{baseUrl}}/oauth/token clientId={{clientId}} clientSecret={{clientSecret}}
 # @assert status == 200
 GET {{baseUrl}}/me
+
+### An API key from http-client.private.env.json, sent as a header
+# @name api-key
+# @step I use the API key
+# @assert status == 200
+# @assert body.$.ok == true
+GET {{baseUrl}}/keyed
+X-Api-Key: {{apiKey}}

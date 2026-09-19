@@ -60,7 +60,7 @@ func TestExampleFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !sum.OK || sum.Scenarios != 3 || sum.Passed != 3 {
+	if code != 0 || !sum.OK || sum.Scenarios != 8 || sum.Passed != 8 {
 		t.Fatalf("code=%d summary=%+v", code, sum)
 	}
 }

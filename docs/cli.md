@@ -378,8 +378,14 @@ apic demo [--out <dir>] [--port <port>] [--force]
 ```
 
 Writes a local example project (`apic.yaml`, `http-client.env.json`,
-`http-client.private.env.json`, `auth.http`, `todos.http`) into `--out`, then
-starts the bundled fake API and serves until you stop the process.
+`http-client.private.env.json`, `auth.http`, `explore.http`, `jobs.http`,
+`todos.http` and `features/todos.feature`) into `--out`, then starts the
+bundled fake API and serves until you stop the process. The API has login,
+basic, OAuth2 client-credentials and API-key routes, a todos resource with
+filtering, pagination and validation errors, jobs that finish after two
+polls, a multipart upload, a GraphQL endpoint, a CSV report, a slow route
+and a health check; `apic list -C apic-demo` shows the requests that use
+them.
 
 | Flag | Meaning |
 |---|---|

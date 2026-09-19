@@ -8,6 +8,19 @@
 GET {{baseUrl}}/todos
 Authorization: Bearer {{token}}
 
+### Filter and paginate; the total comes back in a header
+# @name list-open-todos
+# @step I list the open todos
+# @assert status == 200
+# @assert header.x-total-count >= 1
+# @assert body.$.# <= 5
+# @assert body.$[0].done == false
+GET {{baseUrl}}/todos
+    ?done=false
+    &page=1
+    &limit=5
+Authorization: Bearer {{token}}
+
 ### Create a todo
 # @name create-todo
 # @step a todo titled {title} is created
@@ -59,6 +72,18 @@ Authorization: Bearer {{token}}
 # @assert status == 404
 GET {{baseUrl}}/todos/{{todoId}}
 Authorization: Bearer {{token}}
+
+### Validation errors come back as 422 with a field map
+# @name create-todo-invalid
+# @step I create a todo with no title
+# @assert status == 422
+# @assert body.$.error == "validation failed"
+# @assert body.$.fields.title exists
+POST {{baseUrl}}/todos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": ""}
 
 ### A request that will fail its assertion
 # @name not-found

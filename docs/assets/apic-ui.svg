@@ -1,20 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="771" height="398" viewBox="0 0 771 398" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13">
-<rect width="771" height="398" rx="10" fill="#11131a"/>
-<rect width="771" height="38" rx="10" fill="#1b1e28"/>
-<rect y="28" width="771" height="10" fill="#1b1e28"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="911" height="398" viewBox="0 0 911 398" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13">
+<rect width="911" height="398" rx="10" fill="#11131a"/>
+<rect width="911" height="38" rx="10" fill="#1b1e28"/>
+<rect y="28" width="911" height="10" fill="#1b1e28"/>
 <circle cx="18" cy="19" r="5.5" fill="#ff5f57"/>
 <circle cx="35" cy="19" r="5.5" fill="#febc2e"/>
 <circle cx="52" cy="19" r="5.5" fill="#28c840"/>
-<text x="385.5" y="23.5" fill="#8b93a7" text-anchor="middle" font-size="12">apic ui --demo</text>
-<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (14)</text>
+<text x="455.5" y="23.5" fill="#8b93a7" text-anchor="middle" font-size="12">apic ui --demo</text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0 111.8" y="60.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">requests (24)</text>
 <text x="307.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> 1 preview </text>
 <text x="401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0" y="60.0" fill="#ff87d7" font-weight="bold" xml:space="preserve"> 2 response </text>
 <text x="494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> 3 checks </text>
 <text x="573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> 4 session </text>
 <text x="674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">list-todos</text>
+<text x="854.4 862.2 870.0 877.8 885.7" y="60.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">top ↓</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5" y="78.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">auth.http</text>
-<text x="291.6 299.4" y="78.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓4</text>
+<text x="291.6 299.4" y="78.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓5</text>
 <text x="307.2" y="78.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7" y="78.0" fill="#00afff" font-weight="bold" xml:space="preserve">GET</text>
 <text x="346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5" y="78.0" fill="#00afff" xml:space="preserve">http://localhost:8089/todos</text>
@@ -29,7 +30,7 @@
 <text x="369.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
 <text x="424.5" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="440.1 447.9 455.7 463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">45 B</text>
+<text x="440.1 447.9 455.7 463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">97 B</text>
 <text x="33.6" y="114.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="114.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9" y="114.0" fill="#d6dae4" xml:space="preserve"> whoami </text>
@@ -50,90 +51,103 @@
 <text x="252.5 260.3 268.1" y="150.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
 <text x="283.8 291.6 299.4" y="150.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="150.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="150.0" fill="#d6dae4" xml:space="preserve">[                                                       </text>
-<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="168.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
-<text x="268.1 276.0" y="168.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓9</text>
-<text x="291.6 299.4" y="168.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">✗1</text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="150.0" fill="#d6dae4" xml:space="preserve">[                                                                         </text>
+<text x="33.6" y="168.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="168.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7" y="168.0" fill="#d6dae4" xml:space="preserve"> api-key </text>
+<text x="166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">An API k…</text>
+<text x="252.5 260.3 268.1" y="168.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="283.8 291.6 299.4" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="168.0" fill="#d6dae4" xml:space="preserve">  {                                                     </text>
-<text x="18.0 25.8" y="186.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
-<text x="33.6" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3" y="186.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">list-todos</text>
-<text x="190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">List todo…</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="168.0" fill="#d6dae4" xml:space="preserve">  {                                                                       </text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4 96.2 104.0" y="186.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">explore.http</text>
+<text x="291.6 299.4" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓4</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="346.3 354.1 361.9 369.8" y="186.0" fill="#5fd7ff" xml:space="preserve">&quot;id&quot;</text>
 <text x="377.6 385.4" y="186.0" fill="#d6dae4" xml:space="preserve">: </text>
 <text x="393.2 401.0 408.8" y="186.0" fill="#87d787" xml:space="preserve">&quot;1&quot;</text>
-<text x="416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="186.0" fill="#d6dae4" xml:space="preserve">,                                          </text>
+<text x="416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="186.0" fill="#d6dae4" xml:space="preserve">,                                                            </text>
 <text x="33.6" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="204.0" fill="#d6dae4" xml:space="preserve"> create-todo </text>
-<text x="197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Create a…</text>
-<text x="283.8 291.6 299.4" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">201</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9" y="204.0" fill="#d6dae4" xml:space="preserve"> health </text>
+<text x="158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Is the AP…</text>
+<text x="252.5 260.3 268.1" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="283.8 291.6 299.4" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="346.3 354.1 361.9 369.8 377.6 385.4 393.2" y="204.0" fill="#5fd7ff" xml:space="preserve">&quot;title&quot;</text>
 <text x="401.0 408.8" y="204.0" fill="#d6dae4" xml:space="preserve">: </text>
 <text x="416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0" y="204.0" fill="#87d787" xml:space="preserve">&quot;Buy milk&quot;</text>
-<text x="494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="204.0" fill="#d6dae4" xml:space="preserve">,                                </text>
+<text x="494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="204.0" fill="#d6dae4" xml:space="preserve">,                                                  </text>
 <text x="33.6" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="222.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5" y="222.0" fill="#d6dae4" xml:space="preserve"> get-todo </text>
-<text x="174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Fetch the t…</text>
-<text x="283.8 291.6 299.4" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3" y="222.0" fill="#d6dae4" xml:space="preserve"> slow </text>
+<text x="143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">A slow en…</text>
+<text x="236.9 244.7 252.5" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="268.1 276.0 283.8 291.6 299.4" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">301ms</text>
 <text x="307.2" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="346.3 354.1 361.9 369.8 377.6 385.4" y="222.0" fill="#5fd7ff" xml:space="preserve">&quot;done&quot;</text>
 <text x="393.2 401.0" y="222.0" fill="#d6dae4" xml:space="preserve">: </text>
 <text x="408.8 416.7 424.5 432.3 440.1" y="222.0" fill="#d787d7" xml:space="preserve">false</text>
 <text x="33.6" y="240.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="240.0" fill="#d787d7" font-weight="bold" xml:space="preserve">PUT   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="240.0" fill="#d6dae4" xml:space="preserve"> update-todo </text>
-<text x="197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Mark it …</text>
-<text x="283.8 291.6 299.4" y="240.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="240.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="240.0" fill="#d6dae4" xml:space="preserve"> daily-report       </text>
+<text x="252.5 260.3 268.1" y="240.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="283.8 291.6 299.4" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="240.0" fill="#d6dae4" xml:space="preserve">  }                                                     </text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="240.0" fill="#d6dae4" xml:space="preserve">  },                                                                      </text>
 <text x="33.6" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="258.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="258.0" fill="#d6dae4" xml:space="preserve"> get-updated </text>
-<text x="197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Confirm …</text>
-<text x="283.8 291.6 299.4" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="258.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7" y="258.0" fill="#d6dae4" xml:space="preserve"> graphql </text>
+<text x="166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">GraphQL …</text>
+<text x="252.5 260.3 268.1" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="283.8 291.6 299.4" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="258.0" fill="#d6dae4" xml:space="preserve">]                                                       </text>
-<text x="33.6" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="276.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">DELETE</text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="276.0" fill="#d6dae4" xml:space="preserve"> delete-todo </text>
-<text x="197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Delete i…</text>
-<text x="283.8 291.6 299.4" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">204</text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="258.0" fill="#d6dae4" xml:space="preserve">  {                                                                       </text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5" y="276.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">jobs.http</text>
+<text x="291.6 299.4" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓3</text>
 <text x="307.2" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
+<text x="346.3 354.1 361.9 369.8" y="276.0" fill="#5fd7ff" xml:space="preserve">&quot;id&quot;</text>
+<text x="377.6 385.4" y="276.0" fill="#d6dae4" xml:space="preserve">: </text>
+<text x="393.2 401.0 408.8" y="276.0" fill="#87d787" xml:space="preserve">&quot;2&quot;</text>
+<text x="416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="276.0" fill="#d6dae4" xml:space="preserve">,                                                            </text>
 <text x="33.6" y="294.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="294.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="294.0" fill="#d6dae4" xml:space="preserve"> get-deleted </text>
-<text x="197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Confirm …</text>
-<text x="283.8 291.6 299.4" y="294.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">404</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="294.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2" y="294.0" fill="#d6dae4" xml:space="preserve"> create-job </text>
+<text x="190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Submit a …</text>
+<text x="283.8 291.6 299.4" y="294.0" fill="#00d787" font-weight="bold" xml:space="preserve">202</text>
 <text x="307.2" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0" y="294.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="294.0" fill="#d6dae4" xml:space="preserve"> status == 200                                         </text>
-<text x="33.6" y="312.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">✗</text>
+<text x="346.3 354.1 361.9 369.8 377.6 385.4 393.2" y="294.0" fill="#5fd7ff" xml:space="preserve">&quot;title&quot;</text>
+<text x="401.0 408.8" y="294.0" fill="#d6dae4" xml:space="preserve">: </text>
+<text x="416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2" y="294.0" fill="#87d787" xml:space="preserve">&quot;Read the apic docs&quot;</text>
+<text x="573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="294.0" fill="#d6dae4" xml:space="preserve">,                                        </text>
+<text x="33.6" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="312.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3" y="312.0" fill="#d6dae4" xml:space="preserve"> not-found </text>
-<text x="182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">A request …</text>
-<text x="283.8 291.6 299.4" y="312.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">404</text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7" y="312.0" fill="#d6dae4" xml:space="preserve"> get-job </text>
+<text x="166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll it …</text>
+<text x="252.5 260.3 268.1" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
+<text x="283.8 291.6 299.4" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="315.0" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0" y="312.0" fill="#d6dae4" xml:space="preserve"> body.$.# &gt;= 1                                         </text>
+<text x="346.3 354.1 361.9 369.8 377.6 385.4" y="312.0" fill="#5fd7ff" xml:space="preserve">&quot;done&quot;</text>
+<text x="393.2 401.0" y="312.0" fill="#d6dae4" xml:space="preserve">: </text>
+<text x="408.8 416.7 424.5 432.3" y="312.0" fill="#d787d7" xml:space="preserve">true</text>
 <text x="33.6" y="330.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="330.0" fill="#d6dae4" xml:space="preserve"> redirect-followed  </text>
+<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job       </text>
 <text x="252.5 260.3 268.1" y="330.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
 <text x="283.8 291.6 299.4" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
-<text x="33.6" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
-<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
-<text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> redirect-raw       </text>
-<text x="252.5 260.3 268.1" y="348.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="330.0" fill="#d6dae4" xml:space="preserve">  }                                                                       </text>
+<text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
+<text x="260.3 268.1 276.0" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓11</text>
+<text x="291.6 299.4" y="348.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">✗1</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
+<text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="348.0" fill="#d6dae4" xml:space="preserve">]                                                                         </text>
+<text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
+<text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
+<text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
+<text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">list-todos</text>
+<text x="190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">List todo…</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -146,7 +160,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1" y="384.0" fill="#d6dae4" xml:space="preserve">last: </text>
 <text x="361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7" y="384.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">1 failed</text>
-<text x="424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6" y="384.0" fill="#d6dae4" xml:space="preserve">, 13 passed</text>
+<text x="424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6" y="384.0" fill="#d6dae4" xml:space="preserve">, 23 passed</text>
 <text x="510.5 518.3 526.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </svg>

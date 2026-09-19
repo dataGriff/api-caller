@@ -20,7 +20,7 @@ func TestWriteProject(t *testing.T) {
 	if len(skipped) != 0 {
 		t.Fatalf("first write should skip nothing, got %v", skipped)
 	}
-	wantFiles := []string{"apic.yaml", "http-client.env.json", "http-client.private.env.json", "auth.http", "todos.http", filepath.Join("features", "todos.feature")}
+	wantFiles := []string{"apic.yaml", "http-client.env.json", "http-client.private.env.json", "auth.http", "explore.http", "jobs.http", "todos.http", filepath.Join("features", "todos.feature")}
 	if len(written) != len(wantFiles) {
 		t.Fatalf("wrote %v, want %d files", written, len(wantFiles))
 	}

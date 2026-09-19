@@ -118,7 +118,7 @@ tasks:
           [ \$i -ge 100 ] && echo demo not ready >&2 && exit 1
           sleep 0.1
         done
-        {{.BIN}} run login whoami list-todos create-todo get-todo update-todo get-updated delete-todo get-deleted redirect-followed redirect-raw -C bin/apic-demo --env local --keep-going
+        {{.BIN}} run login whoami basic-auth oauth2-token api-key health slow daily-report graphql jobs.http list-todos list-open-todos create-todo get-todo update-todo get-updated delete-todo get-deleted create-todo-invalid redirect-followed redirect-raw -C bin/apic-demo --env local --keep-going
         "
 
   shots:

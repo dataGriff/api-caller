@@ -1,0 +1,25 @@
+### Submit a background job; the API answers 202 and a Location
+# @name create-job
+# @step a job is submitted
+# @assert status == 202
+# @assert body.$.state == queued
+# @assert header.location startsWith /jobs/
+# @capture jobId = body.$.id
+POST {{baseUrl}}/jobs
+Authorization: Bearer {{token}}
+
+### Poll it once: the demo API moves a job on with every poll
+# @name get-job
+# @step I check the job
+# @assert status == 200
+# @assert body.$.state == running
+GET {{baseUrl}}/jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### Poll again and it is done. With `# @retry 10 1s` this would loop for you
+# @name wait-for-job
+# @step I wait for the job
+# @assert status == 200
+# @assert body.$.state == done
+GET {{baseUrl}}/jobs/{{jobId}}
+Authorization: Bearer {{token}}

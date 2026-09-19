@@ -46,11 +46,15 @@ The same example works from the plain CLI: `apic demo` writes it to
 ```sh
 apic run login whoami -C apic-demo
 apic run todos.http -C apic-demo --keep-going
+apic run jobs.http -C apic-demo          # submit a job and poll it to done
 apic test -C apic-demo
 ```
 
-Read `apic-demo/auth.http` and `apic-demo/todos.http` to see the files
-behind those commands.
+Read `apic-demo/auth.http`, `todos.http`, `jobs.http` and `explore.http`
+to see the files behind those commands. Between them they cover login and
+API keys, a CRUD flow with filtering and a validation error, a job that
+finishes after a couple of polls, a slow endpoint, a CSV download and a
+GraphQL query, so every guide in these docs has something to run against.
 
 ## 3. Create a project
 

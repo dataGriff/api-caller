@@ -38,8 +38,8 @@ func TestStartDemo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Files) != 2 {
-		t.Fatalf("demo project should have 2 files, got %d", len(p.Files))
+	if len(p.Files) != 4 {
+		t.Fatalf("demo project should have 4 files, got %d", len(p.Files))
 	}
 	env, err := os.ReadFile(root + "/http-client.env.json")
 	if err != nil {
