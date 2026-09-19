@@ -82,3 +82,12 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 - The generator unions the module set across every released GOOS/GOARCH, not just the host: cobra pulls in `mousetrap` on Windows only. It also reproduces each module's `NOTICE` (required by Apache-2.0 4(d)) and `PATENTS` files, and exits non-zero if a module has no licence file at all.
 - Keep new dependencies permissive (MIT, BSD, Apache-2.0; the MPL-2.0 modules godog pulls in are the existing exception). Anything reciprocal — GPL or LGPL — would change apic's own terms, so it is off the table for a statically linked binary.
 - Write the AWS signer and the OpenAPI reader style of code from the spec, not by copying from another project; the tree carries no third-party source files and should stay that way.
+
+## Releasing
+
+- Releases are signed with cosign, keyless: the certificate is bound to the release workflow's OIDC identity, so `release.yml` needs `id-token: write` on the job. There is no private key.
+- Only `checksums.txt` is signed. It names every archive with its SHA-256, so one signature covers the release; verifying is a two-step chain, documented in `docs/verifying.md`.
+- Each archive gets an SPDX 2.3 SBOM from syft, per archive rather than per release because the module set differs by platform (cobra pulls in `mousetrap` on Windows only).
+- `cosign` and `syft` are installed by `release.yml`; neither ships with the runner or with goreleaser-action. goreleaser tries to sign even on a snapshot and fails hard without cosign, so `task snapshot` passes `--skip=sign,sbom` — a local snapshot is a build sanity check, not a release.
+- Before a tag: `task check`, then `task snapshot` to prove archive names, contents and version injection. `apic version` from an extracted archive must report the version, not `dev` — a typo in the ldflags path fails silently.
+- `install.sh` builds its URL from the tag with the leading `v` stripped, which is what goreleaser's `.Version` gives; changing `archives.name_template` breaks the installer.

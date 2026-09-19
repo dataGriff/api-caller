@@ -25,6 +25,38 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Signing and SBOMs each need a tool release.yml installs -- cosign and syft --
+# and goreleaser attempts both even on a snapshot, so `task snapshot` passes
+# --skip=sign,sbom to keep a local build a plain build check.
+#
+# Keyless signing: cosign gets a short-lived certificate from Fulcio, bound to
+# this workflow's OIDC identity, and the signature is logged in Rekor. There is
+# no private key to hold or rotate, and anyone can verify that a release came
+# from this repository's release workflow and not from someone with a token.
+#
+# Only checksums.txt is signed. It names every archive with its SHA-256, so one
+# signature covers the whole release: verify the signature, then verify an
+# archive against the file it vouches for. docs/verifying.md walks through it.
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+# One SPDX 2.3 SBOM per archive (syft's default format), so a consumer can see
+# exactly which module versions are inside the binary they downloaded without
+# trusting this repo's go.mod to still match. Per archive rather than per
+# release because the set differs by platform: cobra pulls in mousetrap on
+# Windows only.
+sboms:
+  - artifacts: archive
+
 changelog:
   use: github
   filters:

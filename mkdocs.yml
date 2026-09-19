@@ -23,6 +23,7 @@ nav:
   - Reference:
       - CLI reference: cli.md
       - FAQ: faq.md
+      - Verifying a release: verifying.md
       - Licence: licence.md
       - Comparison: comparison.md
 
