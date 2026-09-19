@@ -27,7 +27,9 @@ jobs:
           test -n "${{ steps.apic.outputs.version }}"
           test -d "${{ steps.apic.outputs.path }}"
           apic version --json
-      - run: apic validate -C examples/httpbin --format github
+      # The action installs a *released* apic, so only use flags every
+      # release has had; a flag added on the branch under test is not there.
+      - run: apic validate -C examples/httpbin
 
   pinned:
     runs-on: ubuntu-latest
