@@ -1,0 +1,4 @@
+### Is the API up?
+# @name ping
+# @assert status == 200
+GET {{baseUrl}}/health

@@ -23,6 +23,7 @@ nav:
       - Testing with Gherkin: testing.md
       - Cookbook: cookbook.md
       - Agents and MCP: agents.md
+      - Editors: editors.md
       - Taskfile: taskfile.md
   - Reference:
       - CLI reference: cli.md

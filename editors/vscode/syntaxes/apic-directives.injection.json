@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "scopeName": "apic.directives.injection",
+  "injectionSelector": "L:source.http, L:text.http",
+  "comment": "Highlights apic's `# @directive value` comment lines inside .http files without owning the language: REST Client (or another extension) keeps providing the http grammar, and this is layered on top.",
+  "patterns": [
+    {
+      "name": "meta.directive.apic",
+      "match": "^\\s*((?:#|//)\\s*)(@(?:name|description|capture|assert|auth|step|ref|retry|timeout|no-redirect|no-session|note|prompt|disabled|sleep))\\b(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.apic" },
+        "2": { "name": "keyword.control.directive.apic" },
+        "3": {
+          "name": "string.unquoted.directive.apic",
+          "patterns": [
+            {
+              "name": "variable.other.placeholder.apic",
+              "match": "\\{\\{[^}]*\\}\\}"
+            },
+            {
+              "name": "keyword.operator.assertion.apic",
+              "match": "\\s(==|!=|<=|>=|<|>|contains|startsWith|endsWith|matches|not exists|exists)\\s"
+            },
+            {
+              "name": "support.function.selector.apic",
+              "match": "\\b(status|statusText|duration|header\\.[\\w.-]+|body(?:\\.\\$[^\\s]*)?)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "meta.directive.unknown.apic",
+      "match": "^\\s*((?:#|//)\\s*)(@[A-Za-z][\\w-]*)\\b(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.apic" },
+        "2": { "name": "invalid.deprecated.directive.apic" },
+        "3": { "name": "comment.line.apic" }
+      }
+    }
+  ]
+}

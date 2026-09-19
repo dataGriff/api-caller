@@ -198,6 +198,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Authentication](docs/auth.md) | AWS SigV4, OAuth2, basic, bearer, exec |
 | [Testing with Gherkin](docs/testing.md) | `.feature` files, the step vocabulary, reports |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
+| [Editors](docs/editors.md) | VS Code (REST Client plus the apic extension), JetBrains, Neovim |
 | [FAQ](docs/faq.md) | Missing variables, 403s, secrets in logs, Windows |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |

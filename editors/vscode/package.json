@@ -1,0 +1,102 @@
+{
+  "name": "apic",
+  "displayName": "apic",
+  "description": "Run .http request files with apic: environments, captured variables, assertions, Gherkin tests and an MCP server, from one static binary.",
+  "version": "0.1.0",
+  "publisher": "dataGriff",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataGriff/api-caller.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://datagriff.github.io/api-caller/editors/",
+  "bugs": {
+    "url": "https://github.com/dataGriff/api-caller/issues"
+  },
+  "engines": {
+    "vscode": "^1.136.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "http",
+    "rest",
+    "api",
+    "apic",
+    "gherkin"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.http",
+    "workspaceContains:**/*.rest",
+    "workspaceContains:**/apic.yaml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "apic.showVersion",
+        "title": "Show version",
+        "category": "apic"
+      },
+      {
+        "command": "apic.openInstallPage",
+        "title": "Open the install page",
+        "category": "apic"
+      }
+    ],
+    "configuration": {
+      "title": "apic",
+      "properties": {
+        "apic.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `apic` binary. Empty means the first `apic` on `PATH`."
+        },
+        "apic.projectDir": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Project root passed to every apic command as `-C`. Empty means the nearest directory above the active file that holds `apic.yaml` or `http-client.env.json`, else the workspace folder."
+        }
+      }
+    },
+    "grammars": [
+      {
+        "scopeName": "apic.directives.injection",
+        "path": "./syntaxes/apic-directives.injection.json",
+        "injectTo": [
+          "source.http",
+          "text.http"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "compile-tests": "tsc -p tsconfig.test.json",
+    "pretest": "npm run build && npm run compile-tests",
+    "test": "vscode-test",
+    "package": "vsce package --no-dependencies",
+    "check": "npm run lint && npm run typecheck && npm run build && npm run package"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.136.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.0.0",
+    "mocha": "^12.0.2",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.70.0"
+  }
+}

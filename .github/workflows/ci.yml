@@ -87,6 +87,39 @@ jobs:
           go-version-file: go.mod
       - run: go run ./scripts/learncheck
 
+  # The VS Code extension in editors/vscode is the one place Node lives.
+  # It is linted, typechecked, bundled, tested in a real VS Code (headless
+  # under xvfb, with apic built onto PATH so the binary tests run too) and
+  # packaged, with the .vsix kept as an artifact.
+  vscode:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: go build -o "$RUNNER_TEMP/bin/apic" ./cmd/apic
+        working-directory: .
+      - run: echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: xvfb-run -a npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: editors/vscode/*.vsix
+
   # The screenshots and the animated demo are generated from real output;
   # rendering them here proves a UI change did not break the generator,
   # and the artifact lets a reviewer look at the frames.
