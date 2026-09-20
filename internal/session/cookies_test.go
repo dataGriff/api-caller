@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -66,7 +67,8 @@ func TestJarRecordsWhatTheServerSetsAndReplaysItAfterReopen(t *testing.T) {
 	if err := j.Save(); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := os.Stat(filepath.Join(root, Dir, CookieFile)); err != nil || info.Mode().Perm() != 0o600 {
+	// File modes are not meaningful on Windows.
+	if info, err := os.Stat(filepath.Join(root, Dir, CookieFile)); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Errorf("cookie file: %v %v", info, err)
 	}
 

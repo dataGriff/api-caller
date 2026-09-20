@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -105,7 +106,8 @@ func TestImportCollection(t *testing.T) {
 	if private["staging-eu"]["password"] != "s3cret" || len(private) != 1 {
 		t.Errorf("private = %v", private)
 	}
-	if info, err := os.Stat(res.PrivateEnvFile); err != nil || info.Mode().Perm() != 0o600 {
+	// File modes are not meaningful on Windows.
+	if info, err := os.Stat(res.PrivateEnvFile); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Errorf("private env file mode: %v %v", info, err)
 	}
 	has(t, mustRead(t, filepath.Join(out, "apic.yaml")), "env: staging-eu\n", "auth:\n  default: \"bearer {{token}}\"\n")
