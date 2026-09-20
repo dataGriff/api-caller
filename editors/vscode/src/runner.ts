@@ -20,6 +20,9 @@ interface RunOutcome {
 export class Runner {
   /** Runs go through this one at a time. Nothing that waits on the user runs inside it. */
   private queue: Promise<unknown> = Promise.resolve();
+  private readonly ran = new vscode.EventEmitter<string>();
+  /** Fires with the project root after a run finished, whatever its outcome. */
+  readonly onDidRun = this.ran.event;
 
   constructor(
     private readonly apic: Apic,
@@ -39,6 +42,7 @@ export class Runner {
     const job = this.queue.then(() => this.doRun(root, targets, title));
     this.queue = job.catch(() => undefined);
     const outcome = await job;
+    this.ran.fire(root);
     if (outcome.error) {
       // Outside the queue: the notification waits for the user, and the
       // action it offers starts a run of its own.

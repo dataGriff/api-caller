@@ -13,6 +13,8 @@ interface EnvItem extends vscode.QuickPickItem {
 export class Environments {
   private readonly status: vscode.StatusBarItem;
   private readonly changed = new vscode.EventEmitter<string>();
+  /** apic.yaml's own default per project, from `apic env --json`, so the status bar can name it. */
+  private readonly defaults = new Map<string, Promise<string | undefined>>();
   /** Fires with the project root whose environment changed. */
   readonly onDidChange = this.changed.event;
 
@@ -22,8 +24,30 @@ export class Environments {
   ) {
     this.status = vscode.window.createStatusBarItem("apic.env", vscode.StatusBarAlignment.Left, 50);
     this.status.name = "apic environment";
-    this.status.command = "apic.pickEnvironment";
+    this.status.command = "apic.selectEnvironment";
     context.subscriptions.push(this.status, this.changed);
+  }
+
+  /** Forgets what `apic env` said about a project's default. */
+  invalidate(root: string): void {
+    this.defaults.delete(root);
+  }
+
+  /** The environment apic would use for a project: the picked one, else apic.yaml's, else undefined. */
+  async effective(root: string): Promise<string | undefined> {
+    return this.current(root) ?? (await this.projectDefault(root));
+  }
+
+  private projectDefault(root: string): Promise<string | undefined> {
+    let p = this.defaults.get(root);
+    if (!p) {
+      p = this.apic
+        .json<EnvOutput>(["env"], { project: root })
+        .then((res) => res.value?.current || undefined)
+        .catch(() => undefined);
+      this.defaults.set(root, p);
+    }
+    return p;
   }
 
   private key(root: string): string {
@@ -41,16 +65,24 @@ export class Environments {
     return env ? ["--env", env] : [];
   }
 
-  /** Shows the picked environment for the project of the active editor. */
+  /** Shows the environment in effect for the project of the active editor. */
   refreshStatus(root: string | undefined): void {
     if (!root) {
       this.status.hide();
       return;
     }
-    const env = this.current(root);
-    this.status.text = `$(globe) ${env ?? "env: default"}`;
-    this.status.tooltip = env ? `apic runs in the ${env} environment (click to change)` : "apic runs in the project's default environment (click to change)";
+    const picked = this.current(root);
+    this.status.text = `$(globe) ${picked ?? "env"}`;
+    this.status.tooltip = picked ? `apic runs in the ${picked} environment (click to change)` : "apic runs in the project's default environment (click to change)";
     this.status.show();
+    if (!picked) {
+      void this.projectDefault(root).then((def) => {
+        if (this.current(root) === undefined) {
+          this.status.text = `$(globe) ${def ?? "env: none"}`;
+          this.status.tooltip = def ? `apic runs in ${def}, the project's default environment (click to change)` : "This project has no environments (click to pick one once it has)";
+        }
+      });
+    }
   }
 
   /** Asks the user to pick an environment from the project's env files. */
