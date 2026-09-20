@@ -53,7 +53,7 @@ narrow this with `dir: api`.
 ## apic run
 
 ```
-apic run <target>... [-v] [--body-only] [--keep-going]
+apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry]
 ```
 
 Sends requests and reports status, timing, body, captures and assertions.
@@ -69,11 +69,20 @@ with `# @forceRef login` runs it first every time; see
 [format.md](format.md#dependencies). The terminal output shows the
 dependency's report first, under `↳ ran login first (# @ref)`.
 
+A request with `# @retry 10 2s` is sent again until its assertions pass,
+up to ten times, two seconds apart; see [format.md](format.md#retries).
+Each failed attempt prints `attempt 1/10 · <first failed assertion>` as it
+happens, and the report of the attempt that counted ends its status line
+with `· 3 attempts`. Results print as each request finishes, so a flow
+shows progress.
+
 | Flag | Meaning |
 |---|---|
 | `-v, --verbose` | Show request headers and body, and response headers. |
 | `--body-only` | Print only the response body, pretty-printed when JSON. For piping. |
 | `--keep-going` | In a flow, continue after a failure. |
+| `--retry "<n> [interval]"` | Retry policy for requests without `# @retry`: attempts and the wait between them (default `1s`). Overrides `retry:` in `apic.yaml`. |
+| `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
 
 Examples:
 
@@ -118,6 +127,9 @@ apic run get-user --body-only | jq .email
 - `errors` (omitted when empty) lists failed captures and other problems.
 - `ok` is false when any assertion or capture failed, and when a request a
   `# @ref` ran first failed; `errors` then names it (`@ref login failed`).
+- `attempts` (omitted when no retry policy applied) is how many times the
+  request was sent; the object describes the last attempt. Attempt lines
+  are not printed under `--json`.
 - Requests a `# @ref` or `# @forceRef` ran first are printed as objects of
   their own, before the request that needed them, so there is still exactly
   one object per request sent. The `ran_first` key is only present in the
@@ -381,6 +393,7 @@ Codes:
 | `ambiguous-step` | A `# @step` phrase that matches the same text as another step. |
 | `bad-ref` | A `# @ref` or `# @forceRef` whose target is not exactly one request in the project. |
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
+| `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body whose file does not exist. |
 
@@ -525,6 +538,7 @@ ids and `.http` file names, and `--env` completes the environments in
 env: dev        # default --env
 dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
+retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md

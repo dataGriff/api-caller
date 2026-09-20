@@ -62,6 +62,7 @@ Written as comments before the request line, so editors ignore them.
 | `# @no-redirect` | Do not follow 3xx |
 | `# @no-session` | Do not persist this request's captures |
 | `# @timeout 10s` | Per-request timeout |
+| `# @retry 10 2s` | Re-send until the assertions pass, up to 10 times, 2s apart |
 | `# @note text` | Free text, ignored (REST Client compatibility) |
 | `# @prompt name` | Ignored; pass the value with `--var name=...` instead |
 

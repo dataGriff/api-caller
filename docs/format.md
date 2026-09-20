@@ -61,6 +61,7 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
+| `# @retry 10 2s` | Re-send until every assertion passes, up to 10 times, 2s apart (default 1s). See [Retries](#retries). |
 | `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
 | `# @prompt name` | Accepted and ignored: apic never prompts. Pass the value with `--var name=...`, or put it in an env file. |
 
@@ -188,6 +189,34 @@ request that depends on it: the run reports the dependency's result, then
 the request as failed without sending it. The output shows what ran first
 (`↳ ran login first (# @ref)` in the terminal, `ran_first` in `--json`,
 see [cli.md](cli.md#apic-run)).
+
+## Retries
+
+A request whose assertions describe a state the API will reach, not the one
+it is in, can wait for it:
+
+```http
+### Poll until the job is done
+# @name wait-for-job
+# @retry 10 2s
+# @assert status == 200
+# @assert body.$.state == done
+GET {{baseUrl}}/jobs/{{jobId}}
+```
+
+`# @retry <attempts> [interval]` sends the request again until every
+assertion passes or the attempts are spent, waiting `interval` between
+attempts (a Go duration such as `500ms` or `2s`; default `1s`). A transport
+error counts as a failed attempt too. Each failed attempt prints a line as
+it happens (`attempt 1/10 · body.$.state == done: got "running"`), the
+report of the attempt that counted says how many it took, and `--json`
+carries `attempts`. Captures and the session are written from that final
+attempt only, and every attempt gets the full `# @timeout`.
+
+`retry:` in `apic.yaml` sets a default for requests without their own
+`# @retry`, `--retry "<attempts> [interval]"` overrides that for one run,
+and `--no-retry` sends everything once. The order is directive, flag, file.
+`apic validate` reports a policy it cannot read as `bad-retry`.
 
 ## Project layout
 

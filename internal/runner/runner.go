@@ -45,6 +45,20 @@ type Options struct {
 	// apic.yaml's maxBodyBytes, then DefaultMaxBodyBytes.
 	MaxBodyBytes int64
 	Session      *session.Store // use this store instead of opening .apic/session.json (tests use session.NewMemory())
+	// Retry is the default retry policy ("<n> [interval]", see ParseRetry)
+	// for requests without `# @retry`; empty means apic.yaml's retry, then
+	// none. NoRetry switches every retry off.
+	Retry   string
+	NoRetry bool
+}
+
+// Progress reports one failed attempt of a request that is being retried,
+// before the runner waits and sends it again.
+type Progress struct {
+	Req     *httpfile.Request
+	Attempt int    // the attempt that just failed, from 1
+	Max     int    // attempts the policy allows
+	Failure string // why it failed: the first failed assertion, or the error
 }
 
 // Runner executes requests for one project.
@@ -54,7 +68,14 @@ type Runner struct {
 	Session *session.Store
 	Opts    Options
 	Stderr  io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	// Progress, when set, is called after each failed attempt of a request
+	// that will be retried.
+	Progress func(Progress)
+	// OnResult, when set, is called by RunAll as each request finishes,
+	// with its result (never nil) and the error, if any, that stopped it.
+	OnResult func(*Result, error)
 
+	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	results  map[string]*Result
 	captured map[string]string
 	refsRan  map[*httpfile.Request]bool // `# @ref` targets already run this invocation
@@ -90,7 +111,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, refsRan: map[*httpfile.Request]bool{}}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, refsRan: map[*httpfile.Request]bool{}, sleep: sleepCtx}
 	switch {
 	case opts.Session != nil:
 		r.Session = opts.Session
@@ -215,6 +236,9 @@ type Result struct {
 	Captures map[string]string `json:"captures,omitempty"`
 	Asserts  []assert.Result   `json:"asserts,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
+	// Attempts is how many times the request was sent under a `# @retry`
+	// policy (or --retry, or retry in apic.yaml); zero when none applied.
+	Attempts int `json:"attempts,omitempty"`
 	// Deps are the results of the requests `# @ref` and `# @forceRef` ran
 	// first, in run order; a dependency's own dependencies nest under it.
 	Deps   []*Result `json:"ran_first,omitempty"`
@@ -599,11 +623,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		return nil, r.MissingError(req, resolved.missing)
 	}
 	result := &Result{Request: *resolved, OK: true, Redact: r.Opts.Redact, Deps: deps, req: req}
-	preparedAsserts := make([]struct {
-		expr     assert.Expr
-		expected string
-		raw      string
-	}, 0, len(req.Asserts))
+	preparedAsserts := make([]preparedAssert, 0, len(req.Asserts))
 	for _, a := range req.Asserts {
 		expr, err := assert.Parse(a.Expr)
 		if err != nil {
@@ -620,11 +640,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 				return nil, usagef("%s:%d: assert %q: %v", req.File.Path, a.Line, a.Expr, err)
 			}
 		}
-		preparedAsserts = append(preparedAsserts, struct {
-			expr     assert.Expr
-			expected string
-			raw      string
-		}{expr: expr, expected: expected, raw: a.Expr})
+		preparedAsserts = append(preparedAsserts, preparedAssert{expr: expr, expected: expected, raw: a.Expr})
 	}
 
 	timeout := r.Opts.Timeout
@@ -635,7 +651,62 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		}
 		timeout = d
 	}
-	client := r.client(req)
+	policy, err := r.retryPolicy(req)
+	if err != nil {
+		return nil, err
+	}
+
+	for attempt := 1; ; attempt++ {
+		res, err := r.attempt(ctx, req, resolved, preparedAsserts, timeout)
+		if err != nil {
+			var ue *UsageError
+			if errors.As(err, &ue) || attempt >= policy.n {
+				return nil, err
+			}
+			r.report(Progress{Req: req, Attempt: attempt, Max: policy.n, Failure: err.Error()})
+		} else {
+			if policy.n > 1 {
+				res.Attempts = attempt
+			}
+			if res.OK || attempt >= policy.n {
+				result.Response, result.raw = res.Response, res.raw
+				result.Captures, result.Asserts, result.Attempts = res.Captures, res.Asserts, res.Attempts
+				result.Errors = append(result.Errors, res.Errors...)
+				result.OK = result.OK && res.OK
+				break
+			}
+			r.report(Progress{Req: req, Attempt: attempt, Max: policy.n, Failure: res.Problem()})
+		}
+		if err := r.sleep(ctx, policy.interval); err != nil {
+			return nil, &TransportError{Err: err}
+		}
+	}
+
+	// Only the attempt that counts commits its captures, for this run and
+	// for later ones.
+	for k, v := range result.Captures {
+		r.captured[k] = v
+	}
+	if req.Name != "" {
+		r.results[req.Name] = result
+	}
+	if len(result.Captures) > 0 && r.Session != nil {
+		if _, off := req.Directive("no-session"); !off {
+			r.Session.Set(r.Opts.Env, result.Captures)
+			if err := r.Session.Save(); err != nil {
+				result.Errors = append(result.Errors, "session: "+err.Error())
+				result.OK = false
+			}
+		}
+	}
+	return result, nil
+}
+
+// attempt sends a resolved request once and evaluates its captures and
+// assertions into a fresh Result, without committing anything to the
+// runner or the session. It has its own timeout, so a retry loop gives
+// every attempt the full time.
+func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *Resolved, asserts []preparedAssert, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -663,7 +734,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	}
 
 	start := time.Now()
-	httpResp, err := client.Do(httpReq)
+	httpResp, err := r.client(req).Do(httpReq)
 	if err != nil {
 		return nil, &TransportError{Err: err}
 	}
@@ -678,10 +749,9 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	dur := time.Since(start)
 
 	raw := &selector.Response{Status: httpResp.StatusCode, StatusText: statusText(httpResp.Status), Headers: httpResp.Header, Body: data, Duration: dur}
-	result.raw = raw
+	result := &Result{OK: true, Redact: r.Opts.Redact, raw: raw, req: req}
 	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data)}
 
-	// Captures first so asserts can reference them.
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)
 		if err != nil {
@@ -698,29 +768,105 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			result.Captures = map[string]string{}
 		}
 		result.Captures[c.Name] = v
-		r.captured[c.Name] = v
 	}
-	if req.Name != "" {
-		r.results[req.Name] = result
-	}
-	for _, a := range preparedAsserts {
+	for _, a := range asserts {
 		ar := assert.Eval(a.expr, a.expected, raw)
 		if !ar.Pass {
 			result.OK = false
 		}
 		result.Asserts = append(result.Asserts, ar)
 	}
+	return result, nil
+}
 
-	if len(result.Captures) > 0 && r.Session != nil {
-		if _, off := req.Directive("no-session"); !off {
-			r.Session.Set(r.Opts.Env, result.Captures)
-			if err := r.Session.Save(); err != nil {
-				result.Errors = append(result.Errors, "session: "+err.Error())
-				result.OK = false
-			}
+type preparedAssert struct {
+	expr     assert.Expr
+	expected string
+	raw      string
+}
+
+// Problem is the one-line reason a result is not OK: the first failed
+// assertion with what it got, else the first error, else "".
+func (r *Result) Problem() string {
+	for _, a := range r.DisplayAsserts() {
+		if a.Error != "" {
+			return a.Expr + ": " + a.Error
+		}
+		if !a.Pass {
+			return fmt.Sprintf("%s: got %q", a.Expr, truncate(a.Actual, 40))
 		}
 	}
-	return result, nil
+	if len(r.Errors) > 0 {
+		return r.Errors[0]
+	}
+	return ""
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func (r *Runner) report(p Progress) {
+	if r.Progress != nil {
+		r.Progress(p)
+	}
+}
+
+// sleepCtx waits for d unless ctx ends first.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// retryPolicy is how many times a request may be sent and the wait
+// between attempts.
+type retryPolicy struct {
+	n        int
+	interval time.Duration
+}
+
+// retryPolicy picks the policy for a request: `# @retry` on the request,
+// else Options.Retry (--retry), else retry in apic.yaml, else one attempt;
+// Options.NoRetry makes it one attempt regardless.
+func (r *Runner) retryPolicy(req *httpfile.Request) (retryPolicy, error) {
+	one := retryPolicy{n: 1}
+	if r.Opts.NoRetry {
+		return one, nil
+	}
+	if v, ok := req.Directive("retry"); ok {
+		n, d, err := httpfile.ParseRetry(v)
+		if err != nil {
+			return one, usagef("%s:%d: bad @retry %q: %v", req.File.Path, req.Line, v, err)
+		}
+		return retryPolicy{n, d}, nil
+	}
+	if r.Opts.Retry != "" {
+		n, d, err := httpfile.ParseRetry(r.Opts.Retry)
+		if err != nil {
+			return one, usagef("--retry %q: %v", r.Opts.Retry, err)
+		}
+		return retryPolicy{n, d}, nil
+	}
+	if v := r.Project.Config.Retry; v != "" {
+		n, d, err := httpfile.ParseRetry(v)
+		if err != nil {
+			return one, usagef("apic.yaml: bad retry %q: %v", v, err)
+		}
+		return retryPolicy{n, d}, nil
+	}
+	return one, nil
 }
 
 // RunAll runs requests in order as a flow, stopping at the first failure
@@ -730,11 +876,14 @@ func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Resul
 	var firstErr error
 	for _, req := range reqs {
 		res, err := r.Run(ctx, req)
+		if err != nil && res == nil {
+			res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}, req: req}
+		}
+		out = append(out, res)
+		if r.OnResult != nil {
+			r.OnResult(res, err)
+		}
 		if err != nil {
-			if res == nil {
-				res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}}
-			}
-			out = append(out, res)
 			if !r.Opts.KeepGoing {
 				return out, err
 			}
@@ -743,7 +892,6 @@ func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Resul
 			}
 			continue
 		}
-		out = append(out, res)
 		if !res.OK && !r.Opts.KeepGoing {
 			return out, nil
 		}

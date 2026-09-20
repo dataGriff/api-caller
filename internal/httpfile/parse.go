@@ -51,6 +51,7 @@ var Codes = map[string]string{
 	"ambiguous-step":    "a `# @step` phrase that matches the same text as another step",
 	"bad-ref":           "a `# @ref` or `# @forceRef` whose target is not one request in the project",
 	"ref-cycle":         "a `# @ref` chain that leads back to the request it started from",
+	"bad-retry":         "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
 	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, body or body.$*",
 	"missing-body-file": "a `< file` body whose file does not exist",
 }
@@ -85,6 +86,7 @@ var KnownDirectives = map[string]string{
 	"no-redirect": "do not follow redirects",
 	"no-session":  "do not persist captures from this request",
 	"timeout":     "per-request timeout, e.g. `10s`",
+	"retry":       "re-send until the assertions pass: `# @retry <attempts> [interval]`, e.g. `# @retry 10 2s`",
 	"note":        "free text, ignored (REST Client compatibility)",
 	"prompt":      "REST Client prompt, ignored (pass with --var instead)",
 }

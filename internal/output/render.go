@@ -47,7 +47,17 @@ func StatusLine(t Theme, res *runner.Result) string {
 	}
 	raw := res.Raw()
 	status := t.Status(raw.Status, raw.StatusText)
-	return fmt.Sprintf("%s %s %s %s %s\n", status, t.Dim.Render("·"), t.Latency(res.Response.DurationMs), t.Dim.Render("·"), t.Dim.Render(Size(res.Response.Size)))
+	line := fmt.Sprintf("%s %s %s %s %s", status, t.Dim.Render("·"), t.Latency(res.Response.DurationMs), t.Dim.Render("·"), t.Dim.Render(Size(res.Response.Size)))
+	if res.Attempts > 1 {
+		line += " " + t.Dim.Render(fmt.Sprintf("· %d attempts", res.Attempts))
+	}
+	return line + "\n"
+}
+
+// Attempt renders the progress line printed after a failed attempt of a
+// request that is being retried.
+func Attempt(t Theme, p runner.Progress) string {
+	return t.Dim.Render(fmt.Sprintf("attempt %d/%d · %s", p.Attempt, p.Max, p.Failure)) + "\n"
 }
 
 // ResponseHeaders renders the response headers sorted and lower-cased, with

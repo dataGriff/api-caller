@@ -117,6 +117,10 @@ force, so a screenshot never hides that values were masked.
 - **Flows update live.** Running a file sends its requests one after
   another, and each row turns green or red as its response arrives, so a long
   flow shows progress instead of a frozen screen.
+- **Retries happen inside the run.** A request with `# @retry` is sent
+  until its assertions pass; the status line of its response then says how
+  many attempts it took. The row is "running" until then, so a long poll
+  looks like a slow request.
 - **Captures apply immediately.** After `login` passes, requests that need
   `{{token}}` flip from `○` to `●` without a reload. A request with
   `# @ref login` is `●` from the start: running it runs `login` first when

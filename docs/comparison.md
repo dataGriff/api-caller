@@ -101,7 +101,8 @@ choice.
 apic differs in three ways: the files are standard `.http` and clickable in
 editors; captures persist between runs; and there is a discovery and MCP
 layer for agents. Hurl also runs a file top to bottom only, where apic can
-address one named request.
+address one named request. Both retry a request until its assertions pass
+(Hurl's `[Options] retry:`, apic's `# @retry`).
 
 ## Against Postman
 

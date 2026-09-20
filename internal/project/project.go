@@ -28,6 +28,7 @@ type Config struct {
 	Env     string `yaml:"env"`     // default environment
 	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
+	Retry   string `yaml:"retry"`   // default retry policy, "<attempts> [interval]", e.g. "10 2s"
 	// MaxBodyBytes caps how much of a response apic will read into memory.
 	// Zero means the built-in default; see runner.DefaultMaxBodyBytes.
 	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
@@ -244,6 +245,11 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, diag(ConfigFile, "warning", "exec-disabled", 0, 0, 0, "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"))
 		}
 	}
+	if p.Config.Retry != "" {
+		if _, _, err := httpfile.ParseRetry(p.Config.Retry); err != nil {
+			diags = append(diags, diag(ConfigFile, "error", "bad-retry", 0, 0, 0, fmt.Sprintf("retry %q: %v", p.Config.Retry, err)))
+		}
+	}
 	type declared struct {
 		req  *httpfile.Request
 		ph   *phrase.Phrase
@@ -290,6 +296,15 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				}
 				diags = append(diags, diag(r.File.Path, "error", "ref-cycle", ref.Line, col, end,
 					fmt.Sprintf("%s %s is a cycle: %s", key, ref.ID, strings.Join(ids, " -> "))))
+			}
+		}
+		for _, d := range r.Directives {
+			if d.Key != "retry" {
+				continue
+			}
+			if _, _, err := httpfile.ParseRetry(d.Value); err != nil {
+				col, end := d.Column, d.Column+len(d.Value)
+				diags = append(diags, diag(r.File.Path, "error", "bad-retry", d.Line, col, end, fmt.Sprintf("@retry %q: %v", d.Value, err)))
 			}
 		}
 		for _, d := range r.Directives {

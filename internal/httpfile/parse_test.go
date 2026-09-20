@@ -69,6 +69,9 @@ func TestParseSample(t *testing.T) {
 	if up.BodyFile != "./payload.json" || up.Body != "" {
 		t.Errorf("upload = %+v", up)
 	}
+	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
+		t.Errorf("retry directive = %q, %v", v, ok)
+	}
 
 	var warnings, errors int
 	for _, d := range diags {
@@ -86,14 +89,14 @@ func TestParseSample(t *testing.T) {
 	// editor can underline `@frobnicate` and `nope` rather than whole lines.
 	want := []Diagnostic{
 		{Path: "testdata/sample.http", Line: 20, Column: 3, EndLine: 20, EndColumn: 14, Severity: "warning", Code: "unknown-directive", Message: "unknown directive @frobnicate (ignored)"},
-		{Path: "testdata/sample.http", Line: 40, Column: 12, EndLine: 40, EndColumn: 16, Severity: "error", Code: "bad-capture", Message: "@capture must look like `name = selector`, got \"nope\""},
+		{Path: "testdata/sample.http", Line: 41, Column: 12, EndLine: 41, EndColumn: 16, Severity: "error", Code: "bad-capture", Message: "@capture must look like `name = selector`, got \"nope\""},
 	}
 	for i, w := range want {
 		if i >= len(diags) || diags[i] != w {
 			t.Errorf("diag %d = %+v, want %+v", i, diags[i], w)
 		}
 	}
-	if d := want[1]; d.String() != "testdata/sample.http:40:12: error: @capture must look like `name = selector`, got \"nope\"" {
+	if d := want[1]; d.String() != "testdata/sample.http:41:12: error: @capture must look like `name = selector`, got \"nope\"" {
 		t.Errorf("String() = %q", d.String())
 	}
 	// Columns on the AST point at the parts later checks report on.
@@ -103,8 +106,8 @@ func TestParseSample(t *testing.T) {
 	if a := get.Asserts[0]; a.Column != 11 {
 		t.Errorf("assert expr column = %d, want 11", a.Column)
 	}
-	if up.BodyFileLine != 36 || up.BodyFileColumn != 3 {
-		t.Errorf("body file position = %d:%d, want 36:3", up.BodyFileLine, up.BodyFileColumn)
+	if up.BodyFileLine != 37 || up.BodyFileColumn != 3 {
+		t.Errorf("body file position = %d:%d, want 37:3", up.BodyFileLine, up.BodyFileColumn)
 	}
 }
 

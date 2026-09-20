@@ -30,6 +30,7 @@ Accept: application/json
 
 ### Upload from file
 # @name upload
+# @retry 3 500ms
 POST {{baseUrl}}/upload
 Content-Type: application/json
 

@@ -220,8 +220,25 @@ commands deserves a deliberate yes.
 
 ## Poll until something is ready
 
-apic has no loops, and deliberately so. Use the shell, and keep the request
-in the file where everyone can see it:
+Say what "ready" looks like and how long to wait for it:
+
+```http
+### Wait for the job
+# @name job-status
+# @retry 30 2s
+# @assert status == 200
+# @assert body.$.state == done
+GET {{baseUrl}}/jobs/{{jobId}}
+```
+
+`apic run job-status` sends the request until both assertions pass or thirty
+attempts are spent, printing a line per failed attempt, and exits 1 if the
+job never gets there. `retry:` in `apic.yaml` or `--retry "30 2s"` applies
+the same policy to every request without its own; see
+[format.md](format.md#retries).
+
+When the condition is not one assertion can express, the shell still works,
+with the request kept in the file where everyone can see it:
 
 ```sh
 until apic run job-status --json | jq -e '.response.body.state == "done"' >/dev/null; do

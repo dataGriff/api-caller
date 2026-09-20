@@ -104,7 +104,7 @@
 <text x="33.6" y="330.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">12</text>
@@ -224,7 +224,7 @@
 <text x="33.6" y="330.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">12</text>
@@ -332,7 +332,7 @@
 <text x="33.6" y="330.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">12</text>
@@ -439,7 +439,7 @@
 <text x="33.6" y="330.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">12</text>
@@ -492,7 +492,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">200 OK</text>
 <text x="369.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="385.4 393.2 401.0 408.8 416.7" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">16 ms</text>
+<text x="385.4 393.2 401.0 408.8 416.7" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">11 ms</text>
 <text x="432.3" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="447.9 455.7 463.6 471.4" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">97 B</text>
 <text x="33.6" y="114.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">●</text>
@@ -581,7 +581,7 @@
 <text x="33.6" y="330.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="330.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="330.0" fill="#d6dae4" xml:space="preserve">  }                                                                       </text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
@@ -607,7 +607,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" xml:space="preserve"> running list-open-todos (2/12) </text>
-<text x="573.0 580.8 588.6 596.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">16ms</text>
+<text x="573.0 580.8 588.6 596.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">11ms</text>
 <text x="604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -636,7 +636,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">200 OK</text>
 <text x="369.8" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
+<text x="385.4 393.2 401.0 408.8" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">1 ms</text>
 <text x="424.5" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="440.1 447.9 455.7 463.6" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">45 B</text>
 <text x="33.6" y="114.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">●</text>
@@ -711,7 +711,7 @@
 <text x="33.6" y="312.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="312.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="312.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0" y="312.0" fill="#d6dae4" xml:space="preserve"> header.x-total-count &gt;= 1                                  </text>
@@ -734,7 +734,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">list-open-todos</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -747,7 +747,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running create-todo (3/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">17ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">13ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -844,7 +844,7 @@
 <text x="33.6" y="294.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="294.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="294.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="294.0" fill="#5fd7ff" xml:space="preserve">↳</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8" y="294.0" fill="#d6dae4" xml:space="preserve"> todoId = 4                                             </text>
@@ -864,7 +864,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="348.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="348.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8" y="366.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">▸ </text>
 <text x="33.6" y="366.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -884,7 +884,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-todo (4/12) </text>
-<text x="518.3 526.1 533.9 541.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">20ms</text>
+<text x="518.3 526.1 533.9 541.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">15ms</text>
 <text x="549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -974,7 +974,7 @@
 <text x="33.6" y="276.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="276.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="276.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3" y="276.0" fill="#d6dae4" xml:space="preserve"> body.$.title == Write docs                          </text>
@@ -992,7 +992,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="330.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="330.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="330.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="348.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="348.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1018,7 +1018,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running update-todo (5/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">21ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">16ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1101,7 +1101,7 @@
 <text x="33.6" y="258.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="258.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="258.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8" y="258.0" fill="#d6dae4" xml:space="preserve"> status == 200                                          </text>
@@ -1121,7 +1121,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="312.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="312.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="312.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="330.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="330.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1153,7 +1153,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-updated (6/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">22ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">17ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1231,7 +1231,7 @@
 <text x="33.6" y="240.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="240.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="240.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="258.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="268.1 276.0" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓6</text>
@@ -1251,7 +1251,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="294.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="294.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="294.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="294.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="312.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="312.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1289,7 +1289,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running delete-todo (7/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">23ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">18ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1351,7 +1351,7 @@
 <text x="33.6" y="222.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="222.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="222.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="240.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="268.1 276.0" y="240.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓7</text>
@@ -1367,7 +1367,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="276.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="276.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="276.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="294.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="294.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1411,7 +1411,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9" y="384.0" fill="#d6dae4" xml:space="preserve"> running get-deleted (8/12) </text>
-<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">23ms</text>
+<text x="541.7 549.5 557.4 565.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">19ms</text>
 <text x="573.0 580.8 588.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1473,7 +1473,7 @@
 <text x="33.6" y="204.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="204.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="222.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="268.1 276.0" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓8</text>
@@ -1491,7 +1491,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="258.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="258.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="258.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="276.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="276.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1541,7 +1541,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4" y="384.0" fill="#d6dae4" xml:space="preserve"> running create-todo-invalid (9/12) </text>
-<text x="604.3 612.1 619.9 627.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">24ms</text>
+<text x="604.3 612.1 619.9 627.7" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">20ms</text>
 <text x="635.5 643.3 651.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1598,7 +1598,7 @@
 <text x="33.6" y="186.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="186.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4" y="186.0" fill="#5fd7ff" xml:space="preserve">&quot;fields&quot;</text>
 <text x="393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3" y="186.0" fill="#d6dae4" xml:space="preserve">: {                                                    </text>
@@ -1620,7 +1620,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="240.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="240.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="240.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="240.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3" y="240.0" fill="#d6dae4" xml:space="preserve">}                                                                </text>
 <text x="33.6" y="258.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
@@ -1682,7 +1682,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1" y="384.0" fill="#d6dae4" xml:space="preserve"> running not-found (10/12) </text>
-<text x="533.9 541.7 549.5 557.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">26ms</text>
+<text x="533.9 541.7 549.5 557.4" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">21ms</text>
 <text x="565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1730,7 +1730,7 @@
 <text x="33.6" y="168.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="168.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="168.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="168.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4" y="168.0" fill="#5fd7ff" xml:space="preserve">&quot;status&quot;</text>
 <text x="393.2 401.0" y="168.0" fill="#d6dae4" xml:space="preserve">: </text>
@@ -1751,7 +1751,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="222.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="222.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="222.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="222.0" fill="#ff5f5f" font-weight="bold" xml:space="preserve">✗</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3" y="222.0" fill="#d6dae4" xml:space="preserve"> status == 200 </text>
@@ -1815,7 +1815,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6" y="384.0" fill="#d6dae4" xml:space="preserve"> running redirect-followed (11/12) </text>
-<text x="596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">27ms</text>
+<text x="596.4 604.3 612.1 619.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">21ms</text>
 <text x="627.7 635.5 643.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1857,7 +1857,7 @@
 <text x="33.6" y="150.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="150.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="150.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="150.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="150.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="150.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7" y="150.0" fill="#d6dae4" xml:space="preserve">{                                                              </text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="168.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
@@ -1879,7 +1879,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="204.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="204.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="222.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="222.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -1948,7 +1948,7 @@
 <text x="291.6 299.4 307.2" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="315.0" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">⠋</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5" y="384.0" fill="#d6dae4" xml:space="preserve"> running redirect-raw (12/12) </text>
-<text x="557.4 565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">28ms</text>
+<text x="557.4 565.2 573.0 580.8" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">23ms</text>
 <text x="588.6 596.4 604.3" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
 <text x="612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">? help · q quit</text>
 </g>
@@ -1973,7 +1973,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6" y="96.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302 Found</text>
 <text x="393.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="408.8 416.7 424.5 432.3" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
+<text x="408.8 416.7 424.5 432.3" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">1 ms</text>
 <text x="447.9" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="463.6 471.4 479.2 487.0" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">34 B</text>
 <text x="33.6" y="114.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
@@ -1985,7 +1985,7 @@
 <text x="33.6" y="132.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="132.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="132.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="150.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="260.3 268.1 276.0" y="150.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓11</text>
@@ -2002,7 +2002,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="186.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6" y="186.0" fill="#d6dae4" xml:space="preserve"> status == 302                                           </text>
@@ -2066,7 +2066,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-raw</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -2104,7 +2104,7 @@
 <text x="307.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0 322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6" y="96.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302 Found</text>
 <text x="393.2" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
-<text x="408.8 416.7 424.5 432.3" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">0 ms</text>
+<text x="408.8 416.7 424.5 432.3" y="96.0" fill="#00d787" font-weight="bold" xml:space="preserve">1 ms</text>
 <text x="447.9" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">·</text>
 <text x="463.6 471.4 479.2 487.0" y="96.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">34 B</text>
 <text x="33.6" y="114.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
@@ -2115,7 +2115,7 @@
 <text x="33.6" y="132.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="132.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="132.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="315.0" y="132.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="322.9 330.7 338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6" y="132.0" fill="#d6dae4" xml:space="preserve"> status == 302                                           </text>
@@ -2135,7 +2135,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="186.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -2195,7 +2195,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-raw</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -2242,7 +2242,7 @@
 <text x="33.6" y="132.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="132.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="132.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7" y="132.0" fill="#5fd7ff" xml:space="preserve">↳</text>
 <text x="338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6" y="132.0" fill="#d6dae4" xml:space="preserve"> token = mock-token                                    </text>
@@ -2261,7 +2261,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="186.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -2321,7 +2321,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-raw</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>
@@ -2368,7 +2368,7 @@
 <text x="33.6" y="132.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="132.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="132.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7 338.5 346.3" y="132.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">↓/j</text>
 <text x="354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="132.0" fill="#d6dae4" xml:space="preserve">   down                                                              </text>
@@ -2390,7 +2390,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="186.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7" y="186.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">/</text>
 <text x="338.5 346.3 354.1 361.9 369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="186.0" fill="#d6dae4" xml:space="preserve">     filter requests                                                   </text>
@@ -2466,7 +2466,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-raw</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="330.7 338.5 346.3 354.1 361.9" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">tab/l</text>
 <text x="369.8 377.6 385.4 393.2 401.0 408.8 416.7 424.5 432.3 440.1 447.9 455.7 463.6 471.4 479.2 487.0 494.8 502.6 510.5 518.3 526.1 533.9 541.7 549.5 557.4 565.2 573.0 580.8 588.6 596.4 604.3 612.1 619.9 627.7 635.5 643.3 651.2 659.0 666.8 674.6 682.4 690.2 698.1 705.9 713.7 721.5 729.3 737.1 745.0 752.8 760.6 768.4 776.2 784.0 791.9 799.7 807.5 815.3 823.1 830.9 838.8 846.6 854.4 862.2 870.0 877.8 885.7" y="366.0" fill="#d6dae4" xml:space="preserve"> next tab                                                          </text>
@@ -2515,7 +2515,7 @@
 <text x="33.6" y="132.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">○</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="132.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8" y="132.0" fill="#d6dae4" xml:space="preserve"> wait-for-job </text>
-<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll again…</text>
+<text x="205.6 213.4 221.2 229.1 236.9 244.7 252.5 260.3 268.1 276.0 283.8" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">Poll until…</text>
 <text x="307.2" y="132.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5 49.3 57.1 64.9 72.7 80.5 88.4" y="150.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">todos.http</text>
 <text x="260.3 268.1 276.0" y="150.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓11</text>
@@ -2535,7 +2535,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="186.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="96.2 104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0 197.8 205.6 213.4 221.2 229.1 236.9 244.7" y="186.0" fill="#d6dae4" xml:space="preserve"> list-open-todos    </text>
 <text x="252.5 260.3 268.1" y="186.0" fill="#00d787" font-weight="bold" xml:space="preserve">200</text>
-<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="186.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="33.6" y="204.0" fill="#00d787" font-weight="bold" xml:space="preserve">✓</text>
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="204.0" fill="#d787d7" font-weight="bold" xml:space="preserve">POST  </text>
@@ -2604,7 +2604,7 @@
 <text x="49.3 57.1 64.9 72.7 80.5 88.4" y="366.0" fill="#d787d7" font-weight="bold" xml:space="preserve">GET   </text>
 <text x="104.0 111.8 119.6 127.4 135.3 143.1 150.9 158.7 166.5 174.3 182.2 190.0" y="366.0" fill="#d6dae4" font-weight="bold" xml:space="preserve">redirect-raw</text>
 <text x="252.5 260.3 268.1" y="366.0" fill="#ffaf00" font-weight="bold" xml:space="preserve">302</text>
-<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">0ms</text>
+<text x="283.8 291.6 299.4" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">1ms</text>
 <text x="307.2" y="366.0" fill="#d6dae4" opacity="0.55" xml:space="preserve">│</text>
 <text x="18.0 25.8 33.6 41.5" y="384.0" fill="#ff87d7" font-weight="bold" xml:space="preserve">apic</text>
 <text x="49.3 57.1 64.9" y="384.0" fill="#d6dae4" opacity="0.55" xml:space="preserve"> · </text>

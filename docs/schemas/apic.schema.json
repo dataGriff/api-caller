@@ -41,6 +41,14 @@
       "description": "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
       "minimum": 0
     },
+    "retry": {
+      "type": "string",
+      "description": "Default retry policy for requests without `# @retry`: `\u003cattempts\u003e [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",
+      "examples": [
+        "10 2s",
+        "5 500ms"
+      ]
+    },
     "test": {
       "type": "object",
       "properties": {
