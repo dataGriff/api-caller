@@ -4,31 +4,25 @@ apic is a Go CLI that runs `.http` request files for humans and AI agents.
 
 ## Layout
 
-- `cmd/apic`: entry point
-- `internal/httpfile`: `.http` parser (AST in `ast.go`, parser in `parse.go`, golden file in `testdata/`)
-- `internal/project`: file discovery, `apic.yaml`, request lookup, `validate`
-- `internal/env`: `http-client.env.json`, private env file, `.env`
-- `internal/template`: `{{placeholder}}` substitution
-- `internal/selector`: `status`, `header.x`, `body.$.path` selectors
-- `internal/assert`: assertion parser and evaluator
-- `internal/session`: `.apic/session.json` persistence of captured values and cached tokens
-- `internal/auth`: `# @auth` spec parsing and application for bearer, basic, AWS SigV4 (own signer in `sigv4.go`, credentials in `awscreds.go`; no AWS SDK), OAuth2 grants and exec
-- `internal/runner`: variable precedence, request execution, captures, asserts, flows, `describe`
-- `internal/output`: the shared theme (`theme.go`), the string renderers used by both the CLI and the UI (`render.go`), JSON highlighting (`jsonhl.go`) and the `io.Writer` wrappers (`output.go`)
-- `internal/phrase`: `# @step` phrase to regex
-- `internal/bdd`: the `apic test` machinery. Godog suite, step vocabulary (`steps.go`), phrase registration, JSON matching, cucumber-report summary
-- `internal/curlexport`, `internal/openapi`, `internal/mcp`: the `curl`, `import` and `mcp` commands. The OpenAPI reader is a small yaml.Node walker (`model.go`) with local `$ref` resolution; do not add an OpenAPI library for it.
-- `internal/cli`: cobra commands, including `demo`, `init` and `ui`
-- `internal/ui`: the `apic ui` terminal UI. Model/update/view live in `ui.go`, `list.go`, `panes.go` and `run.go`, key bindings in `keys.go`, and its own small terminal layer in `term.go` (input decoding), `viewport.go` and `program.go` (event loop). Tests drive `Update`/`View` directly, so no terminal is needed
-- `internal/demoapi`: fake in-memory API (auth, API key, a todos CRUD resource with filtering and validation, polled jobs, multipart upload, GraphQL, a CSV report, a slow route, health; the route list is on `New`) and its embedded example project (`project/`), backing the `apic demo` command and its test suite. Every route exists so a lesson or a guide has something offline to run against; keep the project's requests and `features/todos.feature` in step with it. This is the offline example; it's scaffolded on demand (`apic demo` writes it to `./apic-demo`), not a static copy under `examples/`
-- `examples/`: static sample projects, each `apic validate`-checked in CI (`validate-examples` job). `httpbin` (basic/bearer auth, needs network but no keys), `github` (bearer auth against a real token, `repo.http`), `spotify` (`oauth2` client-credentials against a real app, `search.http`); `github` and `spotify` need the reader's own credentials in their `http-client.private.env.json` to run live; see `examples/README.md`
-- `editors/vscode/`: the VS Code extension, TypeScript bundled with esbuild, a thin client over the binary's `--json` contract (it never parses `.http` files itself). It injects a grammar for `# @directive` lines into the `http` language REST Client provides rather than owning the language. Node lives only here and in the `vscode` CI job; `npm run check` is lint, typecheck, build and package, `npm test` runs the suite in a real VS Code on `src/test/fixture`
-- `setup-apic/`: the composite GitHub Action (`uses: dataGriff/api-caller/setup-apic@v0`) that installs a release with the same checksum verification as `install.sh`, on all three runner OSes. `.github/workflows/action-test.yml` runs it against the latest release when it or `install.sh` changes
-- `docs/`: the documentation site (MkDocs Material, `mkdocs.yml`, published to GitHub Pages by `.github/workflows/docs.yml`). `docs/assets/apic-ui.svg` and `apic-run.svg` are terminal screenshots generated from real output, not hand-drawn, and `apic-demo.svg` (the README and home-page hero) is an animated SVG of twenty such frames cycled with SMIL timing
-- `scripts/shot`: the generator behind those screenshots (`task shots`). It serves the demo API in-process, drives the UI through `ui.Model.Press` (and `PressWatch`, which yields a frame per request of a flow) and renders the frames the CLI and the UI really write, ANSI and all, as SVG. Regenerate them whenever anything on screen changes; the `shots` CI job renders them on every pull request and uploads the result as an artifact
-- `docs/learn/`: the "From zero to apic" course, one page per lesson, written from `_template.md`. Fenced blocks preceded by `<!-- learn -->` are executed by CI
-- `scripts/learncheck`: the harness behind that (`task learn:check`). It builds apic, serves `apic demo` in a scratch directory and runs every marked block with `sh -e` in page order
-- `scripts/schemas`: generates `docs/schemas/*.json`, the JSON schemas for `apic.yaml` (reflected from `project.Config`, every key needs a description in the generator), the env files and the session file (`task schemas`). Its test fails when the committed files are stale, so a new `apic.yaml` key means a description and a regeneration
+The package-by-package map and the request lifecycle are on the
+[architecture page](docs/architecture.md), which is the one source for
+both; keep it current when a package's job changes. The short version:
+`cmd/apic` is the entry point; `internal/httpfile` parses and formats
+`.http` files; `internal/project` discovers and validates a project;
+`internal/runner` resolves variables, applies auth, sends, captures and
+asserts, with `env`, `template`, `session`, `auth`, `selector` and
+`assert` beneath it; `internal/output` renders for the CLI, the UI and
+MCP; `internal/bdd` and `internal/phrase` are `apic test`; `internal/cli`
+holds the commands and `internal/ui` the terminal UI; `internal/demoapi`
+is the offline API and project behind `apic demo`; `examples/` are the
+static sample projects CI validates and format-checks; `editors/vscode/`
+is the extension, released on its own `vscode-v*` tags; `setup-apic/` the
+GitHub Action; `docs/` the site, with the course under `docs/learn/` and
+the generators under `scripts/`.
+
+Two things worth knowing that the page also says: the OpenAPI and Postman
+readers are hand-written walkers, not libraries, and the VS Code extension
+never parses `.http` files itself (it reads `--json`).
 
 ## Commands
 

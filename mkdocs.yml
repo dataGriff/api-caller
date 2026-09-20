@@ -34,6 +34,7 @@ nav:
       - Taskfile: taskfile.md
   - Reference:
       - CLI reference: cli.md
+      - Architecture: architecture.md
       - FAQ: faq.md
       - Verifying a release: verifying.md
       - Licence: licence.md
@@ -84,7 +85,11 @@ markdown_extensions:
       permalink: true
   - pymdownx.highlight
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.details
   - pymdownx.keys
   - pymdownx.tasklist:
