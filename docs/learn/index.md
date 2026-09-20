@@ -35,7 +35,7 @@ lesson cannot quietly stop working when apic changes.
 | 3 | [Capture, the session and flows](03-capture-session-flows.md) | `# @capture`, the session file, running a file, `# @ref` | coming soon |
 | 4 | [Assertions, validation and polling](04-assertions.md) | Selectors, operators, `validate`, `# @retry` | coming soon |
 | 5 | [The terminal UI tour](05-terminal-ui.md) | Every key with a purpose | coming soon |
-| 6 | Authentication | bearer, basic, API keys, OAuth2, AWS SigV4, `exec` | coming soon |
+| 6 | [Authentication](06-authentication.md) | bearer, basic, API keys, OAuth2, AWS SigV4, `exec` | coming soon |
 | 7 | Behaviour tests with Gherkin | `# @step`, features, reports | coming soon |
 | 8 | CI without leaking secrets | GitHub Actions, `--redact`, JUnit | coming soon |
 | 9 | From OpenAPI to a project, and back to curl | `import`, `curl`, Postman import | coming soon |

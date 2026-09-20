@@ -21,6 +21,7 @@ nav:
       - "3. Capture, the session and flows": learn/03-capture-session-flows.md
       - "4. Assertions, validation and polling": learn/04-assertions.md
       - "5. The terminal UI tour": learn/05-terminal-ui.md
+      - "6. Authentication": learn/06-authentication.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
