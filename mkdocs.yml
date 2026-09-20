@@ -24,6 +24,7 @@ nav:
       - "6. Authentication": learn/06-authentication.md
       - "7. Behaviour tests with Gherkin": learn/07-gherkin.md
       - "8. CI without leaking secrets": learn/08-ci.md
+      - "9. From OpenAPI to a project, and back to curl": learn/09-import-export.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
