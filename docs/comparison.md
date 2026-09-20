@@ -56,10 +56,10 @@ skipped rather than sent, and `apic validate` lists what was skipped.
 
 httpyac is the closest existing tool: it runs the same `.http` files, reads
 the same `http-client.env.json` and `.env`, and ships a VS Code extension.
-It is far richer: JavaScript blocks and handlers, `# @ref` to run
-dependencies automatically, `@loop` and `@import`, every OAuth2 flow, AWS
-and digest auth, GraphQL, gRPC, WebSocket, MQTT and AMQP, JUnit output, and
-a plugin system. If Node is acceptable everywhere you run requests, take it
+It is far richer: JavaScript blocks and handlers, `@loop` and `@import`,
+every OAuth2 flow, AWS and digest auth, GraphQL, gRPC, WebSocket, MQTT and
+AMQP, JUnit output, and a plugin system. Its `# @ref` and `# @forceRef`
+mean the same thing in apic. If Node is acceptable everywhere you run requests, take it
 seriously.
 
 apic differs in the ways that matter for agents and locked-down machines: it
@@ -101,7 +101,8 @@ choice.
 apic differs in three ways: the files are standard `.http` and clickable in
 editors; captures persist between runs; and there is a discovery and MCP
 layer for agents. Hurl also runs a file top to bottom only, where apic can
-address one named request.
+address one named request. Both retry a request until its assertions pass
+(Hurl's `[Options] retry:`, apic's `# @retry`).
 
 ## Against Postman
 

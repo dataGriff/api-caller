@@ -28,6 +28,7 @@ type Config struct {
 	Env     string `yaml:"env"`     // default environment
 	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
+	Retry   string `yaml:"retry"`   // default retry policy, "<attempts> [interval]", e.g. "10 2s"
 	// MaxBodyBytes caps how much of a response apic will read into memory.
 	// Zero means the built-in default; see runner.DefaultMaxBodyBytes.
 	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
@@ -244,6 +245,11 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, diag(ConfigFile, "warning", "exec-disabled", 0, 0, 0, "auth.default: @auth exec will be refused until apic.yaml sets auth.allowExec: true"))
 		}
 	}
+	if p.Config.Retry != "" {
+		if _, _, err := httpfile.ParseRetry(p.Config.Retry); err != nil {
+			diags = append(diags, diag(ConfigFile, "error", "bad-retry", 0, 0, 0, fmt.Sprintf("retry %q: %v", p.Config.Retry, err)))
+		}
+	}
 	type declared struct {
 		req  *httpfile.Request
 		ph   *phrase.Phrase
@@ -271,6 +277,35 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				}
 			}
 			phrases = append(phrases, declared{r, ph, d.Line})
+		}
+		for _, ref := range r.Refs() {
+			col, end := ref.Column, ref.Column+len(ref.ID)
+			key := "@ref"
+			if ref.Force {
+				key = "@forceRef"
+			}
+			target, err := p.refTarget(ref)
+			if err != nil {
+				diags = append(diags, diag(r.File.Path, "error", "bad-ref", ref.Line, col, end, fmt.Sprintf("%s %s: %v", key, ref.ID, err)))
+				continue
+			}
+			if chain := p.refPath(target, r, nil); chain != nil {
+				ids := []string{r.ID()}
+				for _, c := range chain {
+					ids = append(ids, c.ID())
+				}
+				diags = append(diags, diag(r.File.Path, "error", "ref-cycle", ref.Line, col, end,
+					fmt.Sprintf("%s %s is a cycle: %s", key, ref.ID, strings.Join(ids, " -> "))))
+			}
+		}
+		for _, d := range r.Directives {
+			if d.Key != "retry" {
+				continue
+			}
+			if _, _, err := httpfile.ParseRetry(d.Value); err != nil {
+				col, end := d.Column, d.Column+len(d.Value)
+				diags = append(diags, diag(r.File.Path, "error", "bad-retry", d.Line, col, end, fmt.Sprintf("@retry %q: %v", d.Value, err)))
+			}
 		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {
@@ -334,6 +369,48 @@ func validSelector(s string) bool {
 		return true
 	}
 	return false
+}
+
+// refTarget resolves a `# @ref` target to the one request it names. A
+// request naming itself resolves, and is reported as a cycle by refPath.
+func (p *Project) refTarget(ref httpfile.Ref) (*httpfile.Request, error) {
+	if ref.ID == "" {
+		return nil, errors.New("needs a request name")
+	}
+	targets, err := p.Resolve(ref.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) != 1 {
+		return nil, fmt.Errorf("names %d requests; refer to one request by name or file#name", len(targets))
+	}
+	return targets[0], nil
+}
+
+// refPath follows `# @ref` directives from `from` and returns the requests
+// on the way to `to` (ending with it), or nil when `to` is not reachable.
+// Targets that do not resolve are skipped: bad-ref reports those.
+func (p *Project) refPath(from, to *httpfile.Request, seen map[*httpfile.Request]bool) []*httpfile.Request {
+	if from == to {
+		return []*httpfile.Request{to}
+	}
+	if seen == nil {
+		seen = map[*httpfile.Request]bool{}
+	}
+	if seen[from] {
+		return nil
+	}
+	seen[from] = true
+	for _, ref := range from.Refs() {
+		target, err := p.refTarget(ref)
+		if err != nil {
+			continue
+		}
+		if rest := p.refPath(target, to, seen); rest != nil {
+			return append([]*httpfile.Request{from}, rest...)
+		}
+	}
+	return nil
 }
 
 // CapturedBy returns the first request that captures a variable of this name.

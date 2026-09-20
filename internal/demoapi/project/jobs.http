@@ -16,8 +16,9 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/jobs/{{jobId}}
 Authorization: Bearer {{token}}
 
-### Poll again and it is done. With `# @retry 10 1s` this would loop for you
+### Poll until it is done: `# @retry` re-sends until the assertions pass
 # @name wait-for-job
+# @retry 5 500ms
 # @step I wait for the job
 # @assert status == 200
 # @assert body.$.state == done

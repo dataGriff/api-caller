@@ -33,7 +33,9 @@ Start with list_requests to see what is available, describe_request to learn
 which variables a request needs, then run_request to send it. Values declared
 with "# @capture" (for example a login token) are stored in the session and
 reused by later calls automatically, so run a login request once and then
-call the requests that depend on it. run_file runs every request in a file in
+call the requests that depend on it. A request that declares "# @ref login"
+runs login by itself when the token is missing; the result then lists what
+ran first under ran_first. run_file runs every request in a file in
 order as a flow. run_features runs the project's Gherkin .feature files and
 reports which steps failed. Assertion failures come back as ok=false, not as
 errors.`

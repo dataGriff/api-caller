@@ -15,6 +15,11 @@ nav:
       - Cheat sheet: cheatsheet.md
   - Learn:
       - From zero to apic: learn/index.md
+      - "0. What apic is and why": learn/00-what-is-apic.md
+      - "1. Install and send your first request": learn/01-first-request.md
+      - "2. Variables and environments": learn/02-variables-and-environments.md
+      - "3. Capture, the session and flows": learn/03-capture-session-flows.md
+      - "4. Assertions, validation and polling": learn/04-assertions.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md

@@ -47,7 +47,17 @@ func StatusLine(t Theme, res *runner.Result) string {
 	}
 	raw := res.Raw()
 	status := t.Status(raw.Status, raw.StatusText)
-	return fmt.Sprintf("%s %s %s %s %s\n", status, t.Dim.Render("·"), t.Latency(res.Response.DurationMs), t.Dim.Render("·"), t.Dim.Render(Size(res.Response.Size)))
+	line := fmt.Sprintf("%s %s %s %s %s", status, t.Dim.Render("·"), t.Latency(res.Response.DurationMs), t.Dim.Render("·"), t.Dim.Render(Size(res.Response.Size)))
+	if res.Attempts > 1 {
+		line += " " + t.Dim.Render(fmt.Sprintf("· %d attempts", res.Attempts))
+	}
+	return line + "\n"
+}
+
+// Attempt renders the progress line printed after a failed attempt of a
+// request that is being retried.
+func Attempt(t Theme, p runner.Progress) string {
+	return t.Dim.Render(fmt.Sprintf("attempt %d/%d · %s", p.Attempt, p.Max, p.Failure)) + "\n"
 }
 
 // ResponseHeaders renders the response headers sorted and lower-cased, with
@@ -298,6 +308,8 @@ func Variables(t Theme, vars []runner.VarInfo, hints bool) string {
 	for _, v := range vars {
 		pad := strings.Repeat(" ", nameW-len(v.Name)-2)
 		switch {
+		case v.Missing && v.RefRuns && hints:
+			fmt.Fprintf(&b, "  %s%s  %s  %s\n", t.Warn.Render("○ "+v.Name), pad, "missing", fmt.Sprintf("captured by %s, which # @ref runs first", v.CapturedBy))
 		case v.Missing && v.CapturedBy != "" && hints:
 			fmt.Fprintf(&b, "  %s%s  %s  %s\n", t.Fail.Render("✗ "+v.Name), pad, "missing", fmt.Sprintf("captured by %s — run `apic run %s` first", v.CapturedBy, v.CapturedBy))
 		case v.Missing && hints:

@@ -174,7 +174,8 @@ error: users.http:6: missing variable
   {{token}}: it is captured by request "login"; run `apic run login` first, or pass --var token=...
 ```
 
-So log in:
+So log in (or add `# @ref login` to `get-user` and apic does this for you;
+see [dependencies](format.md#dependencies)):
 
 ```sh
 apic run login

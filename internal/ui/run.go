@@ -195,6 +195,7 @@ func (m *Model) handleResult(msg resultMsg) Cmd {
 	}
 	if msg.res != nil {
 		m.results[msg.req] = msg.res
+		m.storeDeps(msg.res)
 	}
 	if msg.err != nil {
 		m.errs[msg.req] = msg.err
@@ -209,6 +210,18 @@ func (m *Model) handleResult(msg resultMsg) Cmd {
 	m.inflight = nil
 	m.finishRun(rs)
 	return nil
+}
+
+// storeDeps records the results of the requests `# @ref` ran first, so
+// their rows show what happened to them too.
+func (m *Model) storeDeps(res *runner.Result) {
+	for _, dep := range res.Deps {
+		if req := dep.Req(); req != nil {
+			m.results[req] = dep
+			delete(m.errs, req)
+		}
+		m.storeDeps(dep)
+	}
 }
 
 // finishRun refreshes derived state and the summary once a run completes.

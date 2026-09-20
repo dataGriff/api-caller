@@ -42,6 +42,7 @@ type listEntry struct {
 	Captures    []string `json:"captures,omitempty"`
 	Asserts     int      `json:"asserts,omitempty"`
 	Steps       []string `json:"steps,omitempty"`
+	Refs        []string `json:"refs,omitempty"`
 }
 
 func (e listEntry) matches(pattern string) bool {
@@ -69,7 +70,7 @@ to requests whose id, URL, file or description contains it.`,
 			}
 			var entries []listEntry
 			for _, r := range p.Requests() {
-				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps()}
+				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps(), Refs: refIDs(r)}
 				for _, c := range r.Captures {
 					e.Captures = append(e.Captures, c.Name)
 				}
@@ -611,4 +612,13 @@ func maskDescription(d *runner.Description) *runner.Description {
 		}
 	}
 	return &out
+}
+
+// refIDs lists the targets of a request's `# @ref` and `# @forceRef` directives.
+func refIDs(r *httpfile.Request) []string {
+	var out []string
+	for _, ref := range r.Refs() {
+		out = append(out, ref.ID)
+	}
+	return out
 }

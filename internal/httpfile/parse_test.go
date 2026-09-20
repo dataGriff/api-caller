@@ -50,6 +50,12 @@ func TestParseSample(t *testing.T) {
 	if get.Body != "" {
 		t.Errorf("unexpected body %q", get.Body)
 	}
+	if refs := get.Refs(); len(refs) != 1 || refs[0] != (Ref{ID: "login", Line: 16, Column: 8}) {
+		t.Errorf("refs = %+v", refs)
+	}
+	if refs := login.Refs(); refs != nil {
+		t.Errorf("login should have no refs, got %+v", refs)
+	}
 
 	health := f.Requests[2]
 	if health.Method != "GET" || health.URL != "{{baseUrl}}/health" || health.HTTPVersion != "HTTP/1.1" || health.Name != "" {
@@ -62,6 +68,9 @@ func TestParseSample(t *testing.T) {
 	up := f.Requests[3]
 	if up.BodyFile != "./payload.json" || up.Body != "" {
 		t.Errorf("upload = %+v", up)
+	}
+	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
+		t.Errorf("retry directive = %q, %v", v, ok)
 	}
 
 	var warnings, errors int
@@ -79,15 +88,15 @@ func TestParseSample(t *testing.T) {
 	// Diagnostics carry a code and the span of the offending text, so an
 	// editor can underline `@frobnicate` and `nope` rather than whole lines.
 	want := []Diagnostic{
-		{Path: "testdata/sample.http", Line: 19, Column: 3, EndLine: 19, EndColumn: 14, Severity: "warning", Code: "unknown-directive", Message: "unknown directive @frobnicate (ignored)"},
-		{Path: "testdata/sample.http", Line: 39, Column: 12, EndLine: 39, EndColumn: 16, Severity: "error", Code: "bad-capture", Message: "@capture must look like `name = selector`, got \"nope\""},
+		{Path: "testdata/sample.http", Line: 20, Column: 3, EndLine: 20, EndColumn: 14, Severity: "warning", Code: "unknown-directive", Message: "unknown directive @frobnicate (ignored)"},
+		{Path: "testdata/sample.http", Line: 41, Column: 12, EndLine: 41, EndColumn: 16, Severity: "error", Code: "bad-capture", Message: "@capture must look like `name = selector`, got \"nope\""},
 	}
 	for i, w := range want {
 		if i >= len(diags) || diags[i] != w {
 			t.Errorf("diag %d = %+v, want %+v", i, diags[i], w)
 		}
 	}
-	if d := want[1]; d.String() != "testdata/sample.http:39:12: error: @capture must look like `name = selector`, got \"nope\"" {
+	if d := want[1]; d.String() != "testdata/sample.http:41:12: error: @capture must look like `name = selector`, got \"nope\"" {
 		t.Errorf("String() = %q", d.String())
 	}
 	// Columns on the AST point at the parts later checks report on.
@@ -97,8 +106,8 @@ func TestParseSample(t *testing.T) {
 	if a := get.Asserts[0]; a.Column != 11 {
 		t.Errorf("assert expr column = %d, want 11", a.Column)
 	}
-	if up.BodyFileLine != 35 || up.BodyFileColumn != 3 {
-		t.Errorf("body file position = %d:%d, want 35:3", up.BodyFileLine, up.BodyFileColumn)
+	if up.BodyFileLine != 37 || up.BodyFileColumn != 3 {
+		t.Errorf("body file position = %d:%d, want 37:3", up.BodyFileLine, up.BodyFileColumn)
 	}
 }
 

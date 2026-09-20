@@ -56,9 +56,12 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @assert selector op value` | Check the response. Failures set `ok: false` and exit code 1. |
 | `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
 | `# @step a user named {name} exists` | A Gherkin phrase that runs this request from a `.feature` file; `{name}` becomes a variable. Repeatable. See [testing.md](testing.md). |
+| `# @ref login` | Run `login` first when this request is missing a variable (once per invocation). Repeatable. See [Dependencies](#dependencies). |
+| `# @forceRef login` | Run `login` first every time this request runs. Repeatable. |
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
+| `# @retry 10 2s` | Re-send until every assertion passes, up to 10 times, 2s apart (default 1s). See [Retries](#retries). |
 | `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
 | `# @prompt name` | Accepted and ignored: apic never prompts. Pass the value with `--var name=...`, or put it in an env file. |
 
@@ -153,6 +156,67 @@ and may be quoted.
 the first failed assertion, failed capture or transport error (use
 `--keep-going` to continue). Exit code is 1 if anything failed. `--json`
 prints one JSON object per request (NDJSON).
+
+## Dependencies
+
+A request that needs a value another request captures can say so, and apic
+runs that request first when the value is missing:
+
+```http
+### Log in and keep the token
+# @name login
+# @capture token = body.$.access_token
+POST {{baseUrl}}/auth/login
+
+### Who am I
+# @name whoami
+# @ref login
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+```
+
+`apic run whoami` on a fresh session runs `login`, then `whoami`; with the
+token already in the session it runs only `whoami`. A `# @ref` runs at most
+once per invocation, so a flow that needs `login` twice logs in once, and
+the target's own `# @ref` lines apply too. `# @forceRef login` runs `login`
+first every time, for a token that must be fresh. The target is any run
+target (`login`, `auth.http#login`) that names exactly one request; a target
+that does not, or a chain that leads back to itself, is an error `apic
+validate` reports as `bad-ref` or `ref-cycle`.
+
+A dependency that fails (an assertion, a capture, the network) stops the
+request that depends on it: the run reports the dependency's result, then
+the request as failed without sending it. The output shows what ran first
+(`↳ ran login first (# @ref)` in the terminal, `ran_first` in `--json`,
+see [cli.md](cli.md#apic-run)).
+
+## Retries
+
+A request whose assertions describe a state the API will reach, not the one
+it is in, can wait for it:
+
+```http
+### Poll until the job is done
+# @name wait-for-job
+# @retry 10 2s
+# @assert status == 200
+# @assert body.$.state == done
+GET {{baseUrl}}/jobs/{{jobId}}
+```
+
+`# @retry <attempts> [interval]` sends the request again until every
+assertion passes or the attempts are spent, waiting `interval` between
+attempts (a Go duration such as `500ms` or `2s`; default `1s`). A transport
+error counts as a failed attempt too. Each failed attempt prints a line as
+it happens (`attempt 1/10 · body.$.state == done: got "running"`), the
+report of the attempt that counted says how many it took, and `--json`
+carries `attempts`. Captures and the session are written from that final
+attempt only, and every attempt gets the full `# @timeout`.
+
+`retry:` in `apic.yaml` sets a default for requests without their own
+`# @retry`, `--retry "<attempts> [interval]"` overrides that for one run,
+and `--no-retry` sends everything once. The order is directive, flag, file.
+`apic validate` reports a policy it cannot read as `bad-retry`.
 
 ## Project layout
 

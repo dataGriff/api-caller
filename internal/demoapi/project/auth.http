@@ -11,8 +11,9 @@ Content-Type: application/json
 
 {"user": "{{user}}", "password": "{{password}}"}
 
-### Who am I, using the token captured by login
+### Who am I, using the token captured by login (which runs first if needed)
 # @name whoami
+# @ref login
 # @step I ask who I am
 # @assert status == 200
 # @assert body.$.email endsWith @example.com
