@@ -72,8 +72,9 @@ Away from the lenses:
   for a mistyped one.
 - The **apic** view in the activity bar lists every request by file with
   a ready icon from `apic describe`, and the **Session** view shows the
-  captured values (tokens described, never printed) with **Clear
-  session** above them.
+  captured values (a cached OAuth2 or `exec` token as its description,
+  a captured value as itself, so treat a screen share the way you would
+  treat `apic session`) with **Clear session** above them.
 - The status bar names the environment in effect; **apic: Select
   environment** changes it, and every lens passes it as `--env`.
 - **Format Document** runs `apic fmt` on the file, and with

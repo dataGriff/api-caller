@@ -96,12 +96,13 @@ apic run get-todo -C apic-demo --json | jq -c '{ok, body: .response.body}'
 
 ```
 {"ok":true,"captures":{"token":"mock-token"}}
-{"ok":true,"status":201,"captures":{"todoId":"8","todoTitle":"From an agent"}}
-{"ok":true,"body":{"id":"8","title":"From an agent","done":false}}
+{"ok":true,"status":201,"captures":{"todoId":"3","todoTitle":"From an agent"}}
+{"ok":true,"body":{"id":"3","title":"From an agent","done":false}}
 ```
 
 `response.body` is parsed JSON when the response is JSON, so the agent
-chains values without string handling, and the captures persist, so it
+chains values without string handling (the id is `3` on a fresh demo,
+higher if you created todos in earlier lessons), and the captures persist, so it
 logs in once per session rather than before every call.
 
 ### 3. `# @ref` takes even that step away
@@ -230,11 +231,13 @@ read of any of them is refused:
 
 The same line holds everywhere an agent looks: `list_environments` masks
 secrets as `apic env` does, `run_request` shows sensitive request headers
-as `***`, and captured tokens are described rather than printed. What the
-agent does get is real URLs, bodies and captured ids, because it needs
-them to chain calls. When the output is going into a stored log rather
-than to an agent, add `--redact`, which masks those too; a redacted run
-is for logs, not for chaining.
+as `***`, and the tokens `# @auth oauth2` and `exec` cache in the session
+are described (`$oauth2:… = token, expires in 1h0m0s`), never printed.
+What the agent does get is real URLs, bodies and captured values, the
+token that `login` captured included, because it needs them to chain
+calls: step 2 printed `mock-token` for that reason. When the output is
+going into a stored log rather than to an agent, add `--redact`, which
+masks those too; a redacted run is for logs, not for chaining.
 
 ### 7. The agent as an author
 

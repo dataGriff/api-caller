@@ -25,7 +25,8 @@ cd api-caller
 
 [httpbin.org](https://httpbin.org) is a public echo service: it answers
 with what you sent, which makes it a good first real target. The
-`httpbin` example has three environments, and `dev` points at it:
+`httpbin` example has two environments, and `dev` points at it (`local`
+points at `apic demo`, for the requests that both serve):
 
 ```sh
 apic list -C examples/httpbin
@@ -38,7 +39,7 @@ apic run auth.http -C examples/httpbin --env dev
 ✓ basic-auth   200  301 ms
 ✓ bearer-auth  200  295 ms
 
-4 passed · 4 requests · 1.2 s
+4 passed · 4 requests · 1206 ms
 ```
 
 The timings are the network's, and the first request is the interesting
@@ -71,7 +72,7 @@ apic run users.http -C examples/httpbin --env dev --keep-going
 ✓ create-user  200  299 ms
 ✓ not-found    404  290 ms
 
-3 passed · 3 requests · 0.9 s
+3 passed · 3 requests · 894 ms
 ```
 
 `not-found` asserts `status == 404`, so it passes: an assertion is about
@@ -116,7 +117,7 @@ apic run repo.http -C examples/github
 ✓ get-repo     200  160 ms
 ✓ list-issues  200  210 ms
 
-3 passed · 3 requests · 0.6 s
+3 passed · 3 requests · 550 ms
 ```
 
 The `env: dev` in `apic.yaml` means no `--env` is needed. The example
@@ -129,7 +130,8 @@ apic test -C examples/github
 
 ```
 3 scenarios (3 passed)
-9 steps (9 passed)
+8 steps (8 passed)
+612.5ms
 ```
 
 ### 3. Spotify: OAuth2 client credentials
@@ -176,7 +178,7 @@ apic run search.http -C examples/spotify
 ✓ search-artist  200  420 ms
 ✓ new-releases   200  260 ms
 
-2 passed · 2 requests · 0.7 s
+2 passed · 2 requests · 680 ms
 ```
 
 The token was fetched once, before the first request, and cached in the
@@ -190,7 +192,7 @@ captured value becomes `***`.
 
 | Project | Environment | Private file holds | Where it comes from |
 |---|---|---|---|
-| `examples/httpbin` | `dev` (httpbin.org), `local`, `staging` | `password` | Committed; any value works |
+| `examples/httpbin` | `dev` (httpbin.org), `local` | `password` | Committed; any value works |
 | `examples/github` | `dev` | `token` | A fine-grained PAT with no permissions, or `gh auth token` |
 | `examples/spotify` | `dev` | `clientId`, `clientSecret` | An app in the Spotify developer dashboard |
 
@@ -294,6 +296,10 @@ API first if the real one needs credentials you do not have to hand.
     wrote my-api/api.http
     wrote my-api/features/smoke.feature
     wrote my-api/.gitignore
+
+    next:
+      cd my-api
+      edit api.http, then:  apic list · apic run ping · apic ui
     ✓ status == 200
     ```
 

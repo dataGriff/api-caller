@@ -122,16 +122,22 @@ warns about it. In `internal/httpfile/parse.go`, one line in
 "tag": "label for filtering: `# @tag smoke`, repeatable",
 ```
 
-and a case in the golden file, `testdata/sample.http`, on `get-user`:
+and a case in the golden file, `testdata/sample.http`, as a new block
+at the end of the file:
 
 ```http
+### Tagged
+# @name tagged
 # @tag smoke
 # @tag users
+GET {{baseUrl}}/health
 ```
 
-`TestParseSample` counts requests and checks fields, so a new comment
-line does not break it; add one assertion there that `get-user` carries
-two `tag` directives, so the case is pinned.
+At the end, not in the middle: `TestParseSample` pins the line numbers
+of the multipart parts in the last request, so two lines inserted above
+them would fail it. It also counts the requests, so the count goes from
+6 to 7, and one assertion that `f.Requests[6]` carries two `tag`
+directives pins the new case.
 
 **Tell the grammar.** `editors/vscode/syntaxes/apic-directives.injection.json`
 lists the known directives in one alternation; add `tag` to it, or

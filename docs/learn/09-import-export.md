@@ -160,6 +160,8 @@ todos.http
 list-todos   GET     {{baseUrl}}/todos             :6    List todos
 create-todo  POST    {{baseUrl}}/todos             :12   Create a todo
 get-todo     GET     {{baseUrl}}/todos/{{todoId}}  :23   Fetch one todo
+
+4 requests in 2 files · apic describe <id> · apic run <id> · apic ui
 ```
 
 Valid, but not yet runnable. Try the health check:
@@ -455,11 +457,12 @@ apic curl get-todo -C todos-api
 ```
 curl -sS \
   -H 'Authorization: Bearer mock-token' \
-  'http://localhost:8089/todos/5'
+  'http://localhost:8089/todos/3'
 ```
 
 The token and the id came from the session, so it is the request as apic
-would send it now. Pipe it into a shell and it runs:
+would send it now (a fresh demo seeds two todos, so the one the flow
+created is `3`; yours is higher if you created more). Pipe it into a shell and it runs:
 
 <!-- learn -->
 ```sh
@@ -467,7 +470,7 @@ apic curl get-todo -C todos-api | sh
 ```
 
 ```
-{"id":"5","title":"Buy milk","done":false}
+{"id":"3","title":"Buy milk","done":false}
 ```
 
 For a bug report or a stored log, `--redact` keeps the shape and masks
@@ -482,7 +485,7 @@ apic curl get-todo -C todos-api --redact
 ```
 curl -sS \
   -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:8089/todos/5'
+  'http://localhost:8089/todos/3'
 ```
 
 ## Checkpoint
