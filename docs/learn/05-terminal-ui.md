@@ -65,10 +65,13 @@ request that would provide them.
 Put the cursor on `login` and press <kbd>enter</kbd>. The row shows a
 spinner, then `✓ 200 1ms`, and the right pane switches to the **response**
 tab: status line, body pretty-printed and highlighted, the assertion that
-passed, the value captured. Look left again: every `○` in `todos.http` is
-now `●`. The token landed in the session and the marks updated without a
-reload. That is [lesson 3](03-capture-session-flows.md) happening in
-front of you.
+passed, the value captured. Look left again: `list-todos`,
+`list-open-todos`, `create-todo` and `create-todo-invalid` have gone from
+`○` to `●`. The token landed in the session and the marks updated without
+a reload. The rows in between stay `○` for now: `get-todo` and its
+neighbours also need `todoId`, which only `create-todo` captures, and the
+flow in the next step is where you see those flip. That is
+[lesson 3](03-capture-session-flows.md) happening in front of you.
 
 Press <kbd>H</kbd> to add the request and response headers to the
 response tab, and again to hide them. Press <kbd>c</kbd> to swap the
@@ -188,8 +191,10 @@ assertion, `body.$.service == apic-demo`, and see it pass.
     8. `--redact` badge; why it refuses pipes and `--json`.
 
     **Shot list.** One terminal, 112x30, font size 16, nothing else on
-    screen. `docs/learn/tapes/05.tape` drives the whole episode; it is
-    `docs/assets/demo.tape` extended with the edit round trip.
+    screen. `docs/learn/tapes/05.tape` drives everything except the
+    editor round trip in step 7, which is recorded by hand because the
+    editor is the viewer's own; it is `docs/assets/demo.tape` extended
+    with the session, filter and environment flows.
 
     **Chapters.** `0:00 One key` · `0:40 The screen and the marks` · `1:40
     Run one` · `2:40 Run a file` · `3:50 Read a failure` · `4:50 The

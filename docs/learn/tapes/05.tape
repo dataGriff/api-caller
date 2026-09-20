@@ -1,8 +1,9 @@
 # Lesson 5: the terminal UI tour. Renders the episode with VHS:
 #   vhs docs/learn/tapes/05.tape
 # Run `apic demo --out apic-demo` in another terminal first. Based on
-# docs/assets/demo.tape, extended with the session, filter and editor
-# round trip the lesson walks through.
+# docs/assets/demo.tape, extended with the session, filter and environment
+# flows the lesson walks through. The editor round trip (`o`, edit, `r`)
+# is recorded by hand: it depends on the editor on the recording machine.
 Output docs/learn/tapes/05.gif
 Set Shell "bash"
 Set FontSize 16

@@ -10,6 +10,7 @@ Set Height 720
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
 
+Type "apic run login -C apic-demo > /dev/null" Enter Sleep 1s
 Type "apic run whoami -C apic-demo -v | head -3" Enter Sleep 3s
 Type "clear" Enter
 Type "apic run basic-auth -C apic-demo" Enter Sleep 4s
@@ -21,7 +22,7 @@ Type "apic describe oauth2-token -C apic-demo" Enter Sleep 4s
 Type "apic run oauth2-token -C apic-demo > /dev/null; apic session -C apic-demo" Enter Sleep 4s
 Type "clear" Enter
 Type "apic run me health -C apic-auth" Enter Sleep 4s
-Type "apic describe me -C apic-auth | sed -n 4,6p" Enter Sleep 3s
+Type "apic describe me -C apic-auth | sed -n 5,6p" Enter Sleep 3s
 Type "clear" Enter
 Type "apic run me-exec -C apic-auth" Enter Sleep 4s
 Type "clear" Enter

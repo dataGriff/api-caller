@@ -42,6 +42,7 @@ those are masked when they carry a credential:
 
 <!-- learn -->
 ```sh
+apic run login -C apic-demo > /dev/null
 apic run whoami -C apic-demo -v | head -3
 ```
 
@@ -50,6 +51,10 @@ GET http://localhost:8089/me
 Authorization: ***
 
 ```
+
+(The login first is so that `whoami`'s `# @ref login` has nothing to do;
+on a fresh session it would run `login` and print that report before its
+own.)
 
 ### 2. Basic
 
@@ -246,13 +251,12 @@ instead. `describe` names the source:
 
 <!-- learn -->
 ```sh
-apic describe me -C apic-auth | sed -n 4,6p
+apic describe me -C apic-auth | sed -n 5,6p
 ```
 
 ```
 auth
   bearer {{token}} (apic.yaml)
-
 ```
 
 Because the default may hold `{{variables}}`, one project can point at a
