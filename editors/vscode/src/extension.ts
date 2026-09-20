@@ -8,7 +8,7 @@ import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } fr
 import { ApicCodeActions } from "./codeActions";
 import { ApicCodeLens } from "./codeLens";
 import { Decorations } from "./decorations";
-import { Diagnostics } from "./diagnostics";
+import { Diagnostics, WATCH_GLOB } from "./diagnostics";
 import { Environments } from "./environment";
 import { projectRoot } from "./project";
 import { ResponsePanel } from "./responsePanel";
@@ -56,12 +56,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     return known;
   };
 
+  // Request and config files changing on disk, whether saved here or
+  // written by git, apic import or anything else: the request list and
+  // the diagnostics follow.
+  const watcher = vscode.workspace.createFileSystemWatcher(WATCH_GLOB);
+  const onDisk = (uri: vscode.Uri) => {
+    lens.fileChanged(uri);
+    diagnostics.changed(uri);
+  };
   context.subscriptions.push(
+    watcher,
+    watcher.onDidChange(onDisk),
+    watcher.onDidCreate(onDisk),
+    watcher.onDidDelete(onDisk),
+    vscode.workspace.onDidSaveTextDocument((doc) => diagnostics.changed(doc.uri)),
     vscode.languages.registerCodeLensProvider(requestFiles, lens),
-    vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives), ApicCodeActions.metadata),
+    vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives, (doc) => lens.names(doc)), ApicCodeActions.metadata),
     envs.onDidChange((root) => {
       lens.invalidate(root);
-      diagnostics.schedule(root);
+      if (diagnostics.auto()) {
+        diagnostics.schedule(root);
+      }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => envs.refreshStatus(editor ? projectRoot(editor.document.uri) : undefined)),
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -101,7 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
         root = found.root;
         file = found.file;
       }
-      await runner.run(root, [file], file);
+      await guarded(() => runner.run(root!, [file!], file));
     }),
     vscode.commands.registerCommand("apic.showLastResponse", () => panel.reveal()),
     vscode.commands.registerCommand("apic.pickEnvironment", async () => {
@@ -110,15 +125,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
         void vscode.window.showInformationMessage("Open a project first.");
         return;
       }
-      await envs.pick(root);
+      await guarded(() => envs.pick(root));
     }),
     vscode.commands.registerCommand("apic.validate", async (uri?: vscode.Uri) => {
       const root = uri ? projectRoot(uri) : activeRoot();
-      if (root) {
-        await diagnostics.validate(root);
-      } else {
-        await diagnostics.validateWorkspace();
-      }
+      await guarded(() => (root ? diagnostics.validate(root) : diagnostics.validateWorkspace(true)));
     }),
   );
 
@@ -134,8 +145,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
       root = found.root;
       target = found.position.target;
     }
+    return guarded(() => fn(root!, target!));
+  }
+
+  /** Runs an apic-backed action; a missing binary gets the install prompt rather than a bare command failure. */
+  async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
     try {
-      return await fn(root, target);
+      return await fn();
     } catch (err) {
       await reportMissing(err);
       return undefined;

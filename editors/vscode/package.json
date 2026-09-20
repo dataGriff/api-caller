@@ -122,10 +122,10 @@
           "default": false,
           "markdownDescription": "Pass `-v` to `apic run`, so the response panel shows request and response headers."
         },
-        "apic.validate.onSave": {
+        "apic.validate.auto": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Run `apic validate` when a request file, `apic.yaml` or an env file is opened or saved, and show its findings in the Problems panel. apic validates from disk, so an unsaved buffer keeps the findings of its last save."
+          "markdownDescription": "Run `apic validate` on its own: once on activation and whenever a request file, `apic.yaml` or an env file changes on disk. Off, only **apic: Validate the project** runs it. apic validates from disk, so an unsaved buffer keeps the findings of its last save."
         },
         "apic.validate.debounceMs": {
           "type": "number",
@@ -148,8 +148,8 @@
     "keybindings": [
       {
         "command": "apic.runRequest",
-        "key": "ctrl+alt+r",
-        "mac": "cmd+alt+r",
+        "key": "ctrl+alt+shift+r",
+        "mac": "cmd+alt+shift+r",
         "when": "editorTextFocus && resourceExtname =~ /\\.(http|rest)$/"
       }
     ],

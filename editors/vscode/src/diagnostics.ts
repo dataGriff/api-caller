@@ -1,28 +1,34 @@
 // Problems from `apic validate --json`, published for every file in a
-// project whenever a request file, apic.yaml or an env file is saved or
-// opened. apic validates from disk, so the trigger is the save, not the
-// keystroke; an unsaved buffer keeps the diagnostics of its last save.
+// project whenever a request file, apic.yaml or an env file changes on
+// disk. apic validates from disk, so the trigger is the save (or an
+// external change), not the keystroke; an unsaved buffer keeps the
+// diagnostics of its last save.
 import * as vscode from "vscode";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Apic } from "./apic";
 import { projectRoot } from "./project";
-import { parseValidateOutput, problemsByPath, LINE_END } from "./validate";
+import { parseUsageError, parseValidateOutput, problemsByPath, LINE_END } from "./validate";
 
 /** Where a diagnostic's code links to. */
 export const CODES_URL = "https://datagriff.github.io/api-caller/cli/#apic-validate";
 
-/** Files whose change means the project should be validated again. */
+/** Files whose change means the project should be validated again (and its request list refreshed). */
 export function triggersValidation(uri: vscode.Uri): boolean {
   const base = path.basename(uri.fsPath);
   const ext = path.extname(base).toLowerCase();
   return ext === ".http" || ext === ".rest" || base === "apic.yaml" || base === "http-client.env.json" || base === "http-client.private.env.json" || base === ".env";
 }
 
+/** The glob for a watcher over the same files. */
+export const WATCH_GLOB = "**/{*.http,*.rest,apic.yaml,http-client.env.json,http-client.private.env.json,.env}";
+
 export class Diagnostics implements vscode.Disposable {
   readonly collection: vscode.DiagnosticCollection;
   private readonly status: vscode.StatusBarItem;
   private readonly reported = new Map<string, Set<string>>();
   private readonly inFlight = new Map<string, Promise<void>>();
+  private readonly again = new Set<string>();
   private readonly pending = new Map<string, NodeJS.Timeout>();
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -31,15 +37,7 @@ export class Diagnostics implements vscode.Disposable {
     this.status = vscode.window.createStatusBarItem("apic.problems", vscode.StatusBarAlignment.Left, 49);
     this.status.name = "apic problems";
     this.status.command = "workbench.actions.view.problems";
-    this.disposables.push(
-      this.collection,
-      this.status,
-      vscode.workspace.onDidOpenTextDocument((doc) => this.onDocument(doc.uri)),
-      vscode.workspace.onDidSaveTextDocument((doc) => this.onDocument(doc.uri)),
-      vscode.workspace.onDidDeleteFiles((e) => e.files.forEach((uri) => this.onDocument(uri))),
-      vscode.workspace.onDidCreateFiles((e) => e.files.forEach((uri) => this.onDocument(uri))),
-      vscode.workspace.onDidRenameFiles((e) => e.files.forEach((f) => this.onDocument(f.newUri))),
-    );
+    this.disposables.push(this.collection, this.status);
   }
 
   dispose(): void {
@@ -49,12 +47,14 @@ export class Diagnostics implements vscode.Disposable {
     vscode.Disposable.from(...this.disposables).dispose();
   }
 
-  private enabled(): boolean {
-    return vscode.workspace.getConfiguration("apic").get<boolean>("validate.onSave", true);
+  /** Whether validation runs on its own (activation, saves, external changes) or only on request. */
+  auto(): boolean {
+    return vscode.workspace.getConfiguration("apic").get<boolean>("validate.auto", true);
   }
 
-  private onDocument(uri: vscode.Uri): void {
-    if (uri.scheme !== "file" || !triggersValidation(uri) || !this.enabled()) {
+  /** A file changed on disk: validate its project soon, when validation is automatic. */
+  changed(uri: vscode.Uri): void {
+    if (uri.scheme !== "file" || !triggersValidation(uri) || !this.auto()) {
       return;
     }
     const root = projectRoot(uri);
@@ -79,8 +79,11 @@ export class Diagnostics implements vscode.Disposable {
     );
   }
 
-  /** Validates every project that has a request file in the workspace. */
-  async validateWorkspace(): Promise<void> {
+  /** Validates every project that has a request file in the workspace. `force` ignores the auto setting, for the command. */
+  async validateWorkspace(force = false): Promise<void> {
+    if (!force && !this.auto()) {
+      return;
+    }
     const files = await vscode.workspace.findFiles("**/*.{http,rest}", "**/node_modules/**", 200);
     const roots = new Set<string>();
     for (const f of files) {
@@ -92,13 +95,25 @@ export class Diagnostics implements vscode.Disposable {
     await Promise.all([...roots].map((root) => this.validate(root)));
   }
 
-  /** Runs `apic validate --json` for one project and publishes what it reports. Concurrent calls for the same root share one run. */
+  /**
+   * Runs `apic validate --json` for one project and publishes what it
+   * reports. A call while a run is in flight waits for it and then runs
+   * again, since the disk may have changed after the first run read it.
+   */
   validate(root: string): Promise<void> {
     const running = this.inFlight.get(root);
     if (running) {
+      this.again.add(root);
       return running;
     }
-    const p = this.doValidate(root).finally(() => this.inFlight.delete(root));
+    const p = this.doValidate(root)
+      .finally(() => this.inFlight.delete(root))
+      .then(() => {
+        if (this.again.delete(root)) {
+          return this.validate(root);
+        }
+        return undefined;
+      });
     this.inFlight.set(root, p);
     return p;
   }
@@ -111,26 +126,38 @@ export class Diagnostics implements vscode.Disposable {
       return; // no binary: the activation prompt already said so
     }
     const out = parseValidateOutput(res.stdout);
-    if (!out) {
-      return; // an older apic, or a crash: leave what is shown alone
-    }
-    const byPath = problemsByPath(out);
     const seen = new Set<string>();
-    for (const [rel, problems] of byPath) {
+    const publish = (rel: string, diags: vscode.Diagnostic[]) => {
       const uri = vscode.Uri.file(path.join(root, rel));
       seen.add(uri.toString());
-      this.collection.set(
-        uri,
-        problems.map((p) => {
-          const range = new vscode.Range(p.line, p.startColumn, p.endLine, p.wholeLine ? LINE_END : p.endColumn);
-          const d = new vscode.Diagnostic(range, p.message, p.severity === "error" ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
-          d.source = "apic";
-          if (p.code) {
-            d.code = { value: p.code, target: vscode.Uri.parse(CODES_URL) };
-          }
-          return d;
-        }),
-      );
+      this.collection.set(uri, diags);
+    };
+    if (out) {
+      for (const [rel, problems] of problemsByPath(out, (file) => lineTexts(path.join(root, file)))) {
+        publish(
+          rel,
+          problems.map((p) => {
+            const range = new vscode.Range(p.line, p.startColumn, p.endLine, p.wholeLine ? LINE_END : p.endColumn);
+            const d = new vscode.Diagnostic(range, p.message, p.severity === "error" ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
+            d.source = "apic";
+            if (p.code) {
+              d.code = { value: p.code, target: vscode.Uri.parse(CODES_URL) };
+            }
+            return d;
+          }),
+        );
+      }
+    } else {
+      // No report at all: the project could not be loaded (a broken
+      // apic.yaml, an env file that is not JSON). That is the one problem
+      // worth showing, on the file the error names.
+      const usage = parseUsageError(res.stderr);
+      if (!usage) {
+        return; // an older apic, or a crash: leave what is shown alone
+      }
+      const d = new vscode.Diagnostic(new vscode.Range(usage.line, 0, usage.line, LINE_END), usage.message, vscode.DiagnosticSeverity.Error);
+      d.source = "apic";
+      publish(usage.path, [d]);
     }
     // Files this project reported last time and not now are clean.
     for (const old of this.reported.get(root) ?? []) {
@@ -169,5 +196,14 @@ export class Diagnostics implements vscode.Disposable {
       this.status.tooltip = `apic validate: ${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"} (click to open Problems)`;
     }
     this.status.show();
+  }
+}
+
+/** The lines of a file on disk, for converting apic's byte columns; empty when it cannot be read. */
+function lineTexts(file: string): string[] {
+  try {
+    return fs.readFileSync(file, "utf8").split(/\r?\n/);
+  } catch {
+    return [];
   }
 }

@@ -101,7 +101,8 @@ export interface Description {
   headers: Record<string, string>;
   body?: string;
   body_file?: string;
-  variables: VarInfo[];
+  /** null when the request has no placeholders at all. */
+  variables: VarInfo[] | null;
   captures?: string[];
   asserts?: string[];
   steps?: string[];

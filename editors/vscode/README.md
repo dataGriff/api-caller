@@ -16,8 +16,9 @@ commands on top.
   as flow** at the top of a file. Run sends the request through apic's
   runner, assertions, captures and `# @ref` dependencies included, and
   marks the request line `✓ 200 · 12 ms` or `✗ 404 · 40 ms`.
-  <kbd>ctrl+alt+r</kbd> (<kbd>cmd+alt+r</kbd>) runs the request under the
-  cursor.
+  <kbd>ctrl+alt+shift+r</kbd> (<kbd>cmd+alt+shift+r</kbd>) runs the request
+  under the cursor; REST Client keeps <kbd>ctrl+alt+r</kbd> for its own
+  Send Request.
 - **A response panel** beside the editor: status, timing and size, headers
   (collapsed), the body pretty-printed and highlighted with a raw toggle and
   a save button, every assertion with actual against expected, captures,
@@ -27,7 +28,8 @@ commands on top.
   (bad selectors, unknown directives, duplicate names, missing body files,
   `# @ref` cycles) appears in the Problems panel at the exact span, with
   its code linked to the docs, refreshed when a request file, `apic.yaml`
-  or an env file is saved. Quick fixes change a mistyped directive to the
+  or an env file changes on disk. A project apic cannot load at all (a
+  broken `apic.yaml`) shows that one error on the file. Quick fixes change a mistyped directive to the
   nearest known one, rename a duplicate, or create a missing body file. The
   status bar shows the count.
 - **An environment** per project, picked from the status bar or **apic:
@@ -58,8 +60,8 @@ Spans in the Problems panel and `# @ref` need 0.2.
 | `apic.codeLens.enable` | Show the lenses above requests. Default on. |
 | `apic.run.extraArgs` | Extra arguments for every run from the editor, for example `["--redact"]`. |
 | `apic.run.verbose` | Pass `-v`, so the panel shows request and response headers. |
-| `apic.validate.onSave` | Validate the project when a request file, `apic.yaml` or an env file is opened or saved. Default on. |
-| `apic.validate.debounceMs` | Wait this long after a save before validating. Default 300. |
+| `apic.validate.auto` | Validate on activation and whenever a request file, `apic.yaml` or an env file changes on disk. Off, only **apic: Validate the project** runs it. Default on. |
+| `apic.validate.debounceMs` | Wait this long after a change before validating, so a burst becomes one run. Default 300. |
 
 apic validates from disk, so an unsaved buffer keeps the findings of its
 last save; validating as you type needs a language server, which is

@@ -1,5 +1,7 @@
 // Quick fixes for the diagnostics apic reports: a typo in a directive, a
-// request name used twice, a body file that does not exist.
+// request name used twice, a body file that does not exist. The known
+// directives come from the shipped grammar and the taken names from
+// `apic list`, so nothing here parses request files.
 import * as vscode from "vscode";
 import * as path from "node:path";
 import { nearestDirective } from "./validate";
@@ -7,9 +9,13 @@ import { nearestDirective } from "./validate";
 export class ApicCodeActions implements vscode.CodeActionProvider {
   static readonly metadata: vscode.CodeActionProviderMetadata = { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] };
 
-  constructor(private readonly knownDirectives: () => readonly string[]) {}
+  constructor(
+    private readonly knownDirectives: () => readonly string[],
+    /** The request names in the project a document belongs to. */
+    private readonly namesIn: (document: vscode.TextDocument) => Promise<readonly string[]>,
+  ) {}
 
-  provideCodeActions(document: vscode.TextDocument, _range: vscode.Range, context: vscode.CodeActionContext): vscode.CodeAction[] {
+  async provideCodeActions(document: vscode.TextDocument, _range: vscode.Range, context: vscode.CodeActionContext): Promise<vscode.CodeAction[]> {
     const actions: vscode.CodeAction[] = [];
     for (const d of context.diagnostics) {
       if (d.source !== "apic") {
@@ -32,8 +38,8 @@ export class ApicCodeActions implements vscode.CodeActionProvider {
           break;
         }
         case "duplicate-name": {
-          const base = text.replace(/-\d+$/, "");
-          const taken = new Set([...document.getText().matchAll(/^\s*(?:#|\/\/)\s*@name\s+(\S+)/gm)].map((m) => m[1]));
+          const base = text.trim().replace(/-\d+$/, "");
+          const taken = new Set(await this.namesIn(document));
           let n = 2;
           while (taken.has(`${base}-${n}`)) {
             n++;

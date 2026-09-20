@@ -1,12 +1,13 @@
 // Run, Describe and Copy as curl above every request, and Run file as
 // flow at the top. Positions come from `apic list --json` for the
-// project, cached until a save or an environment change; a file the
-// project cannot parse falls back to a scan of its text so the lenses
-// still appear.
+// project, which reports every request even in a file with a parse
+// error, cached until a request or config file changes or the
+// environment is switched.
 import * as vscode from "vscode";
 import * as path from "node:path";
 import type { Apic } from "./apic";
-import { normalizeRelative, positionsFromList, requestAt, scanRequests, type RequestPosition } from "./lens";
+import { triggersValidation } from "./diagnostics";
+import { normalizeRelative, positionsFromList, requestAt, type RequestPosition } from "./lens";
 import { projectRoot } from "./project";
 import type { ListOutput } from "./types";
 
@@ -19,12 +20,7 @@ export class ApicCodeLens implements vscode.CodeLensProvider, vscode.Disposable 
   constructor(private readonly apic: Apic) {
     this.disposables.push(
       this.changed,
-      vscode.workspace.onDidSaveTextDocument((doc) => {
-        const root = projectRoot(doc.uri);
-        if (root) {
-          this.invalidate(root);
-        }
-      }),
+      vscode.workspace.onDidSaveTextDocument((doc) => this.fileChanged(doc.uri)),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("apic")) {
           this.lists.clear();
@@ -38,10 +34,28 @@ export class ApicCodeLens implements vscode.CodeLensProvider, vscode.Disposable 
     vscode.Disposable.from(...this.disposables).dispose();
   }
 
+  /** A file changed on disk: forget its project's request list when it is one apic reads. */
+  fileChanged(uri: vscode.Uri): void {
+    if (uri.scheme !== "file" || !triggersValidation(uri)) {
+      return;
+    }
+    const root = projectRoot(uri);
+    if (root) {
+      this.invalidate(root);
+    }
+  }
+
   /** Forgets the cached request list of a project and redraws its lenses. */
   invalidate(root: string): void {
     this.lists.delete(root);
     this.changed.fire();
+  }
+
+  /** The request names apic knows in the project a document belongs to. */
+  async names(document: vscode.TextDocument): Promise<string[]> {
+    const root = projectRoot(document.uri);
+    const list = root ? await this.list(root) : undefined;
+    return (list?.requests ?? []).map((r) => r.name).filter((n): n is string => Boolean(n));
   }
 
   private list(root: string): Promise<ListOutput | undefined> {
@@ -56,19 +70,15 @@ export class ApicCodeLens implements vscode.CodeLensProvider, vscode.Disposable 
     return p;
   }
 
-  /** The requests in a document, from apic when it can parse the project, else from the text. */
+  /** The requests in a document as apic lists them. While the document is dirty the lines are those of the last save. */
   async positions(document: vscode.TextDocument): Promise<{ root: string; file: string; positions: RequestPosition[] } | undefined> {
     const root = projectRoot(document.uri);
     if (!root || document.uri.scheme !== "file") {
       return undefined;
     }
     const file = normalizeRelative(path.relative(root, document.uri.fsPath));
-    const list = document.isDirty ? undefined : await this.list(root);
-    let positions = list ? positionsFromList(list, file) : [];
-    if (positions.length === 0) {
-      positions = scanRequests(document.getText(), file);
-    }
-    return { root, file, positions };
+    const list = await this.list(root);
+    return { root, file, positions: list ? positionsFromList(list, file) : [] };
   }
 
   /** The request whose block holds the cursor. */

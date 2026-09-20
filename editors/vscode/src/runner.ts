@@ -11,7 +11,14 @@ import type { CurlOutput, Description, RunResult } from "./types";
 
 const capturedBy = /captured by request "([^"]+)"/;
 
+interface RunOutcome {
+  results: RunResult[];
+  /** Set when apic could not send something (exit 2 or 3): the stderr to show. */
+  error?: { stderr: string; code: number };
+}
+
 export class Runner {
+  /** Runs go through this one at a time. Nothing that waits on the user runs inside it. */
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -28,13 +35,19 @@ export class Runner {
   }
 
   /** Runs the targets (request ids or files) as `apic run`; returns the results, or undefined when nothing could be sent. */
-  run(root: string, targets: string[], title?: string): Promise<RunResult[] | undefined> {
+  async run(root: string, targets: string[], title?: string): Promise<RunResult[] | undefined> {
     const job = this.queue.then(() => this.doRun(root, targets, title));
     this.queue = job.catch(() => undefined);
-    return job;
+    const outcome = await job;
+    if (outcome.error) {
+      // Outside the queue: the notification waits for the user, and the
+      // action it offers starts a run of its own.
+      await this.reportError(root, outcome.error.stderr, outcome.error.code);
+    }
+    return outcome.results.length > 0 ? outcome.results : undefined;
   }
 
-  private async doRun(root: string, targets: string[], title: string | undefined): Promise<RunResult[] | undefined> {
+  private async doRun(root: string, targets: string[], title: string | undefined): Promise<RunOutcome> {
     const { extraArgs, verbose } = this.settings(root);
     const args = ["run", ...targets, ...this.envs.args(root), ...(verbose ? ["-v"] : []), ...extraArgs];
     const redact = extraArgs.includes("--redact");
@@ -48,16 +61,14 @@ export class Runner {
     );
     if (res.aborted) {
       void vscode.window.setStatusBarMessage("apic: run cancelled", 3000);
-      return undefined;
+      return { results: [] };
     }
     if (res.values.length > 0) {
       this.panel.showRun(res.values, { redact, title: title ?? (targets.length > 1 || targets[0]?.endsWith(".http") ? targets.join(" ") : undefined) });
       this.decorations.show(root, res.values);
     }
-    if ((res.code === 2 || res.code === 3) && res.values.every((r) => r.response)) {
-      await this.reportError(root, res.stderr, res.code);
-    }
-    return res.values.length > 0 ? res.values : undefined;
+    const error = res.code === 2 || res.code === 3 ? { stderr: res.stderr, code: res.code } : undefined;
+    return { results: res.values, error };
   }
 
   private async reportError(root: string, stderr: string, code: number): Promise<void> {

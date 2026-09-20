@@ -2,7 +2,7 @@
 import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { directivesFromGrammar, levenshtein, nearestDirective, parseValidateOutput, problemsByPath, LINE_END } from "../../validate";
+import { byteToCharColumn, directivesFromGrammar, levenshtein, nearestDirective, parseUsageError, parseValidateOutput, problemsByPath, toProblem, LINE_END } from "../../validate";
 
 const fixture = JSON.stringify({
   ok: false,
@@ -41,6 +41,40 @@ suite("validate output", () => {
     const old = byPath.get("old.http")![0];
     assert.strictEqual(old.line, 6);
     assert.strictEqual(old.wholeLine, true);
+  });
+
+  test("byte columns become character columns when the line's text is known", () => {
+    assert.strictEqual(byteToCharColumn(undefined, 9), 8);
+    assert.strictEqual(byteToCharColumn("# @name ascii", 9), 8);
+    // `é` is two bytes: a span after it starts one byte later than its character.
+    assert.strictEqual(byteToCharColumn("# @name café", 9), 8);
+    assert.strictEqual(byteToCharColumn("# @name café", 14), 12); // end, just past the name
+    assert.strictEqual(byteToCharColumn("# @name 😀x", 13), 10); // an astral character is four bytes and two UTF-16 units
+    assert.strictEqual(byteToCharColumn("ab", 10), 9); // past the end: keep going
+    const p = toProblem({ path: "a.http", line: 2, column: 9, end_line: 2, end_column: 14, severity: "warning", message: "dup" }, ["### a", "# @name café"]);
+    assert.deepStrictEqual([p.startColumn, p.endColumn], [8, 12]);
+    const byPath = problemsByPath(
+      { ok: false, files: 1, requests: 1, diagnostics: [{ path: "a.http", line: 2, column: 9, end_line: 2, end_column: 14, severity: "warning", message: "dup" }] },
+      (path) => (path === "a.http" ? ["### a", "# @name café"] : []),
+    );
+    assert.deepStrictEqual([byPath.get("a.http")![0].startColumn, byPath.get("a.http")![0].endColumn], [8, 12]);
+  });
+
+  test("a project apic cannot load is one error on the file its message names", () => {
+    assert.deepStrictEqual(parseUsageError("error: apic.yaml: yaml: line 1: did not find expected ',' or ']'\n"), {
+      path: "apic.yaml",
+      line: 0,
+      message: "yaml: line 1: did not find expected ',' or ']'",
+    });
+    assert.deepStrictEqual(parseUsageError("error: users.http:12: @name needs a value (run `apic validate`)"), {
+      path: "users.http",
+      line: 11,
+      message: "@name needs a value (run `apic validate`)",
+    });
+    assert.deepStrictEqual(parseUsageError("error: http-client.env.json: invalid character '}'"), { path: "http-client.env.json", line: 0, message: "invalid character '}'" });
+    assert.deepStrictEqual(parseUsageError("error: environment \"prod\" not found"), { path: "apic.yaml", line: 0, message: 'environment "prod" not found' });
+    assert.strictEqual(parseUsageError(""), undefined);
+    assert.strictEqual(parseUsageError("some warning"), undefined);
   });
 
   test("rejects output that is not the validate shape", () => {

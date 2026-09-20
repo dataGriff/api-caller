@@ -5,6 +5,11 @@ import * as vscode from "vscode";
 import type { Apic } from "./apic";
 import type { EnvOutput } from "./types";
 
+interface EnvItem extends vscode.QuickPickItem {
+  /** The environment to pass as --env, or undefined for the project's default. */
+  env: string | undefined;
+}
+
 export class Environments {
   private readonly status: vscode.StatusBarItem;
   private readonly changed = new vscode.EventEmitter<string>();
@@ -53,9 +58,11 @@ export class Environments {
     const res = await this.apic.json<EnvOutput>(["env"], { project: root });
     const names = res.value?.environments ?? [];
     const current = this.current(root);
-    const items: vscode.QuickPickItem[] = [
-      { label: "default", description: res.value?.current ? `apic.yaml: ${res.value.current}` : "no --env", picked: !current },
-      ...names.map((n) => ({ label: n, description: n === res.value?.current ? "the project default" : "", picked: n === current })),
+    // The default is its own item, not a name, so an environment that is
+    // literally called "default" is still pickable.
+    const items: EnvItem[] = [
+      { label: "$(circle-slash) Project default", description: res.value?.current ? `apic.yaml says ${res.value.current}` : "no --env", picked: !current, env: undefined },
+      ...names.map((n) => ({ label: n, description: n === res.value?.current ? "the project default" : "", picked: n === current, env: n })),
     ];
     if (names.length === 0) {
       void vscode.window.showInformationMessage("This project has no environments in http-client.env.json; commands run without --env.");
@@ -64,7 +71,7 @@ export class Environments {
     if (!choice) {
       return;
     }
-    await this.context.workspaceState.update(this.key(root), choice.label === "default" ? undefined : choice.label);
+    await this.context.workspaceState.update(this.key(root), choice.env);
     this.refreshStatus(root);
     this.changed.fire(root);
   }

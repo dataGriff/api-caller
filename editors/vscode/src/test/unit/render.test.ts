@@ -138,6 +138,12 @@ suite("rendering a description", () => {
     assert.ok(!html.includes("s3cret"), "a secret value never reaches the panel");
   });
 
+  test("a request with no placeholders at all has null variables", () => {
+    const html = renderDescription({ ...d, variables: null, refs: [], auth: undefined, headers: {} });
+    assert.ok(html.includes('<p class="badge pass">ready</p>'));
+    assert.ok(!html.includes("<h3>variables</h3>"));
+  });
+
   test("a request that is not ready names what is missing", () => {
     const html = renderDescription({ ...d, ready: false, refs: [], variables: [{ name: "jobId", source: "missing", missing: true, captured_by: "create-job" }] });
     assert.ok(html.includes('<p class="badge fail">not ready · missing {{jobId}}</p>'));

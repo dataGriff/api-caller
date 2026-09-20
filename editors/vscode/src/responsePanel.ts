@@ -3,7 +3,7 @@
 // strict content security policy, and answers the page's requests to
 // save a body or open an oversized one in an editor.
 import * as vscode from "vscode";
-import { rawBody, renderDescription, renderRun, type RenderOptions } from "./render";
+import { escapeHtml, rawBody, renderDescription, renderRun, type RenderOptions } from "./render";
 import type { Description, RunResult } from "./types";
 
 type Message = { type: "save"; index: number } | { type: "open-raw"; index: number };
@@ -57,7 +57,7 @@ export class ResponsePanel implements vscode.Disposable {
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${css}">
-<title>${title}</title>
+<title>${escapeHtml(title)}</title>
 </head>
 <body>
 ${body}

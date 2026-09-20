@@ -229,7 +229,7 @@ export function renderDescription(d: Description): string {
   parts.push(`<p class="dim">${escapeHtml(d.file)}:${d.line}</p>`);
   const ready = d.ready
     ? `<p class="badge pass">ready</p>`
-    : `<p class="badge fail">not ready · missing ${d.variables
+    : `<p class="badge fail">not ready · missing ${(d.variables ?? [])
         .filter((v) => v.missing)
         .map((v) => `{{${escapeHtml(v.name)}}}`)
         .join(", ")}</p>`;
@@ -245,8 +245,9 @@ export function renderDescription(d: Description): string {
   } else if (d.body_file) {
     parts.push(`<h3>body</h3><pre>&lt; ${escapeHtml(d.body_file)}</pre>`);
   }
-  if (d.variables.length > 0) {
-    const rows = d.variables
+  const variables = d.variables ?? [];
+  if (variables.length > 0) {
+    const rows = variables
       .map((v) => {
         if (v.missing) {
           const hint = v.ref_runs

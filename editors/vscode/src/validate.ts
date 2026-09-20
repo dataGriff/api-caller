@@ -34,20 +34,46 @@ export function parseValidateOutput(text: string): ValidateOutput | undefined {
   }
 }
 
-/** Maps one diagnostic to editor coordinates. */
-export function toProblem(d: ValidateDiagnostic): Problem {
+/**
+ * Converts a 1-based byte column, which is what apic reports, to a 0-based
+ * UTF-16 column, which is what the editor counts. Without the line's text
+ * the two are assumed equal, which holds for ASCII.
+ */
+export function byteToCharColumn(line: string | undefined, byteColumn: number): number {
+  const target = byteColumn - 1;
+  if (line === undefined || target <= 0) {
+    return Math.max(0, target);
+  }
+  let bytes = 0;
+  for (let i = 0; i < line.length; i++) {
+    if (bytes >= target) {
+      return i;
+    }
+    const code = line.codePointAt(i)!;
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+    if (code >= 0x10000) {
+      i++; // a surrogate pair is one code point over two UTF-16 units
+    }
+  }
+  return line.length + Math.max(0, target - bytes);
+}
+
+/** Maps one diagnostic to editor coordinates. `lines` is the file's text, for byte-to-character columns. */
+export function toProblem(d: ValidateDiagnostic, lines: readonly string[] = []): Problem {
   const line = Math.max(0, (d.line ?? 0) - 1);
   const hasSpan = typeof d.column === "number" && d.column > 0;
   if (!hasSpan) {
     return { line, startColumn: 0, endLine: line, endColumn: LINE_END, wholeLine: true, severity: d.severity, code: d.code, message: d.message };
   }
   const endLine = d.end_line && d.end_line > 0 ? d.end_line - 1 : line;
-  const endColumn = d.end_column && d.end_column > d.column! ? d.end_column - 1 : d.column! - 1 + 1;
+  const startColumn = byteToCharColumn(lines[line], d.column!);
+  const endByte = d.end_column && d.end_column > d.column! ? d.end_column : d.column! + 1;
+  const endColumn = byteToCharColumn(lines[endLine], endByte);
   return {
     line,
-    startColumn: d.column! - 1,
+    startColumn,
     endLine,
-    endColumn: Math.max(endColumn, d.column!),
+    endColumn: Math.max(endColumn, endLine === line ? startColumn + 1 : 0),
     wholeLine: false,
     severity: d.severity,
     code: d.code,
@@ -55,15 +81,46 @@ export function toProblem(d: ValidateDiagnostic): Problem {
   };
 }
 
-/** Groups the findings by the path apic reported, relative to the project root. */
-export function problemsByPath(out: ValidateOutput): Map<string, Problem[]> {
+/**
+ * Groups the findings by the path apic reported, relative to the project
+ * root. `textOf` supplies a file's lines so byte columns become character
+ * columns; without it they are taken as equal.
+ */
+export function problemsByPath(out: ValidateOutput, textOf: (path: string) => readonly string[] = () => []): Map<string, Problem[]> {
   const byPath = new Map<string, Problem[]>();
+  const texts = new Map<string, readonly string[]>();
   for (const d of out.diagnostics) {
+    let lines = texts.get(d.path);
+    if (!lines) {
+      lines = textOf(d.path);
+      texts.set(d.path, lines);
+    }
     const list = byPath.get(d.path) ?? [];
-    list.push(toProblem(d));
+    list.push(toProblem(d, lines));
     byPath.set(d.path, list);
   }
   return byPath;
+}
+
+/**
+ * The problem `apic validate` reports on stderr when it cannot load the
+ * project at all (`error: apic.yaml: …`, `error: users.http:12: …`): the
+ * file, a 0-based line (0 when none), and the message.
+ */
+export function parseUsageError(stderr: string): { path: string; line: number; message: string } | undefined {
+  const first = stderr
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l.startsWith("error:"));
+  if (!first) {
+    return undefined;
+  }
+  const text = first.slice("error:".length).trim();
+  const m = /^([^\s:]+(?:\.[a-z]+)):(?:(\d+):)?\s*(.*)$/.exec(text);
+  if (m) {
+    return { path: m[1], line: m[2] ? Math.max(0, Number(m[2]) - 1) : 0, message: m[3] || text };
+  }
+  return { path: "apic.yaml", line: 0, message: text };
 }
 
 /** Levenshtein distance, for "did you mean" suggestions. */

@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { normalizeRelative, positionsFromList, requestAt, scanRequests } from "../../lens";
+import { normalizeRelative, positionsFromList, requestAt } from "../../lens";
 import type { ListOutput } from "../../types";
 
 const list: ListOutput = {
@@ -33,6 +33,9 @@ suite("positions from apic list", () => {
   });
 });
 
+// The file the positions below describe; apic reported request lines 6, 13
+// and 18. Line 15's block has a request line apic did not report (say it
+// failed to parse), so the cursor there has nothing to run.
 const text = [
   "@baseUrl = http://x", // 1
   "", // 2
@@ -50,30 +53,42 @@ const text = [
   "", // 14
   "###", // 15
   "# @name broken", // 16
-  "# @assert", // 17
+  "# @capture nope", // 17
   "DELETE {{baseUrl}}/x", // 18
 ].join("\n");
 
-suite("scanning a file without the parser", () => {
-  test("finds each block's request line, its name and its method", () => {
-    assert.deepStrictEqual(scanRequests(text, "api.http"), [
-      { target: "api.http#login", name: "login", line: 6, method: "POST" },
-      { target: "api.http#2", name: undefined, line: 13, method: "GET" },
-      { target: "api.http#broken", name: "broken", line: 18, method: "DELETE" },
-    ]);
-  });
+const positions = positionsFromList(
+  {
+    root: "/p",
+    requests: [
+      { id: "login", name: "login", method: "POST", url: "{{baseUrl}}/auth/login", file: "api.http", line: 6 },
+      { id: "api.http#2", method: "GET", url: "{{baseUrl}}/health", file: "api.http", line: 13 },
+      { id: "broken", name: "broken", method: "DELETE", url: "{{baseUrl}}/x", file: "api.http", line: 18 },
+    ],
+  },
+  "api.http",
+);
 
-  test("a file with no separator is one request", () => {
-    assert.deepStrictEqual(scanRequests("# @name only\nGET http://x\n", "one.http"), [{ target: "one.http#only", name: "only", line: 2, method: "GET" }]);
-    assert.deepStrictEqual(scanRequests("", "empty.http"), []);
-  });
-
-  test("the request under a line is the one whose block holds it", () => {
-    const positions = scanRequests(text, "api.http");
-    assert.strictEqual(requestAt(positions, 4, text)?.name, "login"); // a directive above the request line
-    assert.strictEqual(requestAt(positions, 9, text)?.name, "login"); // the body
+suite("the request under the cursor", () => {
+  test("a directive above a request line belongs to that request", () => {
+    assert.strictEqual(requestAt(positions, 4, text)?.name, "login");
+    assert.strictEqual(requestAt(positions, 3, text)?.name, "login"); // the separator itself
     assert.strictEqual(requestAt(positions, 12, text)?.target, "api.http#2");
     assert.strictEqual(requestAt(positions, 17, text)?.name, "broken");
-    assert.strictEqual(requestAt(positions, 1, text), undefined); // the file variable above the first block
+  });
+
+  test("the request line and its headers and body belong to it", () => {
+    assert.strictEqual(requestAt(positions, 6, text)?.name, "login");
+    assert.strictEqual(requestAt(positions, 7, text)?.name, "login");
+    assert.strictEqual(requestAt(positions, 9, text)?.name, "login");
+    assert.strictEqual(requestAt(positions, 10, text)?.name, "login");
+  });
+
+  test("nothing above the first request, and nothing in a block apic did not report", () => {
+    assert.strictEqual(requestAt(positions, 1, text), undefined);
+    assert.strictEqual(requestAt([], 6, text), undefined);
+    const withoutBroken = positions.filter((p) => p.name !== "broken");
+    assert.strictEqual(requestAt(withoutBroken, 16, text), undefined);
+    assert.strictEqual(requestAt(withoutBroken, 18, text), undefined);
   });
 });
