@@ -15,6 +15,7 @@ nav:
       - Cheat sheet: cheatsheet.md
   - Learn:
       - From zero to apic: learn/index.md
+      - "0. What apic is and why": learn/00-what-is-apic.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md

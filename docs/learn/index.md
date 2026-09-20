@@ -29,7 +29,7 @@ lesson cannot quietly stop working when apic changes.
 
 | # | Lesson | You will learn | Episode |
 |---|---|---|---|
-| 0 | What apic is and why | The problem, the idea, what the course builds | coming soon |
+| 0 | [What apic is and why](00-what-is-apic.md) | The problem, the idea, what the course builds | coming soon |
 | 1 | Install apic and send your first request | Install, `apic ui --demo`, the anatomy of a `.http` file, `run`, `list`, `describe`, exit codes | coming soon |
 | 2 | Variables and environments | Env files, secrets, `--var`, `APIC_VAR_`, the precedence order | coming soon |
 | 3 | Capture, the session and flows | `# @capture`, the session file, running a file, `# @ref` | coming soon |
@@ -44,9 +44,11 @@ lesson cannot quietly stop working when apic changes.
 | 12 | Editors | The VS Code extension, JetBrains, Neovim | coming soon |
 | 13 | How apic works inside, and contributing | Architecture, a first pull request | coming soon |
 
-Lessons appear in the navigation as they are written. Each one is tracked
-in the [course epic](https://github.com/dataGriff/api-caller/issues/28) on
-GitHub.
+Lessons appear in the navigation as they are written; the episode column
+links to the video once it is recorded. Each lesson is tracked in the
+[course epic](https://github.com/dataGriff/api-caller/issues/28) on GitHub.
+
+Start with [lesson 0](00-what-is-apic.md).
 
 ## Before lesson 1
 
