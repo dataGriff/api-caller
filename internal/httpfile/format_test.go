@@ -22,7 +22,9 @@ func TestFormatGolden(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := Format(string(src))
-		if got != string(want) {
+		// A checkout with autocrlf (the Windows runner) turns the committed
+		// LF golden file into CRLF; the formatter's output is always LF.
+		if got != strings.ReplaceAll(string(want), "\r\n", "\n") {
 			t.Errorf("%s:\n--- got ---\n%s--- want ---\n%s", in, got, want)
 		}
 		if again := Format(got); again != got {
