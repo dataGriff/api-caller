@@ -27,6 +27,7 @@ nav:
       - "9. From OpenAPI to a project, and back to curl": learn/09-import-export.md
       - "10. Agents and MCP": learn/10-agents.md
       - "11. Real APIs and the Taskfile front door": learn/11-real-apis.md
+      - "12. Editors": learn/12-editors.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
