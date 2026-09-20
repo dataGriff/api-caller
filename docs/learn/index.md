@@ -37,7 +37,7 @@ lesson cannot quietly stop working when apic changes.
 | 5 | [The terminal UI tour](05-terminal-ui.md) | Every key with a purpose | coming soon |
 | 6 | [Authentication](06-authentication.md) | bearer, basic, API keys, OAuth2, AWS SigV4, `exec` | coming soon |
 | 7 | [Behaviour tests with Gherkin](07-gherkin.md) | `# @step`, features, reports | coming soon |
-| 8 | CI without leaking secrets | GitHub Actions, `--redact`, JUnit | coming soon |
+| 8 | [CI without leaking secrets](08-ci.md) | GitHub Actions, `--redact`, JUnit | coming soon |
 | 9 | From OpenAPI to a project, and back to curl | `import`, `curl`, Postman import | coming soon |
 | 10 | Agents and MCP | The shell contract, `claude mcp add` | coming soon |
 | 11 | Real APIs and the Taskfile front door | The GitHub and Spotify examples | coming soon |
