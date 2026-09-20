@@ -4,6 +4,7 @@
 //	status                 response status code
 //	statusText             e.g. "OK"
 //	header.<name>          first value of a response header (case-insensitive)
+//	cookie.<name>          value of a cookie the response set (Set-Cookie)
 //	body                   raw body
 //	body.$                 whole body as JSON
 //	body.$.<path>          JSONPath-like subset, e.g. body.$.items[0].id
@@ -52,6 +53,17 @@ func Select(resp *Response, sel string) (value string, ok bool, err error) {
 			return "", false, nil
 		}
 		return v[0], true, nil
+	case strings.HasPrefix(sel, "cookie."):
+		name := sel[len("cookie."):]
+		if name == "" {
+			return "", false, fmt.Errorf("cookie selector needs a name")
+		}
+		for _, c := range (&http.Response{Header: resp.Headers}).Cookies() {
+			if c.Name == name {
+				return c.Value, true, nil
+			}
+		}
+		return "", false, nil
 	case sel == "body.$":
 		if !gjson.ValidBytes(resp.Body) {
 			return "", false, fmt.Errorf("body is not valid JSON")
@@ -71,7 +83,7 @@ func Select(resp *Response, sel string) (value string, ok bool, err error) {
 		}
 		return r.Raw, true, nil
 	}
-	return "", false, fmt.Errorf("unknown selector %q (expected status, header.<name>, body, body.$.<path> or duration)", sel)
+	return "", false, fmt.Errorf("unknown selector %q (expected status, header.<name>, cookie.<name>, body, body.$.<path> or duration)", sel)
 }
 
 // ToGJSON converts a JSONPath-like tail such as `.items[0].id` or

@@ -49,6 +49,11 @@ type Options struct {
 	// apic.yaml's maxBodyBytes, then DefaultMaxBodyBytes.
 	MaxBodyBytes int64
 	Session      *session.Store // use this store instead of opening .apic/session.json (tests use session.NewMemory())
+	// Cookies switches the cookie jar on (--cookies); apic.yaml's `cookies:
+	// true` does the same. CookieJar is the jar to use instead of opening
+	// .apic/cookies.json (tests and `apic test` scenarios pass their own).
+	Cookies   bool
+	CookieJar *session.Jar
 	// Retry is the default retry policy ("<n> [interval]", see ParseRetry)
 	// for requests without `# @retry`; empty means apic.yaml's retry, then
 	// none. NoRetry switches every retry off.
@@ -70,8 +75,12 @@ type Runner struct {
 	Project *project.Project
 	Envs    *env.Environments
 	Session *session.Store
-	Opts    Options
-	Stderr  io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	// Jar is the cookie jar, nil unless cookies are switched on. It is
+	// in-memory under --no-session and persisted to .apic/cookies.json
+	// otherwise.
+	Jar    *session.Jar
+	Opts   Options
+	Stderr io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
 	// Progress, when set, is called after each failed attempt of a request
 	// that will be retried.
 	Progress func(Progress)
@@ -121,6 +130,18 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 	case !opts.NoSession:
 		if r.Session, err = session.Open(p.Root); err != nil {
 			return nil, usagef("session: %v", err)
+		}
+	}
+	if opts.Cookies || p.Config.Cookies {
+		switch {
+		case opts.CookieJar != nil:
+			r.Jar = opts.CookieJar
+		case opts.NoSession:
+			r.Jar = session.NewMemoryJar()
+		default:
+			if r.Jar, err = session.OpenJar(p.Root); err != nil {
+				return nil, usagef("cookies: %v", err)
+			}
 		}
 	}
 	return r, nil
@@ -730,6 +751,12 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			}
 		}
 	}
+	if r.Jar != nil {
+		if err := r.Jar.Save(); err != nil {
+			result.Errors = append(result.Errors, "cookies: "+err.Error())
+			result.OK = false
+		}
+	}
 	return result, nil
 }
 
@@ -1074,6 +1101,9 @@ func (r *Runner) client(req *httpfile.Request) *http.Client {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
 	}
 	c := &http.Client{Transport: tr}
+	if _, off := req.Directive("no-cookies"); r.Jar != nil && !off {
+		c.Jar = r.Jar.HTTP(r.Opts.Env)
+	}
 	if _, noRedirect := req.Directive("no-redirect"); noRedirect {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 		return c

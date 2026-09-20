@@ -18,7 +18,8 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--var name=value` | Override a variable. Repeatable. Highest precedence. |
 | `--json` | Machine-readable output. See each command for the shape. |
 | `--no-color` | Disable colour. |
-| `--no-session` | Do not read or write `.apic/session.json`. |
+| `--no-session` | Do not read or write `.apic/session.json`; with cookies on, the jar stays in memory for the one command. |
+| `--cookies` | Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in `.apic/cookies.json`. Same as `cookies: true` in `apic.yaml`. See [format.md](format.md#cookies). |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. |
 | `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
@@ -296,10 +297,15 @@ apic session clear [--all]
 (in clear text, since this is the one place you may need to see them).
 Tokens cached by `# @auth oauth2` and `# @auth exec ttl=` appear as
 `$oauth2:<hash>` and `$exec:<hash>` entries with their remaining lifetime.
-`clear` forgets the current environment's values, or every environment with
-`--all`.
+Cookies kept by the [cookie jar](format.md#cookies) are listed under the
+same environment with their name, scope and expiry, values masked.
+`clear` forgets the current environment's values and cookies, or every
+environment's with `--all`.
 
-`--json` on `session` prints the raw map `{"<env>": {"<name>": "<value>"}}`.
+`--json` on `session` prints the raw map `{"<env>": {"<name>": "<value>"}}`;
+cookies are not in it. `session cookies` lists the jar on its own, and with
+`--json` prints `{"<env>": [{"name", "domain", "path", "expires", "secure",
+"http_only"}]}`, never the values.
 
 ## apic curl
 
@@ -542,6 +548,7 @@ dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
+cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
   allowExec: false                # permit # @auth exec
@@ -577,3 +584,4 @@ and the URL above.
 | `http-client.private.env.json` | Secret per-environment variables. Gitignore it. |
 | `.env` | `KEY=value` lines; lowest precedence after file `@vars`. |
 | `.apic/session.json` | Captured values per environment. Written by `run`, cleared by `session clear`. `.apic/.gitignore` is created alongside so it is never committed. |
+| `.apic/cookies.json` | The cookie jar per environment, when cookies are on. Written `0600` by `run`, cleared by `session clear`, listed by `session cookies`. |

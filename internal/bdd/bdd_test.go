@@ -28,6 +28,18 @@ func server(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"token":"t-1"}`))
 	})
+	mux.HandleFunc("POST /login-form", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "sid", Value: "c-1", Path: "/"})
+		w.WriteHeader(204)
+	})
+	mux.HandleFunc("GET /me", func(w http.ResponseWriter, r *http.Request) {
+		if c, err := r.Cookie("sid"); err != nil || c.Value != "c-1" {
+			w.WriteHeader(401)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user":"alice"}`))
+	})
 	mux.HandleFunc("POST /users", func(w http.ResponseWriter, r *http.Request) {
 		var in map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&in)
@@ -88,6 +100,16 @@ Authorization: Bearer {{token}}
 # @step I fetch user {userId} logged in
 GET {{baseUrl}}/users/{{userId}}
 Authorization: Bearer {{token}}
+
+### a form login answered with a session cookie
+# @name cookie-login
+# @step I log in with a form
+POST {{baseUrl}}/login-form
+
+### only a cookie gets in
+# @name me
+# @step I ask who I am
+GET {{baseUrl}}/me
 `
 
 func newProject(t *testing.T, srv *httptest.Server) *project.Project {
@@ -1257,6 +1279,51 @@ Feature: Refs
     When I fetch user {{userId}} logged in
     Then the response status is 200
     And the response body "$.name" is "bob"
+`, "dev")
+	if code != 0 || sum.Failed != 0 {
+		t.Fatalf("code=%d summary=%+v", code, sum)
+	}
+}
+
+func TestCookieStepsAndPerScenarioJar(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	feature := `
+Feature: Cookies
+  Scenario: A session cookie carries over within a scenario
+    When I log in with a form
+    Then the response status is 204
+    And the response cookie "sid" exists
+    And the response cookie "sid" is "c-1"
+    And the response cookie "sid" starts with "c-"
+    And the response cookie "nope" does not exist
+    When I capture the response cookie "sid" as "sid"
+    And I ask who I am
+    Then the response status is 200
+
+  Scenario: The next scenario starts with an empty jar
+    When I ask who I am
+    Then the response status is 401
+`
+	var stderr bytes.Buffer
+	sum, report, code, err := RunSummary(context.Background(), Options{
+		Config:   Config{Project: p, Env: "dev", Cookies: true, Stderr: &stderr},
+		Features: []godog.Feature{{Name: "cookies.feature", Contents: []byte(feature)}},
+	})
+	if err != nil {
+		t.Fatalf("run: %v\nreport: %s", err, report)
+	}
+	if code != 0 || sum.Failed != 0 || sum.Passed != 2 {
+		t.Fatalf("code=%d summary=%+v\n%s", code, sum, report)
+	}
+	// Without the jar the cookie is still visible to the steps, just not sent.
+	sum, code = run(t, p, `
+Feature: No jar
+  Scenario: Cookies are inspected but not kept
+    When I log in with a form
+    Then the response cookie "sid" is "c-1"
+    When I ask who I am
+    Then the response status is 401
 `, "dev")
 	if code != 0 || sum.Failed != 0 {
 		t.Fatalf("code=%d summary=%+v", code, sum)

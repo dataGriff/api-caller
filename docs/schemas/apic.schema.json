@@ -20,6 +20,10 @@
       "description": "Project-wide authentication defaults; see the Authentication guide.",
       "additionalProperties": false
     },
+    "cookies": {
+      "type": "boolean",
+      "description": "Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in .apic/cookies.json, like captured values. Off by default; `--cookies` switches it on for one command and `# @no-cookies` exempts a request."
+    },
     "dir": {
       "type": "string",
       "description": "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",

@@ -52,7 +52,7 @@ var Codes = map[string]string{
 	"bad-ref":           "a `# @ref` or `# @forceRef` whose target is not one request in the project",
 	"ref-cycle":         "a `# @ref` chain that leads back to the request it started from",
 	"bad-retry":         "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
-	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, body or body.$*",
+	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*",
 	"missing-body-file": "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":     "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
 }
@@ -86,6 +86,7 @@ var KnownDirectives = map[string]string{
 	"forceRef":    "run another request first, every time: `# @forceRef login`",
 	"no-redirect": "do not follow redirects",
 	"no-session":  "do not persist captures from this request",
+	"no-cookies":  "send no cookies with this request and keep none it sets",
 	"timeout":     "per-request timeout, e.g. `10s`",
 	"retry":       "re-send until the assertions pass: `# @retry <attempts> [interval]`, e.g. `# @retry 10 2s`",
 	"note":        "free text, ignored (REST Client compatibility)",

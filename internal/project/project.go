@@ -29,6 +29,7 @@ type Config struct {
 	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
 	Retry   string `yaml:"retry"`   // default retry policy, "<attempts> [interval]", e.g. "10 2s"
+	Cookies bool   `yaml:"cookies"` // keep a cookie jar per environment in .apic/cookies.json
 	// MaxBodyBytes caps how much of a response apic will read into memory.
 	// Zero means the built-in default; see runner.DefaultMaxBodyBytes.
 	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
@@ -372,8 +373,8 @@ func validSelector(s string) bool {
 	switch {
 	case s == "status", s == "statusText", s == "duration", s == "body", s == "body.$":
 		return true
-	case strings.HasPrefix(s, "header."), strings.HasPrefix(s, "headers."), strings.HasPrefix(s, "body.$."), strings.HasPrefix(s, "body.$["):
-		return true
+	case strings.HasPrefix(s, "header."), strings.HasPrefix(s, "headers."), strings.HasPrefix(s, "cookie."), strings.HasPrefix(s, "body.$."), strings.HasPrefix(s, "body.$["):
+		return len(s) > strings.Index(s, ".")+1
 	}
 	return false
 }

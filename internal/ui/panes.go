@@ -193,7 +193,7 @@ func (m *Model) renderSession(width int) string {
 		b.WriteString(t.Dim.Render("session disabled by --no-session") + "\n")
 		return b.String()
 	}
-	if len(m.session) == 0 {
+	if len(m.session) == 0 && len(m.cookies) == 0 {
 		b.WriteString(t.Dim.Render("nothing captured yet · run a request with # @capture") + "\n")
 		return b.String()
 	}
@@ -208,6 +208,9 @@ func (m *Model) renderSession(width int) string {
 			v = output.Truncate(v, width-len(k)-8)
 		}
 		b.WriteString(fmt.Sprintf("  %s %s = %s\n", t.Capture.Render("↳"), k, v))
+	}
+	for _, c := range m.cookies {
+		b.WriteString(fmt.Sprintf("  %s cookie %s = *** %s\n", t.Capture.Render("↳"), c.Name, t.Dim.Render(fmt.Sprintf("(%s%s · %s)", c.Domain, c.Path, c.ExpiryText(time.Now())))))
 	}
 	b.WriteString("\n" + t.Dim.Render("x clears these values for this environment") + "\n")
 	return b.String()

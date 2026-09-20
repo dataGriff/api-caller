@@ -25,11 +25,12 @@ var Vocabulary = []struct{ Pattern, Purpose string }{
 	{`the response is successful` + " / a client error / a server error", "2xx / 4xx / 5xx"},
 	{`the response body "<path>" is "<value>"`, `also: is not, contains, starts with, ends with, matches; <path> like $.items[0].id`},
 	{`the response header "<name>" is "<value>"`, "same operators as for the body"},
+	{`the response cookie "<name>" is "<value>"`, "a cookie the response set; same operators, also exists / does not exist"},
 	{`the response body "<path>" exists` + " / does not exist", "presence of a value"},
 	{`the response body is:` + " (doc string)", "semantic JSON equality"},
 	{`the response body contains:` + " (doc string)", "JSON subset match"},
 	{`the response time is under <n> ms`, "round-trip time"},
-	{`I capture the response body "<path>" as "<name>"`, "store a value; also: header"},
+	{`I capture the response body "<path>" as "<name>"`, "store a value; also: header, cookie"},
 }
 
 var opWords = map[string]string{
@@ -75,7 +76,7 @@ func stepEnvironment(ctx context.Context, env string) (context.Context, error) {
 	if env, err = sc.render(env); err != nil {
 		return ctx, err
 	}
-	next, err := sc.cfg.scenarioWith(env, sc.r.Session)
+	next, err := sc.cfg.scenarioWith(env, sc.r.Session, sc.r.Jar)
 	if err != nil {
 		return ctx, sc.cfg.fail(err)
 	}
@@ -373,8 +374,8 @@ func check(ctx context.Context, sel, op, expected string) error {
 
 func selector(where, sel string) string {
 	sel = phrase.Unquote(strings.TrimSpace(sel))
-	if where == "header" {
-		return "header." + sel
+	if where == "header" || where == "cookie" {
+		return where + "." + sel
 	}
 	switch {
 	case sel == "" || sel == "$":

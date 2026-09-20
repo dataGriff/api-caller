@@ -63,8 +63,9 @@ before you trust it is documented in
 Not a guarantee, but it is what the current design intends, and a gap between
 this list and the behaviour is a bug worth reporting:
 
-- The private env file and `.apic/session.json` are written `0600`, in a `0700`
-  directory that gitignores itself. `apic init` gitignores every credential file
+- The private env file, `.apic/session.json` and the cookie jar
+  `.apic/cookies.json` are written `0600`, in a `0700` directory that
+  gitignores itself. `apic init` gitignores every credential file
   it knows about.
 - Sensitive request headers (`Authorization`, `Cookie`, API-key headers) and
   sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked in

@@ -38,6 +38,7 @@ var descriptions = map[string]string{
 	"dir":            "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",
 	"timeout":        "Default request timeout as a Go duration, for example 10s or 1m30s. Default 30s. `--timeout` and `# @timeout` override it.",
 	"retry":          "Default retry policy for requests without `# @retry`: `<attempts> [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",
+	"cookies":        "Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in .apic/cookies.json, like captured values. Off by default; `--cookies` switches it on for one command and `# @no-cookies` exempts a request.",
 	"maxBodyBytes":   "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
 	"auth":           "Project-wide authentication defaults; see the Authentication guide.",
 	"auth.default":   "An auth spec applied to every request without its own `# @auth`, for example `aws region=eu-west-2` or `bearer {{token}}`. May use {{variables}}.",

@@ -18,6 +18,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/output"
 	"github.com/dataGriff/api-caller/internal/runner"
+	"github.com/dataGriff/api-caller/internal/session"
 )
 
 // Config is everything the CLI hands the UI; tests build it directly.
@@ -77,6 +78,7 @@ type Model struct {
 	results map[*httpfile.Request]*runner.Result
 	errs    map[*httpfile.Request]error
 	session map[string]string
+	cookies []session.Cookie
 
 	inflight *runState
 	runSeq   int
@@ -153,6 +155,10 @@ func (m *Model) refreshDescs() {
 
 func (m *Model) refreshSession() {
 	m.session = map[string]string{}
+	m.cookies = nil
+	if m.runner.Jar != nil {
+		m.cookies = m.runner.Jar.Cookies(m.env)
+	}
 	if m.runner.Session == nil {
 		return
 	}
@@ -269,7 +275,7 @@ func (m *Model) paneID() string {
 		res = m.results[m.selected]
 		desc = m.descs[m.selected]
 	}
-	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.showCurl, m.showHelp, m.confirmClear, res, desc, len(m.session), m.vp.width, m.vp.height)
+	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.showCurl, m.showHelp, m.confirmClear, res, desc, len(m.session), len(m.cookies), m.vp.width, m.vp.height)
 }
 
 // renderStatus draws the bottom bar.
