@@ -28,6 +28,19 @@ export interface Result {
   code: number;
   stdout: string;
   stderr: string;
+  /** The run was cancelled through its AbortSignal before it finished. */
+  aborted?: boolean;
+}
+
+export interface RunOptions {
+  /** Directory to run in. */
+  cwd?: string;
+  /** Project root, passed as -C. */
+  project?: string;
+  /** Cancels the process. */
+  signal?: AbortSignal;
+  /** Extra environment variables for the process. */
+  env?: Record<string, string>;
 }
 
 /** Thrown when apic cannot be found at all. */
@@ -92,7 +105,7 @@ export class Apic {
    * for the project when given. Output is logged to the channel; nothing
    * is thrown for a non-zero exit, since 1, 2 and 3 all carry meaning.
    */
-  async run(args: string[], opts: { cwd?: string; project?: string } = {}): Promise<Result> {
+  async run(args: string[], opts: RunOptions = {}): Promise<Result> {
     const bin = await this.binary();
     const full = opts.project ? ["-C", opts.project, ...args] : args;
     this.output.appendLine(`$ apic ${full.join(" ")}`);
@@ -100,20 +113,26 @@ export class Apic {
       execFile(
         bin,
         full,
-        { cwd: opts.cwd, env: { ...process.env, NO_COLOR: "1" }, maxBuffer: 64 * 1024 * 1024 },
+        {
+          cwd: opts.cwd,
+          env: { ...process.env, NO_COLOR: "1", ...opts.env },
+          maxBuffer: 64 * 1024 * 1024,
+          signal: opts.signal,
+        },
         (err, stdout, stderr) => {
+          const aborted = err?.name === "AbortError" || (err as NodeJS.ErrnoException | null)?.code === "ABORT_ERR";
           const code = err && typeof (err as NodeJS.ErrnoException).code === "number" ? ((err as NodeJS.ErrnoException).code as unknown as number) : err ? 1 : 0;
           if (stderr) {
             this.output.appendLine(stderr.trimEnd());
           }
-          resolve({ code, stdout, stderr });
+          resolve({ code, stdout, stderr, aborted });
         },
       );
     });
   }
 
   /** Runs apic and parses its stdout as JSON. */
-  async json<T>(args: string[], opts: { cwd?: string; project?: string } = {}): Promise<{ code: number; value: T | undefined; stderr: string }> {
+  async json<T>(args: string[], opts: RunOptions = {}): Promise<{ code: number; value: T | undefined; stderr: string }> {
     const res = await this.run([...args, "--json"], opts);
     let value: T | undefined;
     if (res.stdout.trim()) {
@@ -124,6 +143,23 @@ export class Apic {
       }
     }
     return { code: res.code, value, stderr: res.stderr };
+  }
+
+  /** Runs apic and parses its stdout as NDJSON: one object per non-empty line, as `run --json` prints. */
+  async ndjson<T>(args: string[], opts: RunOptions = {}): Promise<{ code: number; values: T[]; stderr: string; aborted: boolean }> {
+    const res = await this.run([...args, "--json"], opts);
+    const values: T[] = [];
+    for (const line of res.stdout.split(/\r?\n/)) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        values.push(JSON.parse(line) as T);
+      } catch {
+        this.output.appendLine(`unparsable line: ${line}`);
+      }
+    }
+    return { code: res.code, values, stderr: res.stderr, aborted: Boolean(res.aborted) };
   }
 }
 
