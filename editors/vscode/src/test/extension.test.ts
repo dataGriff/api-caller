@@ -89,10 +89,16 @@ suite("apic extension", () => {
     fs.writeFileSync(tmp, doc.getText());
     try {
       const messy = await vscode.workspace.openTextDocument(vscode.Uri.file(tmp));
+      // VS Code may split the provider's one edit into smaller ones, so
+      // apply whatever comes back and compare the text.
       const got = await vscode.commands.executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", messy.uri, { tabSize: 2, insertSpaces: true });
-      assert.ok(got && got.length === 1, JSON.stringify(got));
-      assert.strictEqual(got[0].newText, "### a\n# @name a\n# @assert status == 200\nGET http://x\n");
+      assert.ok(got && got.length > 0, JSON.stringify(got));
+      const edit = new vscode.WorkspaceEdit();
+      edit.set(messy.uri, got);
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      assert.strictEqual(messy.getText(), "### a\n# @name a\n# @assert status == 200\nGET http://x\n");
     } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
       fs.rmSync(tmp, { force: true });
     }
   });
