@@ -105,3 +105,37 @@ func mustReadFile(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+func TestImportCurlAppendsARequest(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "http-client.env.json"), `{"dev": {"baseUrl": "https://api.example.com"}}`)
+	mustWrite(t, filepath.Join(dir, "todos.http"), "### existing\n# @name post-todos\nPOST {{baseUrl}}/todos\n")
+	exec := func(stdin string, args ...string) (string, string, int) {
+		app := New()
+		var stdout, stderr bytes.Buffer
+		app.Stdout, app.Stderr, app.Stdin = &stdout, &stderr, strings.NewReader(stdin)
+		code := app.Execute(context.Background(), append([]string{"-C", dir, "--env", "dev"}, args...))
+		return stdout.String(), stderr.String(), code
+	}
+	cmd := `curl -X POST https://api.example.com/todos -H "Content-Type: application/json" -d '{"title":"x"}' --bogus`
+	out, errOut, code := exec("", "import", "--curl", cmd, "--into", "todos.http")
+	if code != 0 || out != "added post-todos-2 to todos.http\n" || !strings.Contains(errOut, "note: unknown flag --bogus") {
+		t.Fatalf("code=%d out=%q err=%q", code, out, errOut)
+	}
+	got := mustReadFile(t, filepath.Join(dir, "todos.http"))
+	want := "### existing\n# @name post-todos\nPOST {{baseUrl}}/todos\n\n### POST /todos\n# @name post-todos-2\n# @assert status == 200\nPOST {{baseUrl}}/todos\nContent-Type: application/json\n\n{\"title\":\"x\"}\n"
+	if got != want {
+		t.Errorf("file:\n%s\nwant:\n%s", got, want)
+	}
+	// Printed without --into, read from stdin, named explicitly, as JSON.
+	out, _, code = exec("curl https://api.example.com/health", "--json", "import", "--curl", "-", "--name", "ping")
+	if code != 0 || !strings.Contains(out, `"name": "ping"`) || !strings.Contains(out, `GET {{baseUrl}}/health`) || !strings.Contains(out, `"warnings": []`) {
+		t.Fatalf("stdin + json: code=%d out=%s", code, out)
+	}
+	if out, _, code = exec("", "import", "--curl", "curl -H 'a: b'"); code != 2 || out != "" {
+		t.Errorf("no URL: code=%d out=%q", code, out)
+	}
+	if _, errOut, code = exec("", "import", "openapi.yaml", "--into", "x.http"); code != 2 || !strings.Contains(errOut, "--into and --name go with --curl") {
+		t.Errorf("--into without --curl: code=%d err=%q", code, errOut)
+	}
+}

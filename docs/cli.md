@@ -418,6 +418,7 @@ In a GitHub Actions workflow:
 ```
 apic import <openapi.yaml|openapi.json> [-o <dir>] [--env-name <name>] [--force]
 apic import <collection.postman.json> [-o <dir>] [--postman-env <file>]... [--force]
+apic import --curl '<command>' [--into <file.http>] [--name <name>]
 ```
 
 The format is detected from the file. From an OpenAPI 3 document it
@@ -476,16 +477,36 @@ exports are refused with a message):
   under `unsupported` with the request and a reason, and printed as a
   `note` line.
 
+From a curl command (`--curl`, the reverse of `apic curl`): one `###`
+block with `# @name` (from `--name`, else the method and path, so
+`POST /todos` becomes `post-todos`), `# @assert status == 200`, the
+headers, and the body. It reads `-X`, `-H`, `-d`/`--data`/`--data-raw`/
+`--data-binary`/`--data-urlencode` (`@file` becomes `< ./file`), `-F` and
+`--form-string` (a multipart body), `-u` (`# @auth basic`), `--url`,
+`-G`, `-I`, `-b` (a `Cookie` header), `-A`, `-e`, `-k` (a comment: run
+with `--insecure`), `-L` and `--compressed`, in both quote styles, with
+`$'…'` escapes and backslash line continuations. Flags about curl's own
+output or transport are ignored with a note; an unknown flag is a note,
+not an error. When the project's environment has a `baseUrl` that prefixes
+the URL, the host becomes `{{baseUrl}}`. Without `--into` the block is
+printed; with it the block is appended to that file, relative to the
+project root, created if needed, with a numeric suffix on a name the file
+already has. `--curl -` reads the command from stdin.
+
 | Flag | Meaning |
 |---|---|
 | `-o, --out <dir>` | Output directory. Default `.`. |
 | `--env-name <name>` | Environment name in the generated env file (OpenAPI). Default `dev`. |
 | `--postman-env <file>` | A Postman environment export to import as an environment. Repeatable. |
 | `--force` | Overwrite existing files. |
+| `--curl <command>` | A curl command to turn into a request block; `-` reads stdin. |
+| `--into <file.http>` | Append the block to this file instead of printing it. |
+| `--name <name>` | The request's `# @name`. |
 
 `--json` prints `{"files": [...], "requests": N, "base_url": "...", "env_file": "...", "skipped": [...]}`;
 for a collection it adds `private_env_file` and
-`unsupported: [{"request", "what", "reason"}]`.
+`unsupported: [{"request", "what", "reason"}]`. For `--curl` it prints
+`{"file", "name", "request", "warnings": [...]}`.
 
 ## apic mcp
 

@@ -427,6 +427,22 @@ tasks:
 Keep `dir:` on every apic task so they share one session. More patterns in
 [the Taskfile guide](taskfile.md).
 
+## Start from a curl command
+
+Every API's docs have a curl example; paste it and get a named request:
+
+```sh
+apic import --curl 'curl -X POST https://api.example.com/todos \
+  -H "Content-Type: application/json" \
+  -d "{\"title\": \"x\"}"' --into todos.http --name create-todo
+```
+
+The host becomes `{{baseUrl}}` when the environment has one, `-u` becomes
+`# @auth basic`, `-F` becomes a multipart body, and anything apic cannot
+carry (`-o`, `--retry`, an unknown flag) is a note on stderr rather than a
+failure. On a Mac, `pbpaste | apic import --curl - --into todos.http`
+takes the command straight from the clipboard.
+
 ## Migrate a Postman collection
 
 ```sh

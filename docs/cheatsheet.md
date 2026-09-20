@@ -40,6 +40,7 @@ Content-Type: application/json
 | `apic curl <id>` | The equivalent curl command |
 | `apic init [dir]` | Scaffold a project |
 | `apic import <spec>` | `.http` files from an OpenAPI 3 document or a Postman collection (`--postman-env` for its environments) |
+| `apic import --curl '<cmd>' --into f.http` | One request block from a curl command |
 | `apic validate` | Parse everything and report problems (CI); `--format github\|sarif` |
 | `apic mcp` | Serve the project to agents over MCP |
 | `apic demo` | Scaffold and serve the bundled fake API |
