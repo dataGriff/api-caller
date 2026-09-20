@@ -259,7 +259,40 @@ GET {{baseUrl}}/jobs/{{jobId}}
 for i in $(seq 1 30); do apic run job-status && break; sleep 2; done
 ```
 
-## Send a file as the body
+## Upload a file
+
+A multipart form, the way the editors write it: the boundary in the header,
+each part between delimiter lines, and a file part whose content is a
+`< file` reference. apic sends the file's bytes, not the text.
+
+```http
+### Upload a report with a title
+# @name upload-report
+# @assert status == 201
+# @assert body.$.files[0].filename == report.pdf
+POST {{baseUrl}}/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="title"
+
+Quarterly report for {{user}}
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="report.pdf"
+Content-Type: application/pdf
+
+< ./report.pdf
+--WebAppBoundary--
+```
+
+Text parts are templates, so `{{user}}` resolves as anywhere else. `apic
+curl upload-report` prints the same upload as `--form-string` and
+`-F file=@report.pdf` options, and `apic validate` fails when the part file
+is missing. The demo API's `POST /upload` echoes the parts back, so
+`apic demo` gives you something to try this against.
+
+When the whole body is a file rather than a form, the reference stands
+alone:
 
 ```http
 ### Upload a payload written by something else

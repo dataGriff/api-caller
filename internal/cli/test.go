@@ -166,12 +166,11 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 	}
 	bodyFiles := map[string]bool{}
 	for _, req := range p.Requests() {
-		if req.BodyFile == "" {
-			continue
-		}
-		path := filepath.Join(p.Root, filepath.Dir(req.File.Path), req.BodyFile)
-		if abs, err := filepath.Abs(path); err == nil {
-			bodyFiles[filepath.Clean(abs)] = true
+		for _, ref := range req.BodyFiles() {
+			path := filepath.Join(p.Root, filepath.Dir(req.File.Path), ref.Path)
+			if abs, err := filepath.Abs(path); err == nil {
+				bodyFiles[filepath.Clean(abs)] = true
+			}
 		}
 	}
 	rootReal := realPath(p.Root)

@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -137,7 +140,32 @@ type Resolved struct {
 	// SecretHeaders names headers whose value came from a secret source
 	// (private env file, .env, session or a capture).
 	SecretHeaders map[string]bool `json:"-"`
-	missing       []string
+	// Parts are the parts of a multipart/form-data body, for renderers and
+	// the curl exporter; Body then holds a one-line summary of them.
+	Parts   []FormPart `json:"-"`
+	rawBody []byte     // the assembled multipart body, sent as is
+	missing []string
+}
+
+// FormPart is one part of a resolved multipart/form-data body. Value is
+// the rendered text of a text part; File is the path of a file part,
+// relative to the project root, as `apic curl` needs it.
+type FormPart struct {
+	Name        string
+	Filename    string
+	ContentType string
+	Value       string
+	File        string
+	Size        int
+}
+
+// BodyBytes returns the bytes the request sends: the assembled multipart
+// body when there is one, else the rendered body.
+func (r Resolved) BodyBytes() []byte {
+	if r.rawBody != nil {
+		return r.rawBody
+	}
+	return []byte(r.Body)
 }
 
 // MarshalJSON renders headers as an object (sensitive values masked) and the
@@ -322,20 +350,24 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	body := req.Body
 	if req.BodyFile != "" {
-		path, err := r.bodyFilePath(req)
+		data, err := r.readBodyFile(req, req.BodyFile, "body file")
 		if err != nil {
 			return nil, err
-		}
-		// path is resolved and confined to the project root by bodyFilePath.
-		data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
-		if err != nil {
-			return nil, usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
 		}
 		body = string(data)
 		if !req.BodyFileTemplated {
 			res.Body = body
 			body = ""
 		}
+	}
+	if m, err := req.Multipart(); err != nil {
+		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+	} else if m != nil {
+		if res.rawBody, res.Parts, err = r.multipartBody(req, m, render); err != nil {
+			return nil, err
+		}
+		res.Body = fmt.Sprintf("<multipart: %d part%s, %d file%s>", len(m.Parts), plural(len(m.Parts)), m.Files(), plural(m.Files()))
+		body = ""
 	}
 	if body != "" {
 		if res.Body, err = render(body); err != nil {
@@ -710,8 +742,8 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	defer cancel()
 
 	var body io.Reader
-	if resolved.Body != "" {
-		body = strings.NewReader(resolved.Body)
+	if b := resolved.BodyBytes(); len(b) > 0 {
+		body = bytes.NewReader(b)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, resolved.Method, resolved.URL, body)
 	if err != nil {
@@ -727,7 +759,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	}
 
 	if resolved.AuthSpec != nil {
-		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, []byte(resolved.Body), r.authEnv()); err != nil {
+		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, resolved.BodyBytes(), r.authEnv()); err != nil {
 			return nil, usagef("%s:%d: auth: %v", req.File.Path, req.Line, err)
 		}
 	}
@@ -1106,15 +1138,98 @@ func jsonOrString(data []byte) any {
 	return string(data)
 }
 
-func (r *Runner) bodyFilePath(req *httpfile.Request) (string, error) {
+// readBodyFile reads a `< file` the request refers to (the whole body, or
+// one part of a multipart body); what names it in errors.
+func (r *Runner) readBodyFile(req *httpfile.Request, rel, what string) ([]byte, error) {
+	path, err := r.filePath(req, rel, what)
+	if err != nil {
+		return nil, err
+	}
+	// path is resolved and confined to the project root by filePath.
+	data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
+	if err != nil {
+		return nil, usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+	}
+	return data, nil
+}
+
+// multipartBody assembles a multipart/form-data body from its parts: text
+// parts are rendered as templates, `< file` parts read the file (rendered
+// too for `<@`). The result is binary-safe and uses the boundary the file
+// declares, so the Content-Type header written in the file is right.
+func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, render func(string) (string, error)) ([]byte, []FormPart, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if err := w.SetBoundary(m.Boundary); err != nil {
+		return nil, nil, usagef("%s:%d: multipart boundary %q: %v", req.File.Path, req.Line, m.Boundary, err)
+	}
+	parts := make([]FormPart, 0, len(m.Parts))
+	for _, p := range m.Parts {
+		hdr := textproto.MIMEHeader{}
+		fp := FormPart{Name: p.Name, Filename: p.Filename, ContentType: p.ContentType}
+		for _, h := range p.Headers {
+			v, err := render(h.Value)
+			if err != nil {
+				return nil, nil, usagef("%s:%d: part header %s: %v", req.File.Path, p.Line, h.Name, err)
+			}
+			hdr.Add(h.Name, v)
+			switch {
+			case strings.EqualFold(h.Name, "Content-Disposition"):
+				if _, params, err := mime.ParseMediaType(v); err == nil {
+					fp.Name, fp.Filename = params["name"], params["filename"]
+				}
+			case strings.EqualFold(h.Name, "Content-Type"):
+				fp.ContentType = v
+			}
+		}
+		var data []byte
+		if p.File != "" {
+			var err error
+			if data, err = r.readBodyFile(req, p.File, "part file"); err != nil {
+				return nil, nil, err
+			}
+			if p.FileTemplated {
+				s, err := render(string(data))
+				if err != nil {
+					return nil, nil, usagef("%s:%d: part file %s: %v", req.File.Path, p.FileLine, p.File, err)
+				}
+				data = []byte(s)
+			}
+			fp.File = filepath.ToSlash(filepath.Join(filepath.Dir(req.File.Path), p.File))
+		} else {
+			s, err := render(p.Body)
+			if err != nil {
+				return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+			}
+			data, fp.Value = []byte(s), s
+		}
+		fp.Size = len(data)
+		pw, err := w.CreatePart(hdr)
+		if err != nil {
+			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+		}
+		if _, err := pw.Write(data); err != nil {
+			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+		}
+		parts = append(parts, fp)
+	}
+	if err := w.Close(); err != nil {
+		return nil, nil, usagef("%s:%d: multipart body: %v", req.File.Path, req.Line, err)
+	}
+	return buf.Bytes(), parts, nil
+}
+
+// filePath resolves a `< file` reference relative to the request's file and
+// confines it to the project root.
+func (r *Runner) filePath(req *httpfile.Request, rel, what string) (string, error) {
 	root, err := filepath.EvalSymlinks(r.Project.Root)
 	if err != nil {
-		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
-	path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), req.BodyFile)
+	path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), rel)
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
@@ -1126,12 +1241,12 @@ func (r *Runner) bodyFilePath(req *httpfile.Request) (string, error) {
 				real = filepath.Join(dirReal, filepath.Base(abs))
 			}
 		} else {
-			return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+			return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 		}
 	}
-	rel, err := filepath.Rel(root, real)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", usagef("%s:%d: body file %q resolves outside project root", req.File.Path, req.Line, req.BodyFile)
+	inside, err := filepath.Rel(root, real)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
+		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
 	}
 	return real, nil
 }

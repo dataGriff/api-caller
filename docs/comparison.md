@@ -23,6 +23,7 @@ lands against the tools you might otherwise use.
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
 | Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code), basic, bearer, exec |
 | Cookie jar, client certs | via curl flags | some | yes | yes | yes | no |
+| Multipart uploads with file parts | `curl -F` | yes | yes | yes | yes | yes |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
 | GUI | no | the editor | VS Code extension | yes | no | terminal UI (`apic ui`) |
 

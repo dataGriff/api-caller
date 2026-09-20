@@ -1389,3 +1389,64 @@ paths:
 		}
 	}
 }
+
+func TestImportMultipartSkeleton(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.yaml")
+	_ = os.WriteFile(spec, []byte(`
+openapi: 3.0.3
+info: {title: t, version: "1"}
+servers: [{url: https://api}]
+paths:
+  /upload:
+    post:
+      operationId: uploadReport
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title: {type: string, example: "Quarterly report"}
+                tags: {type: array, items: {type: string, example: q3}}
+                file: {type: string, format: binary}
+                cover: {type: string, format: binary}
+            encoding:
+              cover: {contentType: image/png}
+      responses: {"201": {description: created}}
+`), 0o644)
+	res, err := Import(spec, Options{OutDir: filepath.Join(dir, "out")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Requests != 1 || len(res.Files) != 3 { // two placeholders, then the .http file
+		t.Errorf("result = %+v", res)
+	}
+	all := mustRead(t, filepath.Join(dir, "out", "api.http"))
+	want := "Content-Type: multipart/form-data; boundary=WebAppBoundary\n\n" +
+		"--WebAppBoundary\nContent-Disposition: form-data; name=\"title\"\n\nQuarterly report\n" +
+		"--WebAppBoundary\nContent-Disposition: form-data; name=\"tags\"\nContent-Type: application/json\n\n[\"q3\"]\n" +
+		"--WebAppBoundary\nContent-Disposition: form-data; name=\"file\"; filename=\"api.upload-report.file.bin\"\nContent-Type: application/octet-stream\n\n< ./api.upload-report.file.bin\n" +
+		"--WebAppBoundary\nContent-Disposition: form-data; name=\"cover\"; filename=\"api.upload-report.cover.bin\"\nContent-Type: image/png\n\n< ./api.upload-report.cover.bin\n" +
+		"--WebAppBoundary--\n"
+	if !strings.Contains(all, want) {
+		t.Errorf("multipart skeleton:\n%s\nwant:\n%s", all, want)
+	}
+	for _, side := range []string{"api.upload-report.file.bin", "api.upload-report.cover.bin"} {
+		if _, err := os.Stat(filepath.Join(dir, "out", side)); err != nil {
+			t.Errorf("placeholder %s: %v", side, err)
+		}
+	}
+	// The generated project parses into parts and validates as written.
+	p, err := project.Load(filepath.Join(dir, "out"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diags := p.Validate(); len(diags) != 0 {
+		t.Errorf("validate: %v", diags)
+	}
+	m, err := p.Requests()[0].Multipart()
+	if err != nil || len(m.Parts) != 4 || m.Files() != 2 {
+		t.Errorf("parts = %+v, %v", m, err)
+	}
+}

@@ -3,6 +3,7 @@
 package curlexport
 
 import (
+	"path"
 	"strings"
 
 	"github.com/dataGriff/api-caller/internal/auth"
@@ -28,14 +29,48 @@ func Command(r *runner.Resolved, redact bool) string {
 		headers = r.DisplayHeaders(true)
 	}
 	for _, h := range headers {
+		if len(r.Parts) > 0 && strings.EqualFold(h.Name, "Content-Type") {
+			continue // -F sets multipart/form-data with curl's own boundary
+		}
 		parts = append(parts, "-H "+quote(h.Name+": "+h.Value))
 	}
-	if body != "" {
+	switch {
+	case len(r.Parts) > 0:
+		parts = append(parts, formFlags(r.Parts, redact)...)
+	case body != "":
 		parts = append(parts, "--data-raw "+quote(body))
 	}
 	parts = append(parts, authFlags(r.AuthSpec, redact)...)
 	parts = append(parts, quote(r.DisplayURL(redact)))
 	return strings.Join(parts, " \\\n  ")
+}
+
+// formFlags maps the parts of a multipart body onto curl's form options: a
+// text part as --form-string name=value (which, unlike -F, never reads a
+// value starting with @ or < as a file), a file part as -F name=@path with
+// curl's own ;type= and ;filename= suffixes where the file declares them.
+// Under redact the text values are masked; a path is not a secret.
+func formFlags(parts []runner.FormPart, redact bool) []string {
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p.File == "" {
+			v := p.Value
+			if redact {
+				v = runner.Masked
+			}
+			out = append(out, "--form-string "+quote(p.Name+"="+v))
+			continue
+		}
+		spec := p.Name + "=@" + p.File
+		if p.ContentType != "" {
+			spec += ";type=" + p.ContentType
+		}
+		if p.Filename != "" && p.Filename != path.Base(p.File) {
+			spec += ";filename=" + p.Filename
+		}
+		out = append(out, "-F "+quote(spec))
+	}
+	return out
 }
 
 func quote(s string) string {

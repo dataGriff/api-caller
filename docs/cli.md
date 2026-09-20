@@ -121,6 +121,7 @@ apic run get-user --body-only | jq .email
 
 - `request.auth` names the auth type applied, when any; credentials apic adds are never included.
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
+- `request.body` of a [multipart upload](format.md#multipart-uploads) is the summary `<multipart: 2 parts, 1 file>` rather than the assembled bytes.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string. Under `--redact` it is the string `"***"`.
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
@@ -395,7 +396,8 @@ Codes:
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
-| `missing-body-file` | A `< file` body whose file does not exist. |
+| `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
+| `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
 
 In a GitHub Actions workflow:
 

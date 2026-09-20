@@ -41,6 +41,7 @@ Accept: application/json
 | Headers | `Name: value` lines until the first blank line. Any RFC 7230 token character may appear in a name, except that a line starting with `#` is a comment |
 | Body | everything after the blank line until the next `###` |
 | Body from file | `< ./payload.json` (raw) or `<@ ./payload.json` (with `{{vars}}` substituted), relative to the `.http` file |
+| Multipart body | `Content-Type: multipart/form-data; boundary=X` with the parts written between `--X` lines; a part whose content is `< ./file` sends that file's bytes. See [Multipart uploads](#multipart-uploads) |
 | Editor script blocks | `> {% … %}`, `< {% … %}` and `> ./handler.js` are skipped with a warning, not sent — apic has no scripting. `apic validate` lists them |
 
 Files are found by walking the project root for `*.http` and `*.rest`,
@@ -217,6 +218,45 @@ attempt only, and every attempt gets the full `# @timeout`.
 `# @retry`, `--retry "<attempts> [interval]"` overrides that for one run,
 and `--no-retry` sends everything once. The order is directive, flag, file.
 `apic validate` reports a policy it cannot read as `bad-retry`.
+
+## Multipart uploads
+
+A `multipart/form-data` body is written the way REST Client and JetBrains
+write it, with the boundary declared in the header and each part between
+delimiter lines:
+
+```http
+### Upload a report
+# @name upload-report
+# @assert status == 201
+POST {{baseUrl}}/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="title"
+
+Quarterly report for {{user}}
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="report.pdf"
+Content-Type: application/pdf
+
+< ./report.pdf
+--WebAppBoundary--
+```
+
+apic reads the parts and assembles the body itself, so a part whose only
+content is `< ./report.pdf` sends the file's bytes (binary-safe, with
+`Content-Length` set), not the reference as text. `<@ ./file` substitutes
+`{{variables}}` inside the file first, and text parts and part headers are
+templates like the rest of the request. Paths are relative to the `.http`
+file and confined to the project root, like a whole-body `< file`.
+
+`apic validate` reports a body under a `multipart/form-data` content type
+that has no boundary, or whose parts are not laid out between the
+delimiters (`bad-multipart`), and a part file that does not exist
+(`missing-body-file`). In output the body is shown as
+`<multipart: 2 parts, 1 file>` rather than its bytes; `apic curl` turns the
+parts into `--form-string` and `-F name=@file` options.
 
 ## Project layout
 

@@ -338,14 +338,21 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 					fmt.Sprintf("capture %q: unknown selector %q", c.Name, c.Selector)))
 			}
 		}
-		if r.BodyFile != "" {
-			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), r.BodyFile)); errors.Is(err, fs.ErrNotExist) {
-				line := r.BodyFileLine
+		if _, err := r.Multipart(); err != nil {
+			line := r.BodyLine
+			if line == 0 {
+				line = r.Line
+			}
+			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
+		}
+		for _, ref := range r.BodyFiles() {
+			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), ref.Path)); errors.Is(err, fs.ErrNotExist) {
+				line := ref.Line
 				if line == 0 {
 					line = r.Line
 				}
-				diags = append(diags, diag(r.File.Path, "error", "missing-body-file", line, r.BodyFileColumn, r.BodyFileColumn+len(r.BodyFile),
-					fmt.Sprintf("body file %s not found", r.BodyFile)))
+				diags = append(diags, diag(r.File.Path, "error", "missing-body-file", line, ref.Column, ref.Column+len(ref.Path),
+					fmt.Sprintf("body file %s not found", ref.Path)))
 			}
 		}
 	}

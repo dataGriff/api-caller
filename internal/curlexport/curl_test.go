@@ -108,3 +108,23 @@ func TestCommandRedacts(t *testing.T) {
 		t.Errorf("without redact the command should be runnable:\n%s", got)
 	}
 }
+
+func TestCommandMapsMultipartPartsOntoForm(t *testing.T) {
+	r := &runner.Resolved{Method: "POST", URL: "https://a.b/upload",
+		Headers: []httpfile.Header{{Name: "Content-Type", Value: "multipart/form-data; boundary=WebAppBoundary"}, {Name: "X-Trace", Value: "1"}},
+		Body:    "<multipart: 3 parts, 2 files>",
+		Parts: []runner.FormPart{
+			{Name: "title", Value: "Quarterly report for alice"},
+			{Name: "file", Filename: "report.pdf", ContentType: "application/pdf", File: "files/report.pdf"},
+			{Name: "meta", Filename: "renamed.json", File: "files/meta.json"},
+		}}
+	want := "curl -sS \\\n  -H 'X-Trace: 1' \\\n  --form-string 'title=Quarterly report for alice' \\\n  -F 'file=@files/report.pdf;type=application/pdf' \\\n  -F 'meta=@files/meta.json;filename=renamed.json' \\\n  'https://a.b/upload'"
+	if got := Command(r, false); got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	// Redacted: values masked, paths kept, no body summary leaks in.
+	got := Command(r, true)
+	if !strings.Contains(got, "--form-string 'title=***'") || !strings.Contains(got, "-F 'file=@files/report.pdf;type=application/pdf'") || strings.Contains(got, "data-raw") {
+		t.Errorf("redacted: %s", got)
+	}
+}

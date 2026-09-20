@@ -53,7 +53,8 @@ var Codes = map[string]string{
 	"ref-cycle":         "a `# @ref` chain that leads back to the request it started from",
 	"bad-retry":         "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
 	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, body or body.$*",
-	"missing-body-file": "a `< file` body whose file does not exist",
+	"missing-body-file": "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
+	"bad-multipart":     "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
 }
 
 // Span returns the 1-based byte columns [col, end) of sub within line, or
@@ -264,18 +265,22 @@ func (p *parser) parseBlock(b *block) *Request {
 		body := strings.Join(bodyLines, "\n")
 		body = strings.TrimRight(body, "\n\t ")
 		body = strings.TrimLeft(body, "\n")
+		// The line the body starts on, for diagnostics inside it.
+		first := -1
+		for j := i; j < len(b.lines); j++ {
+			if strings.TrimSpace(b.lines[j]) != "" {
+				first, req.BodyLine = j, b.nums[j]
+				break
+			}
+		}
 		if t := strings.TrimSpace(body); strings.HasPrefix(t, "<@ ") || strings.HasPrefix(t, "< ") {
 			req.BodyFileTemplated = strings.HasPrefix(t, "<@")
 			req.BodyFile = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(t, "<@"), "<"))
-			// Find the line the reference sits on, for diagnostics.
-			for j := i; j < len(b.lines); j++ {
-				if lt := strings.TrimSpace(b.lines[j]); lt != "" {
-					req.BodyFileLine = b.nums[j]
-					req.BodyFileColumn, _ = Span(b.lines[j], req.BodyFile, strings.Index(b.lines[j], "<"))
-					break
-				}
+			if first >= 0 {
+				req.BodyFileLine = req.BodyLine
+				req.BodyFileColumn, _ = Span(b.lines[first], req.BodyFile, strings.Index(b.lines[first], "<"))
 			}
-		} else {
+		} else if body != "" {
 			req.Body = body
 		}
 	}

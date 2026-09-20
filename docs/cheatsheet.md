@@ -18,6 +18,14 @@ Content-Type: application/json
 {"user": "{{user}}", "password": "{{password}}"}
 ```
 
+## Bodies
+
+| Body | Syntax |
+|---|---|
+| Inline | Everything after the blank line, `{{vars}}` substituted |
+| From a file | `< ./payload.json` as it is, `<@ ./payload.json` with `{{vars}}` substituted |
+| Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
+
 ## Commands
 
 | Command | What it does |
