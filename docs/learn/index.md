@@ -40,7 +40,7 @@ lesson cannot quietly stop working when apic changes.
 | 8 | [CI without leaking secrets](08-ci.md) | GitHub Actions, `--redact`, JUnit | coming soon |
 | 9 | [From OpenAPI to a project, and back to curl](09-import-export.md) | `import`, `curl`, Postman import | coming soon |
 | 10 | [Agents and MCP](10-agents.md) | The shell contract, `claude mcp add` | coming soon |
-| 11 | Real APIs and the Taskfile front door | The GitHub and Spotify examples | coming soon |
+| 11 | [Real APIs and the Taskfile front door](11-real-apis.md) | The GitHub and Spotify examples | coming soon |
 | 12 | Editors | The VS Code extension, JetBrains, Neovim | coming soon |
 | 13 | How apic works inside, and contributing | Architecture, a first pull request | coming soon |
 
