@@ -42,6 +42,8 @@ publishing), `task docs` (preview the documentation site).
 - **Docs updated in the same change.** A new command needs a row in the README
   table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`; a new
   `.http` feature needs `docs/format.md`.
+- **Example request files in canonical form.** `apic fmt --check` runs in CI
+  over the example projects; `apic fmt -C examples/<name>` rewrites one.
 - **A commit message that says why.** What changed is in the diff; the reason is
   not.
 

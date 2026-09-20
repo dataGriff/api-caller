@@ -2,8 +2,8 @@
 
 ### Fetch a user
 # @name get-user
-# @step I fetch user {userId}
 # @description Fetch a single user by id
+# @step I fetch user {userId}
 # @assert status == 200
 # @assert body.$.args.id == {{userId}}
 # @assert header.content-type contains json

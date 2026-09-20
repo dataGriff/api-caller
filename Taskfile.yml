@@ -56,10 +56,12 @@ tasks:
       - gofmt -w .
 
   validate-examples:
-    desc: Validate the example projects, as CI does
+    desc: Validate the example projects and check their formatting, as CI does
     cmds:
       - for: [httpbin, github, spotify]
         cmd: go run ./cmd/apic validate -C examples/{{.ITEM}}
+      - for: [httpbin, github, spotify]
+        cmd: go run ./cmd/apic fmt --check -C examples/{{.ITEM}}
 
   clean:
     desc: Remove build, docs and coverage output

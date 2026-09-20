@@ -176,6 +176,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic import <collection.postman.json>` | Folders to files, requests to named requests, variables to env files, simple `pm.test` checks to assertions. |
 | `apic import --curl '<command>'` | One named request from a curl command, appended to a file with `--into`. |
 | `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
+| `apic fmt` | Rewrite `.http` files in their canonical form: directive order, header case, JSON bodies. `--check` for CI, `-` for editors. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 

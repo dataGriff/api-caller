@@ -175,3 +175,59 @@ func TestCaretLineUnderlinesTheSpan(t *testing.T) {
 func diagFor(path, msg string) httpfile.Diagnostic {
 	return httpfile.Diagnostic{Path: path, Line: 1, Severity: "error", Code: "t", Message: msg}
 }
+
+func TestFmtCommand(t *testing.T) {
+	dir := t.TempDir()
+	messy := "### a\n# @assert status == 200\n# @name a\nGET http://x  \ncontent-type: application/json\n\n\n### b\n# @name b\nPOST http://x\n\n{\"k\":1}\n"
+	canonical := "### a\n# @name a\n# @assert status == 200\nGET http://x\nContent-Type: application/json\n\n### b\n# @name b\nPOST http://x\n\n{\n  \"k\": 1\n}\n"
+	mustWrite(t, filepath.Join(dir, "api.http"), messy)
+	mustWrite(t, filepath.Join(dir, "sub", "other.http"), "GET http://y\n")
+	exec := func(stdin string, args ...string) (string, int) {
+		app := New()
+		var stdout, stderr bytes.Buffer
+		app.Stdout, app.Stderr, app.Stdin = &stdout, &stderr, strings.NewReader(stdin)
+		code := app.Execute(context.Background(), append([]string{"-C", dir}, args...))
+		return stdout.String() + stderr.String(), code
+	}
+	// --check lists what would change and exits 1 without writing.
+	out, code := exec("", "fmt", "--check")
+	if code != 1 || out != "api.http\n" {
+		t.Fatalf("check: code=%d out=%q", code, out)
+	}
+	if got := mustReadFile(t, filepath.Join(dir, "api.http")); got != messy {
+		t.Fatal("--check must not write")
+	}
+	// --diff shows the change as a unified diff.
+	out, code = exec("", "fmt", "--diff")
+	if code != 1 || !strings.HasPrefix(out, "--- api.http\n+++ api.http\n@@ -1,12 +1,13 @@\n ### a\n") || !strings.Contains(out, "-GET http://x  \n") || !strings.Contains(out, "+GET http://x\n") || !strings.Contains(out, "-{\"k\":1}\n+{\n+  \"k\": 1\n+}\n") {
+		t.Fatalf("diff: code=%d out=%s", code, out)
+	}
+	// stdin to stdout.
+	out, code = exec(messy, "fmt", "-")
+	if code != 0 || out != canonical {
+		t.Fatalf("stdin: code=%d out=%q", code, out)
+	}
+	// In place, with the JSON summary.
+	out, code = exec("", "--json", "fmt")
+	if code != 0 || !strings.Contains(out, `"files": 2`) || !strings.Contains(out, `"changed": [
+    "api.http"
+  ]`) || !strings.Contains(out, `"formatted": true`) {
+		t.Fatalf("json: code=%d out=%s", code, out)
+	}
+	if got := mustReadFile(t, filepath.Join(dir, "api.http")); got != canonical {
+		t.Fatalf("written:\n%s", got)
+	}
+	out, code = exec("", "fmt")
+	if code != 0 || out != "2 files already formatted\n" {
+		t.Fatalf("second run: code=%d out=%q", code, out)
+	}
+	// Named paths, files and directories.
+	mustWrite(t, filepath.Join(dir, "sub", "other.http"), "GET http://y  \n")
+	out, code = exec("", "fmt", "sub", "api.http")
+	if code != 0 || out != "formatted sub/other.http\n" {
+		t.Fatalf("paths: code=%d out=%q", code, out)
+	}
+	if _, code = exec("", "fmt", "nope.http"); code != 2 {
+		t.Errorf("missing path: code=%d", code)
+	}
+}

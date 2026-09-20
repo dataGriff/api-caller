@@ -11,8 +11,8 @@ Content-Type: application/json
 
 ### Call an endpoint that needs the token
 # @name whoami
-# @step I ask who I am
 # @description Uses the token captured by login
+# @step I ask who I am
 # @assert status == 200
 # @assert body.$.authenticated == true
 GET {{baseUrl}}/bearer

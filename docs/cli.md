@@ -335,6 +335,41 @@ masked, and `bearer`/`basic` credentials become `$TOKEN` and
 `oauth2` and `exec` exports already use. Without it, the command runs as
 printed, credentials included.
 
+## apic fmt
+
+```
+apic fmt [path...] [--check] [--diff]
+apic fmt - < file.http
+```
+
+Rewrites request files in their canonical form, so files written by
+several people (or agents) stop drifting:
+
+- one blank line between blocks, `### Title` on its own line;
+- directives in a fixed order: `name`, `description`, `step`, `auth`,
+  `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`, `no-session`,
+  `no-cookies`, `assert`, `capture`, then unknown ones as written; comments
+  keep their place among them;
+- `@name = value` file variables, the request line and header names
+  (`Content-Type`) with single spaces and canonical case, query
+  continuations indented four spaces;
+- a JSON body pretty-printed with two spaces when it parses and holds no
+  `{{placeholders}}`; every other body, file bodies and editor script
+  blocks kept as written;
+- trailing whitespace removed, one final newline.
+
+Formatting twice changes nothing. Without paths every request file of the
+project is formatted; a path may be a file or a directory. `-` reads
+stdin and writes the result to stdout, which is what the VS Code
+extension's **Format Document** uses.
+
+| Flag | Meaning |
+|---|---|
+| `--check` | Write nothing; list the files that would change and exit 1 if there are any (a CI gate). |
+| `--diff` | Write nothing; print a unified diff of what would change and exit 1 if there is any. |
+
+`--json` prints `{"files": N, "changed": [...], "formatted": bool}`.
+
 ## apic validate
 
 ```

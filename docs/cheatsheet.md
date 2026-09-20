@@ -42,6 +42,7 @@ Content-Type: application/json
 | `apic import <spec>` | `.http` files from an OpenAPI 3 document or a Postman collection (`--postman-env` for its environments) |
 | `apic import --curl '<cmd>' --into f.http` | One request block from a curl command |
 | `apic validate` | Parse everything and report problems (CI); `--format github\|sarif` |
+| `apic fmt [--check\|--diff]` | Canonical formatting for `.http` files; `-` filters stdin |
 | `apic mcp` | Serve the project to agents over MCP |
 | `apic demo` | Scaffold and serve the bundled fake API |
 
