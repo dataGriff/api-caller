@@ -131,6 +131,10 @@ export class Apic {
         },
       );
       if (child.stdin) {
+        // A child that exits before reading its input (an older apic
+        // without the command) breaks the pipe; the exit code and stderr
+        // already say what happened, so the write error is not news.
+        child.stdin.on("error", () => undefined);
         if (opts.input !== undefined) {
           child.stdin.write(opts.input);
         }

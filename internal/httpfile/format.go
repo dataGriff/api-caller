@@ -22,8 +22,10 @@ import (
 //   - the request line with single spaces, query continuations indented
 //     four spaces, header names in canonical case;
 //   - a JSON body pretty-printed with two spaces when it parses and holds
-//     no {{placeholders}}; every other body as written;
-//   - trailing whitespace removed, one final newline.
+//     no {{placeholders}}; every other body byte for byte as written,
+//     since the body is what the request sends;
+//   - trailing whitespace removed outside bodies, blank lines after a
+//     body dropped, one final newline.
 //
 // Formatting is idempotent: Format(Format(s)) == Format(s).
 func Format(src string) string {
@@ -84,21 +86,28 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 	}
 	i := 0
 	// Preamble: comments, directives and file variables up to the request
-	// line, with blank lines dropped.
+	// line, with blank lines dropped. A directive carries the comment lines
+	// written just above it, so the two move together when directives are
+	// reordered; a file variable, or a comment with no directive after it,
+	// stays where it is.
 	type item struct {
-		text      string
+		lines     []string // the comments above, then the directive itself
 		directive bool
 		rank      int
-		order     int
 	}
 	var preamble []item
+	var comments []string
 	for ; i < len(lines); i++ {
 		t := strings.TrimSpace(lines[i])
 		if t == "" {
 			continue
 		}
 		if m := reFileVar.FindStringSubmatch(t); m != nil {
-			preamble = append(preamble, item{text: "@" + m[1] + " = " + strings.TrimSpace(m[2])})
+			for _, c := range comments {
+				preamble = append(preamble, item{lines: []string{c}})
+			}
+			comments = nil
+			preamble = append(preamble, item{lines: []string{"@" + m[1] + " = " + strings.TrimSpace(m[2])}})
 			continue
 		}
 		if m := reComment.FindStringSubmatch(t); m != nil {
@@ -113,16 +122,20 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 				if !known {
 					rank = len(directiveRank)
 				}
-				preamble = append(preamble, item{text: line, directive: true, rank: rank, order: len(preamble)})
+				preamble = append(preamble, item{lines: append(comments, line), directive: true, rank: rank})
+				comments = nil
 				continue
 			}
-			preamble = append(preamble, item{text: strings.TrimRight(lines[i], " \t")})
+			comments = append(comments, strings.TrimRight(lines[i], " \t"))
 			continue
 		}
 		break
 	}
+	for _, c := range comments {
+		preamble = append(preamble, item{lines: []string{c}})
+	}
 	// Directives are sorted among themselves and put back into the slots
-	// they occupied, so a comment stays next to what it was written by.
+	// they occupied; the other items keep their places.
 	var directives []item
 	for _, it := range preamble {
 		if it.directive {
@@ -133,11 +146,11 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 	next := 0
 	for _, it := range preamble {
 		if it.directive {
-			out = append(out, directives[next].text)
+			out = append(out, directives[next].lines...)
 			next++
 			continue
 		}
-		out = append(out, it.text)
+		out = append(out, it.lines...)
 	}
 	if i >= len(lines) {
 		return trimTrailingBlank(out)
@@ -190,8 +203,9 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 		return trimTrailingBlank(out)
 	}
 
-	// Body: everything else, as written, trailing whitespace and trailing
-	// blank lines removed; a plain JSON document is pretty-printed.
+	// Body: everything else, byte for byte, with only the blank lines
+	// around it dropped (the parser drops those too); a plain JSON
+	// document is pretty-printed.
 	body := lines[i:]
 	for len(body) > 0 && strings.TrimSpace(body[len(body)-1]) == "" {
 		body = body[:len(body)-1]
@@ -207,10 +221,7 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 	if pretty, ok := prettyJSON(joined, headers); ok {
 		return append(out, strings.Split(pretty, "\n")...)
 	}
-	for _, l := range body {
-		out = append(out, strings.TrimRight(l, " \t"))
-	}
-	return out
+	return append(out, body...)
 }
 
 // prettyJSON re-indents a body that is one JSON document without

@@ -15,6 +15,8 @@ export class Environments {
   private readonly changed = new vscode.EventEmitter<string>();
   /** apic.yaml's own default per project, from `apic env --json`, so the status bar can name it. */
   private readonly defaults = new Map<string, Promise<string | undefined>>();
+  /** The project the status bar shows, so a slow `apic env` for another one cannot overwrite it. */
+  private shownRoot: string | undefined;
   /** Fires with the project root whose environment changed. */
   readonly onDidChange = this.changed.event;
 
@@ -67,6 +69,7 @@ export class Environments {
 
   /** Shows the environment in effect for the project of the active editor. */
   refreshStatus(root: string | undefined): void {
+    this.shownRoot = root;
     if (!root) {
       this.status.hide();
       return;
@@ -77,7 +80,7 @@ export class Environments {
     this.status.show();
     if (!picked) {
       void this.projectDefault(root).then((def) => {
-        if (this.current(root) === undefined) {
+        if (this.shownRoot === root && this.current(root) === undefined) {
           this.status.text = `$(globe) ${def ?? "env: none"}`;
           this.status.tooltip = def ? `apic runs in ${def}, the project's default environment (click to change)` : "This project has no environments (click to pick one once it has)";
         }

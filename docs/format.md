@@ -303,9 +303,10 @@ between blocks, directives in a fixed order (`name`, `description`,
 `step`, `auth`, `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`,
 `no-session`, `no-cookies`, `assert`, `capture`, then the rest as
 written), header names in canonical case, query continuations indented,
-JSON bodies pretty-printed when they hold no placeholders. Comments,
-unknown directives, file bodies and editor script blocks are kept as they
-are, and formatting twice changes nothing. See
+JSON bodies pretty-printed when they hold no placeholders. Every other
+body is kept byte for byte; comments stay with the directive below them,
+and unknown directives, file bodies and editor script blocks are kept as
+they are. Formatting twice changes nothing. See
 [cli.md](cli.md#apic-fmt).
 
 ## Project layout

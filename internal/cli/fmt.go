@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/httpfile"
+	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
@@ -51,6 +51,7 @@ to stdout, which is what editors use.`,
 				return err
 			}
 			var changed []string
+			diffs := map[string]string{}
 			for _, file := range files {
 				data, err := os.ReadFile(file) //nolint:gosec // a request file of the project, or one the user named
 				if err != nil {
@@ -62,18 +63,25 @@ to stdout, which is what editors use.`,
 				}
 				changed = append(changed, file)
 				shown := a.fmtRel(file)
+				if diff {
+					diffs[shown] = unifiedDiff(shown, string(data), formatted)
+				}
 				switch {
+				case a.g.json:
+					// stdout is the JSON document alone; the writes below are
+					// the same as in text mode.
+					if !check && !diff {
+						if err := writeFormatted(file, formatted); err != nil {
+							return err
+						}
+					}
 				case diff:
-					fmt.Fprint(a.Stdout, unifiedDiff(shown, string(data), formatted))
+					fmt.Fprint(a.Stdout, diffs[shown])
 				case check:
 					fmt.Fprintln(a.Stdout, shown)
 				default:
-					info, err := os.Stat(file)
-					if err != nil {
-						return &runner.UsageError{Msg: err.Error()}
-					}
-					if err := os.WriteFile(file, []byte(formatted), info.Mode().Perm()); err != nil {
-						return &runner.UsageError{Msg: err.Error()}
+					if err := writeFormatted(file, formatted); err != nil {
+						return err
 					}
 					fmt.Fprintf(a.Stdout, "formatted %s\n", shown)
 				}
@@ -83,11 +91,16 @@ to stdout, which is what editors use.`,
 				for _, c := range changed {
 					rel = append(rel, a.fmtRel(c))
 				}
+				var diffOut map[string]string
+				if diff {
+					diffOut = diffs
+				}
 				if err := a.writeJSON(struct {
-					Files     int      `json:"files"`
-					Changed   []string `json:"changed"`
-					Formatted bool     `json:"formatted"`
-				}{len(files), rel, !check && !diff}); err != nil {
+					Files     int               `json:"files"`
+					Changed   []string          `json:"changed"`
+					Formatted bool              `json:"formatted"`
+					Diff      map[string]string `json:"diff,omitempty"`
+				}{len(files), rel, !check && !diff, diffOut}); err != nil {
 					return err
 				}
 			} else if len(changed) == 0 {
@@ -104,8 +117,20 @@ to stdout, which is what editors use.`,
 	return cmd
 }
 
+// writeFormatted rewrites a file in place, keeping its mode.
+func writeFormatted(file, formatted string) error {
+	info, err := os.Stat(file)
+	if err != nil {
+		return &runner.UsageError{Msg: err.Error()}
+	}
+	if err := os.WriteFile(file, []byte(formatted), info.Mode().Perm()); err != nil {
+		return &runner.UsageError{Msg: err.Error()}
+	}
+	return nil
+}
+
 // fmtTargets resolves the files to format: the project's request files, or
-// the files and directories named.
+// the files and directories named (walked the way the project is).
 func (a *App) fmtTargets(args []string) ([]string, error) {
 	if len(args) == 0 {
 		p, err := a.loadProject()
@@ -133,24 +158,11 @@ func (a *App) fmtTargets(args []string) ([]string, error) {
 			files = append(files, path)
 			continue
 		}
-		err = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if name := d.Name(); p != path && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor") {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if ext := strings.ToLower(filepath.Ext(p)); ext == ".http" || ext == ".rest" {
-				files = append(files, p)
-			}
-			return nil
-		})
+		found, err := project.Discover(path)
 		if err != nil {
 			return nil, &runner.UsageError{Msg: err.Error()}
 		}
+		files = append(files, found...)
 	}
 	return files, nil
 }
@@ -171,8 +183,8 @@ func (a *App) fmtRel(file string) string {
 // `diff -u` does, from a longest-common-subsequence of the lines. Files
 // are small, so the quadratic table is fine.
 func unifiedDiff(name, a, b string) string {
-	al := strings.Split(strings.TrimSuffix(a, "\n"), "\n")
-	bl := strings.Split(strings.TrimSuffix(b, "\n"), "\n")
+	al, noNewlineA := diffLines(a)
+	bl, noNewlineB := diffLines(b)
 	n, m := len(al), len(bl)
 	lcs := make([][]int, n+1)
 	for i := range lcs {
@@ -260,12 +272,40 @@ func unifiedDiff(name, a, b string) string {
 			}
 		}
 		fmt.Fprintf(&out, "@@ -%d,%d +%d,%d @@\n", aStart+1, aCount, bStart+1, bCount)
+		aSeen, bSeen := aStart, bStart
 		for _, o := range ops[start:end] {
 			out.WriteByte(o.kind)
-			out.WriteString(o.text)
+			out.WriteString(strings.TrimSuffix(o.text, noNewline))
 			out.WriteByte('\n')
+			if o.kind != '+' {
+				aSeen++
+			}
+			if o.kind != '-' {
+				bSeen++
+			}
+			// The marker diff -u prints after a last line that has no newline.
+			if (o.kind == '-' && noNewlineA && aSeen == n) || (o.kind == '+' && noNewlineB && bSeen == m) || (o.kind == ' ' && noNewlineA && noNewlineB && aSeen == n) {
+				out.WriteString("\\ No newline at end of file\n")
+			}
 		}
 		k = end
 	}
 	return out.String()
+}
+
+// noNewline marks the last line of a text that does not end with a
+// newline, so it never compares equal to the same text with one: that is
+// a difference the formatter makes and the diff must show.
+const noNewline = "\x00"
+
+func diffLines(s string) ([]string, bool) {
+	if s == "" {
+		return nil, false
+	}
+	if strings.HasSuffix(s, "\n") {
+		return strings.Split(strings.TrimSuffix(s, "\n"), "\n"), false
+	}
+	lines := strings.Split(s, "\n")
+	lines[len(lines)-1] += noNewline
+	return lines, true
 }

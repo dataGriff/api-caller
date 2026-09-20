@@ -19,6 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # the GitHub release and its .vsix
+    # A step's `if` cannot read the secrets context, and cannot see that
+    # step's own env either, so the tokens are exposed at job level and
+    # each publish step is skipped while its token is empty.
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     defaults:
       run:
         working-directory: editors/vscode
@@ -54,13 +60,9 @@ jobs:
       - run: npx vsce package --no-dependencies
       - name: Publish to the Visual Studio Marketplace
         if: env.VSCE_PAT != ''
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-dependencies --packagePath ./*.vsix
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx ovsx publish ./*.vsix --pat "$OVSX_PAT"
       - name: Attach the .vsix to a GitHub release
         env:

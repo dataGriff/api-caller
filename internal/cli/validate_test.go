@@ -207,11 +207,24 @@ func TestFmtCommand(t *testing.T) {
 	if code != 0 || out != canonical {
 		t.Fatalf("stdin: code=%d out=%q", code, out)
 	}
-	// In place, with the JSON summary.
+	// A missing final newline is a change the diff shows, with diff -u's marker.
+	mustWrite(t, filepath.Join(dir, "sub", "other.http"), "GET http://y")
+	out, code = exec("", "fmt", "--diff", "sub")
+	if code != 1 || !strings.Contains(out, "@@ -1,1 +1,1 @@\n-GET http://y\n\\ No newline at end of file\n+GET http://y\n") {
+		t.Fatalf("no-newline diff: code=%d out=%s", code, out)
+	}
+	mustWrite(t, filepath.Join(dir, "sub", "other.http"), "GET http://y\n")
+	// In place, with the JSON summary as the only thing on stdout.
 	out, code = exec("", "--json", "fmt")
-	if code != 0 || !strings.Contains(out, `"files": 2`) || !strings.Contains(out, `"changed": [
-    "api.http"
-  ]`) || !strings.Contains(out, `"formatted": true`) {
+	var summary struct {
+		Files     int      `json:"files"`
+		Changed   []string `json:"changed"`
+		Formatted bool     `json:"formatted"`
+	}
+	if err := json.Unmarshal([]byte(out), &summary); err != nil {
+		t.Fatalf("json: not one object: %v\n%s", err, out)
+	}
+	if code != 0 || summary.Files != 2 || len(summary.Changed) != 1 || summary.Changed[0] != "api.http" || !summary.Formatted {
 		t.Fatalf("json: code=%d out=%s", code, out)
 	}
 	if got := mustReadFile(t, filepath.Join(dir, "api.http")); got != canonical {

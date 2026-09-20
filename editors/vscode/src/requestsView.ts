@@ -19,6 +19,7 @@ export class RequestsView implements vscode.TreeDataProvider<RequestNode>, vscod
   private readonly lists = new Map<string, Promise<ListOutput | undefined>>();
   private readonly readiness = new Map<string, Promise<Map<string, boolean>>>();
   private readonly disposables: vscode.Disposable[] = [];
+  private shownRoot: string | undefined;
 
   constructor(
     private readonly apic: Apic,
@@ -26,9 +27,19 @@ export class RequestsView implements vscode.TreeDataProvider<RequestNode>, vscod
   ) {
     this.disposables.push(
       this.changed,
-      vscode.window.onDidChangeActiveTextEditor(() => this.refresh()),
+      // Switching editors within one project changes nothing the view
+      // shows; only a different project redraws it, and from the caches.
+      vscode.window.onDidChangeActiveTextEditor(() => this.rootChanged()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.refresh()),
     );
+  }
+
+  private rootChanged(): void {
+    const root = this.root();
+    if (root !== this.shownRoot) {
+      this.shownRoot = root;
+      this.changed.fire(undefined);
+    }
   }
 
   dispose(): void {
@@ -85,6 +96,7 @@ export class RequestsView implements vscode.TreeDataProvider<RequestNode>, vscod
   async getChildren(node?: RequestNode): Promise<RequestNode[]> {
     if (!node) {
       const root = this.root();
+      this.shownRoot = root;
       if (!root) {
         return [];
       }
@@ -118,16 +130,20 @@ export class RequestsView implements vscode.TreeDataProvider<RequestNode>, vscod
     const key = `${root}|${this.envs.current(root) ?? ""}|${requests.map((r) => r.id).join(",")}`;
     let p = this.readiness.get(key);
     if (!p) {
-      p = (async () => {
-        const out = new Map<string, boolean>();
-        for (const r of requests) {
+      p = Promise.all(
+        requests.map(async (r) => {
           const res = await this.apic.json<Description>(["describe", targetOf(r), ...this.envs.args(root)], { project: root }).catch(() => undefined);
-          if (res?.value) {
-            out.set(r.id, res.value.ready);
+          return [r.id, res?.value?.ready] as const;
+        }),
+      ).then((pairs) => {
+        const out = new Map<string, boolean>();
+        for (const [id, ready] of pairs) {
+          if (ready !== undefined) {
+            out.set(id, ready);
           }
         }
         return out;
-      })();
+      });
       this.readiness.set(key, p);
     }
     return p;

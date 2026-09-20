@@ -6,19 +6,28 @@ import * as vscode from "vscode";
 import type { Apic } from "./apic";
 import type { Environments } from "./environment";
 import { projectRoot } from "./project";
-import type { EnvOutput } from "./types";
 import { sessionItems, type CookieInfo, type SessionItem } from "./views";
 
 export class SessionView implements vscode.TreeDataProvider<SessionItem>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
   private readonly disposables: vscode.Disposable[] = [];
+  private shownRoot: string | undefined;
 
   constructor(
     private readonly apic: Apic,
     private readonly envs: Environments,
   ) {
-    this.disposables.push(this.changed, vscode.window.onDidChangeActiveTextEditor(() => this.refresh()));
+    this.disposables.push(
+      this.changed,
+      vscode.window.onDidChangeActiveTextEditor(() => {
+        const root = this.root();
+        if (root !== this.shownRoot) {
+          this.shownRoot = root;
+          this.refresh();
+        }
+      }),
+    );
   }
 
   dispose(): void {
@@ -47,6 +56,7 @@ export class SessionView implements vscode.TreeDataProvider<SessionItem>, vscode
       return [];
     }
     const root = this.root();
+    this.shownRoot = root;
     if (!root) {
       return [];
     }
@@ -59,14 +69,9 @@ export class SessionView implements vscode.TreeDataProvider<SessionItem>, vscode
     return sessionItems(session?.value?.[env] ?? {}, cookies?.value?.[env] ?? [], redact);
   }
 
-  /** The environment apic would use: the picked one, else apic.yaml's, else "default". */
+  /** The environment apic would use: the picked one, else apic.yaml's, else "default" (the session's key for none). */
   async effectiveEnv(root: string): Promise<string> {
-    const picked = this.envs.current(root);
-    if (picked) {
-      return picked;
-    }
-    const res = await this.apic.json<EnvOutput>(["env"], { project: root }).catch(() => undefined);
-    return res?.value?.current || "default";
+    return (await this.envs.effective(root)) ?? "default";
   }
 
   /** Runs `apic session clear` for the current environment, or every one, after asking. */

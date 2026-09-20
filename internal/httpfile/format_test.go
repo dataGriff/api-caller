@@ -38,11 +38,18 @@ func TestFormatGolden(t *testing.T) {
 		}
 		for i := range before.Requests {
 			b, a := before.Requests[i], after.Requests[i]
-			if b.Name != a.Name || b.Method != a.Method || b.URL != a.URL || len(b.Headers) != len(a.Headers) || len(b.Directives) != len(a.Directives) || b.BodyFile != a.BodyFile {
+			if b.Name != a.Name || b.Method != a.Method || b.URL != a.URL || len(b.Headers) != len(a.Headers) || len(b.Directives) != len(a.Directives) || b.BodyFile != a.BodyFile || (b.Body != a.Body && !isJSON(b.Body)) {
 				t.Errorf("%s: request %d changed meaning: %+v -> %+v", in, i, b, a)
 			}
 		}
 	}
+}
+
+// isJSON reports whether a body is one JSON document, the only kind the
+// formatter rewrites.
+func isJSON(body string) bool {
+	t := strings.TrimSpace(body)
+	return t != "" && (t[0] == '{' || t[0] == '[') && !strings.Contains(t, "{{")
 }
 
 // Every .http file in the repository formats to itself once formatted, and

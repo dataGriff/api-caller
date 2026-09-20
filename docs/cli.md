@@ -355,8 +355,10 @@ several people (or agents) stop drifting:
   continuations indented four spaces;
 - a JSON body pretty-printed with two spaces when it parses and holds no
   `{{placeholders}}`; every other body, file bodies and editor script
-  blocks kept as written;
-- trailing whitespace removed, one final newline.
+  blocks kept byte for byte, only the blank lines around them dropped;
+- comments travel with the directive below them when directives are
+  reordered;
+- trailing whitespace removed outside bodies, one final newline.
 
 Formatting twice changes nothing. Without paths every request file of the
 project is formatted; a path may be a file or a directory. `-` reads
@@ -368,7 +370,9 @@ extension's **Format Document** uses.
 | `--check` | Write nothing; list the files that would change and exit 1 if there are any (a CI gate). |
 | `--diff` | Write nothing; print a unified diff of what would change and exit 1 if there is any. |
 
-`--json` prints `{"files": N, "changed": [...], "formatted": bool}`.
+`--json` prints only `{"files": N, "changed": [...], "formatted": bool}`
+(plus `"diff": {file: text}` under `--diff`); nothing else goes to
+stdout, so the output stays one parseable object.
 
 ## apic validate
 
