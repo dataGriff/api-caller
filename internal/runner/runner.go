@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -78,7 +79,6 @@ type Runner struct {
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	results  map[string]*Result
 	captured map[string]string
-	refsRan  map[*httpfile.Request]bool // `# @ref` targets already run this invocation
 }
 
 // New builds a Runner, loading env files and the session.
@@ -111,7 +111,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, refsRan: map[*httpfile.Request]bool{}, sleep: sleepCtx}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
 	switch {
 	case opts.Session != nil:
 		r.Session = opts.Session
@@ -528,7 +528,7 @@ func plural(n int) string {
 // and once per Runner. Their results ride in Result.Deps. A dependency
 // that fails stops the request: the result is not OK and names it.
 func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error) {
-	return r.run(ctx, req, nil)
+	return r.run(ctx, req, nil, map[*httpfile.Request]bool{})
 }
 
 // refTarget resolves the target of a `# @ref` to exactly one request.
@@ -544,15 +544,14 @@ func (r *Runner) refTarget(req *httpfile.Request, ref httpfile.Ref) (*httpfile.R
 	if len(targets) != 1 {
 		return nil, usagef("%s:%d: %s %s names %d requests; refer to one request by name or file#name", req.File.Path, ref.Line, key, ref.ID, len(targets))
 	}
-	if targets[0] == req {
-		return nil, usagef("%s:%d: %s %s refers to the request itself", req.File.Path, ref.Line, key, ref.ID)
-	}
 	return targets[0], nil
 }
 
 // run is Run with the chain of requests whose refs led here, for cycle
-// detection and the error that names the cycle.
-func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfile.Request) (*Result, error) {
+// detection and the error that names the cycle, and the `# @ref` targets
+// this invocation has already run, so a dependency reached twice runs
+// once. Both are per invocation: the next Run starts afresh.
+func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfile.Request, ran map[*httpfile.Request]bool) (*Result, error) {
 	var deps []*Result
 	// failed builds the result of a request that never went out because a
 	// dependency failed, keeping what the dependency produced.
@@ -565,16 +564,16 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		if err != nil {
 			return failed(err.Error()), err
 		}
-		for _, c := range chain {
-			if c == target {
-				return nil, r.cycleError(req, ref, append(chain, req), target)
-			}
-		}
 		next := make([]*httpfile.Request, len(chain)+1)
 		copy(next, chain)
 		next[len(chain)] = req
-		r.refsRan[target] = true
-		dep, err := r.run(ctx, target, next)
+		for _, c := range next {
+			if c == target {
+				return nil, r.cycleError(req, ref, next, target)
+			}
+		}
+		ran[target] = true
+		dep, err := r.run(ctx, target, next, ran)
 		if dep != nil {
 			deps = append(deps, dep)
 		}
@@ -600,20 +599,20 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		return nil, err
 	}
 	if len(resolved.missing) > 0 {
-		ran := false
+		pulled := false
 		for _, ref := range refs {
 			if ref.Force {
 				continue
 			}
-			if target, err := r.refTarget(req, ref); err == nil && r.refsRan[target] {
+			if target, err := r.refTarget(req, ref); err == nil && ran[target] {
 				continue
 			}
 			if res, err := runDep(ref); res != nil || err != nil {
 				return res, err
 			}
-			ran = true
+			pulled = true
 		}
-		if ran {
+		if pulled {
 			if resolved, err = r.Resolve(req); err != nil {
 				return nil, err
 			}
@@ -736,7 +735,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	start := time.Now()
 	httpResp, err := r.client(req).Do(httpReq)
 	if err != nil {
-		return nil, &TransportError{Err: err}
+		return nil, r.transportError(err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
 	// Bounded: an unbounded ReadAll lets one hostile or oversized response take
@@ -744,7 +743,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	// and rendered.
 	data, err := readBody(httpResp.Body, r.maxBodyBytes())
 	if err != nil {
-		return nil, &TransportError{Err: err}
+		return nil, r.transportError(err)
 	}
 	dur := time.Since(start)
 
@@ -807,6 +806,17 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// transportError wraps a network failure. Go's URL errors quote the full
+// URL, query values included, so under Redact the URL is masked the way
+// the rest of the output masks it.
+func (r *Runner) transportError(err error) error {
+	var ue *url.Error
+	if r.Opts.Redact && errors.As(err, &ue) {
+		return &TransportError{Err: fmt.Errorf("%s %s: %w", ue.Op, Masked, ue.Err)}
+	}
+	return &TransportError{Err: err}
 }
 
 func (r *Runner) report(p Progress) {

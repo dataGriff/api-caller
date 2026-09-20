@@ -284,7 +284,7 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			if ref.Force {
 				key = "@forceRef"
 			}
-			target, err := p.refTarget(r, ref)
+			target, err := p.refTarget(ref)
 			if err != nil {
 				diags = append(diags, diag(r.File.Path, "error", "bad-ref", ref.Line, col, end, fmt.Sprintf("%s %s: %v", key, ref.ID, err)))
 				continue
@@ -371,8 +371,9 @@ func validSelector(s string) bool {
 	return false
 }
 
-// refTarget resolves a `# @ref` target to the one request it names.
-func (p *Project) refTarget(from *httpfile.Request, ref httpfile.Ref) (*httpfile.Request, error) {
+// refTarget resolves a `# @ref` target to the one request it names. A
+// request naming itself resolves, and is reported as a cycle by refPath.
+func (p *Project) refTarget(ref httpfile.Ref) (*httpfile.Request, error) {
 	if ref.ID == "" {
 		return nil, errors.New("needs a request name")
 	}
@@ -382,9 +383,6 @@ func (p *Project) refTarget(from *httpfile.Request, ref httpfile.Ref) (*httpfile
 	}
 	if len(targets) != 1 {
 		return nil, fmt.Errorf("names %d requests; refer to one request by name or file#name", len(targets))
-	}
-	if targets[0] == from {
-		return nil, errors.New("refers to the request itself")
 	}
 	return targets[0], nil
 }
@@ -404,7 +402,7 @@ func (p *Project) refPath(from, to *httpfile.Request, seen map[*httpfile.Request
 	}
 	seen[from] = true
 	for _, ref := range from.Refs() {
-		target, err := p.refTarget(from, ref)
+		target, err := p.refTarget(ref)
 		if err != nil {
 			continue
 		}

@@ -110,6 +110,12 @@ Authorization: Bearer {{fromB}}
 # @ref cycle-a
 GET {{baseUrl}}/me
 Authorization: Bearer {{fromA}}
+
+### Refers to itself
+# @name selfish
+# @ref selfish
+GET {{baseUrl}}/me
+Authorization: Bearer {{fromSelf}}
 `
 
 func refProject(t *testing.T) (string, *atomic.Int32) {
@@ -181,6 +187,15 @@ func TestRefRunsTheDependencyWhenAVariableIsMissing(t *testing.T) {
 	res, err = r2.Run(ctx, lookup(t, r2, "whoami"))
 	if err != nil || !res.OK || len(res.Deps) != 0 || logins.Load() != 1 {
 		t.Fatalf("whoami from session: deps=%v logins=%d err=%v", res.Deps, logins.Load(), err)
+	}
+
+	// Once the value is gone again (the UI keeps one runner across runs and
+	// can clear the session), the ref runs again: "once" is per invocation.
+	r.Session.Clear("dev")
+	r.captured = map[string]string{}
+	res, err = r.Run(ctx, lookup(t, r, "whoami"))
+	if err != nil || !res.OK || len(res.Deps) != 1 || logins.Load() != 2 {
+		t.Fatalf("whoami after clearing: deps=%v logins=%d err=%v", names(res.Deps), logins.Load(), err)
 	}
 }
 
@@ -265,6 +280,7 @@ func TestRefErrors(t *testing.T) {
 	cases := map[string]string{
 		"dangling": `@ref nope: no request named "nope"`,
 		"cycle-a":  "@ref cycle-a is a cycle: cycle-a -> cycle-b -> cycle-a",
+		"selfish":  "@ref selfish is a cycle: selfish -> selfish",
 	}
 	for name, want := range cases {
 		res, err := r.Run(ctx, lookup(t, r, name))
