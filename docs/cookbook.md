@@ -427,6 +427,25 @@ tasks:
 Keep `dir:` on every apic task so they share one session. More patterns in
 [the Taskfile guide](taskfile.md).
 
+## Migrate a Postman collection
+
+```sh
+apic import My-API.postman_collection.json -o api --postman-env staging.postman_environment.json
+apic validate -C api
+apic list -C api
+```
+
+Folders become files, requests keep their names in kebab-case, the
+collection's variables land in `$shared` and each environment export
+becomes an environment, secrets in the private file. Bearer, basic, AWS
+and OAuth2 client-credentials auth become `# @auth` lines, an API key
+becomes its header, and the simple `pm.test` checks (`to.have.status`,
+`pm.expect(jsonData.x).to.eql(...)`, header checks) become `# @assert`
+lines, with `pm.environment.set("token", jsonData.token)` becoming
+`# @capture`. What has no equivalent, pre-request scripts and the rest of
+the test scripts, is printed as `note` lines so nothing is lost silently;
+the [comparison](comparison.md#against-postman) says what to do instead.
+
 ## Start from an OpenAPI document
 
 ```sh

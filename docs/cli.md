@@ -417,9 +417,11 @@ In a GitHub Actions workflow:
 
 ```
 apic import <openapi.yaml|openapi.json> [-o <dir>] [--env-name <name>] [--force]
+apic import <collection.postman.json> [-o <dir>] [--postman-env <file>]... [--force]
 ```
 
-Scaffolds `.http` files from an OpenAPI 3 document:
+The format is detected from the file. From an OpenAPI 3 document it
+scaffolds `.http` files:
 
 - one file per tag (`pets.http`), operations without tags go to `api.http`;
 - one request per operation named from `operationId` in kebab-case, else
@@ -439,13 +441,51 @@ schemas; references to other files are not. Path-level parameters are
 merged into each operation. Swagger 2.0 documents are rejected with a
 message. Existing files are kept unless `--force` is given.
 
+From a Postman collection (v2.1, or v2.0 where the shapes coincide; v1
+exports are refused with a message):
+
+- folders become files (`todos.http`; nested folders join with `-`,
+  `todos-archive.http`), requests outside any folder go to a file named
+  after the collection;
+- each request becomes a named request (kebab-case of its name,
+  de-duplicated with a numeric suffix) with its description;
+- URL, method, headers and query map as written: Postman's `{{var}}` is
+  apic's, `:id` path variables become `{{id}}` with their value as a file
+  variable, `{{$guid}}` becomes `{{$uuid}}`, disabled headers and query
+  parameters become comments;
+- bodies: raw (with a `Content-Type` from the language when no header sets
+  one), urlencoded, form-data (as a [multipart body](format.md#multipart-uploads),
+  file parts pointing at a file of the same name beside the `.http` file),
+  a whole-body file, and GraphQL as a JSON `{"query", "variables"}` POST;
+- auth: bearer, basic, awsv4 and oauth2 (client credentials and password
+  grants) become `# @auth`; an API key becomes the header or query value;
+  the collection's own auth becomes `auth.default` in `apic.yaml`; a request
+  with "no auth" under it gets `# @auth none`; digest, NTLM, Hawk and the
+  browser OAuth2 flows are reported;
+- variables: the collection's become `$shared` in `http-client.env.json`,
+  and each `--postman-env` file becomes an environment named after it,
+  its `secret` values going to `http-client.private.env.json` (written
+  `0600`); the first environment becomes `env:` in `apic.yaml`;
+- `pm.test` scripts: `pm.response.to.have.status(200)`,
+  `pm.expect(jsonData.x).to.eql(...)` (also `include`, `exist`, `be.true`),
+  header equality and `include`, `pm.response.to.have.header(...)`,
+  `responseTime` bounds and `pm.expect(pm.response.text()).to.include(...)`
+  become `# @assert`; `pm.environment.set("token", jsonData.token)` (and
+  the `collectionVariables`, `globals` and header forms) become
+  `# @capture`. Every other line, pre-request scripts included, is listed
+  under `unsupported` with the request and a reason, and printed as a
+  `note` line.
+
 | Flag | Meaning |
 |---|---|
 | `-o, --out <dir>` | Output directory. Default `.`. |
-| `--env-name <name>` | Environment name in the generated env file. Default `dev`. |
+| `--env-name <name>` | Environment name in the generated env file (OpenAPI). Default `dev`. |
+| `--postman-env <file>` | A Postman environment export to import as an environment. Repeatable. |
 | `--force` | Overwrite existing files. |
 
-`--json` prints `{"files": [...], "requests": N, "base_url": "...", "env_file": "...", "skipped": [...]}`.
+`--json` prints `{"files": [...], "requests": N, "base_url": "...", "env_file": "...", "skipped": [...]}`;
+for a collection it adds `private_env_file` and
+`unsupported: [{"request", "what", "reason"}]`.
 
 ## apic mcp
 
