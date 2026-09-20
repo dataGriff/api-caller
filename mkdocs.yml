@@ -18,6 +18,7 @@ nav:
       - "0. What apic is and why": learn/00-what-is-apic.md
       - "1. Install and send your first request": learn/01-first-request.md
       - "2. Variables and environments": learn/02-variables-and-environments.md
+      - "3. Capture, the session and flows": learn/03-capture-session-flows.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
