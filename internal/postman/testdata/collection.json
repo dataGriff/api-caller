@@ -1,0 +1,157 @@
+{
+  "info": {
+    "name": "Todo API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {"content": "A small API used to test the importer"}
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+  "variable": [
+    {"key": "baseUrl", "value": "https://api.example.com"},
+    {"key": "pageSize", "value": 20},
+    {"key": "unused", "value": "x", "disabled": true}
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Log in",
+          "request": {
+            "auth": {"type": "noauth"},
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Debug", "value": "1", "disabled": true}],
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]},
+            "body": {"mode": "raw", "raw": "{\"user\": \"{{user}}\", \"password\": \"{{password}}\"}", "options": {"raw": {"language": "json"}}},
+            "description": "Exchange credentials for a token.\nSecond line is dropped."
+          },
+          "event": [
+            {"listen": "test", "script": {"exec": [
+              "pm.test(\"logged in\", function () {",
+              "    pm.response.to.have.status(200);",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.access_token).to.exist;",
+              "    pm.expect(jsonData.user.name).to.eql(\"alice\");",
+              "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"json\");",
+              "    pm.environment.set(\"token\", jsonData.access_token);",
+              "    pm.expect(jsonData.roles).to.be.an('array');",
+              "});"
+            ]}}
+          ]
+        },
+        {
+          "name": "Who am I",
+          "request": "{{baseUrl}}/me",
+          "event": [
+            {"listen": "prerequest", "script": {"exec": ["console.log('about to run');"]}},
+            {"listen": "test", "script": {"exec": "pm.test('ok', () => {\n  pm.expect(pm.response.code).to.equal(200);\n  pm.response.to.have.header('X-Request-Id');\n  pm.expect(pm.response.responseTime).to.be.below(500);\n});"}}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Todos",
+      "auth": {"type": "apikey", "apikey": [{"key": "key", "value": "X-Api-Key"}, {"key": "value", "value": "{{apiKey}}"}, {"key": "in", "value": "header"}]},
+      "item": [
+        {
+          "name": "List todos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/todos?done=true&limit={{pageSize}}",
+              "query": [{"key": "done", "value": "true"}, {"key": "limit", "value": "{{pageSize}}"}, {"key": "cursor", "value": "abc", "disabled": true}]
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test(\"has todos\", function () {", "  pm.expect(pm.response.json().items[0].id).to.exist;", "});"]}}]
+        },
+        {
+          "name": "Get todo",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/todos/:id", "variable": [{"key": "id", "value": "42"}]}
+          }
+        },
+        {
+          "name": "Archive",
+          "item": [
+            {
+              "name": "Upload attachment",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/todos/:id/attachments",
+                "body": {"mode": "formdata", "formdata": [
+                  {"key": "title", "value": "Quarterly", "type": "text"},
+                  {"key": "file", "type": "file", "src": "/Users/alice/Documents/report.pdf", "contentType": "application/pdf"},
+                  {"key": "off", "value": "x", "type": "text", "disabled": true}
+                ]}
+              }
+            },
+            {
+              "name": "Search form",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/todos/search",
+                "body": {"mode": "urlencoded", "urlencoded": [{"key": "q", "value": "a b&c"}, {"key": "owner", "value": "{{user}}"}]}
+              }
+            },
+            {
+              "name": "GraphQL",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/graphql",
+                "body": {"mode": "graphql", "graphql": {"query": "query Todos($done: Boolean) { todos(done: $done) { id } }", "variables": "{\"done\": true}"}}
+              }
+            },
+            {
+              "name": "Raw file body",
+              "request": {"method": "PUT", "url": "{{baseUrl}}/todos/import", "body": {"mode": "file", "file": {"src": "C:\\data\\todos.csv"}}}
+            }
+          ]
+        },
+        {
+          "name": "Get todo",
+          "request": {"method": "GET", "url": "{{baseUrl}}/todos/{{$guid}}"}
+        }
+      ]
+    },
+    {
+      "name": "Signed report",
+      "request": {
+        "auth": {"type": "awsv4", "awsv4": [{"key": "region", "value": "eu-west-2"}, {"key": "service", "value": "execute-api"}, {"key": "accessKey", "value": "AKIA"}]},
+        "method": "GET",
+        "url": "{{baseUrl}}/reports/daily.csv"
+      }
+    },
+    {
+      "name": "Machine token",
+      "request": {
+        "auth": {"type": "oauth2", "oauth2": [{"key": "grant_type", "value": "client_credentials"}, {"key": "accessTokenUrl", "value": "{{tokenUrl}}"}, {"key": "clientId", "value": "{{clientId}}"}, {"key": "clientSecret", "value": "{{clientSecret}}"}, {"key": "scope", "value": "read write"}, {"key": "client_authentication", "value": "header"}]},
+        "method": "GET",
+        "url": "{{baseUrl}}/machine"
+      }
+    },
+    {
+      "name": "Basic",
+      "request": {
+        "auth": {"type": "basic", "basic": [{"key": "username", "value": "alice"}, {"key": "password", "value": "s3cret pass"}]},
+        "method": "GET",
+        "url": "{{baseUrl}}/basic"
+      }
+    },
+    {
+      "name": "Digest",
+      "request": {
+        "auth": {"type": "digest", "digest": [{"key": "username", "value": "alice"}]},
+        "method": "GET",
+        "url": "{{baseUrl}}/digest"
+      }
+    },
+    {
+      "name": "Tricky ### body",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/notes",
+        "body": {"mode": "raw", "raw": "### heading\nbody text", "options": {"raw": {"language": "text"}}}
+      }
+    }
+  ]
+}

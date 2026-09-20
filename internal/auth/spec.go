@@ -44,9 +44,12 @@ func Parse(raw string) (*Spec, error) {
 	if _, ok := Types[s.Type]; !ok {
 		return nil, fmt.Errorf("@auth: unknown type %q (one of %s)", fields[0], strings.Join(typeNames(), ", "))
 	}
+	// Only aws, oauth2 and exec take key=value options: a bearer token or a
+	// basic password containing '=' (base64 padding, say) is a value.
+	takesOptions := s.Type == "aws" || s.Type == "oauth2" || s.Type == "exec"
 	for _, f := range fields[1:] {
 		// exec keeps its command words positional even when they contain '='.
-		if k, v, ok := strings.Cut(f, "="); ok && (s.Type != "exec" || isExecOption(k)) && isIdent(k) {
+		if k, v, ok := strings.Cut(f, "="); ok && takesOptions && (s.Type != "exec" || isExecOption(k)) && isIdent(k) {
 			s.Options[k] = v
 			continue
 		}

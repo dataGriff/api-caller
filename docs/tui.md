@@ -77,8 +77,9 @@ is the fastest way to see why a check failed, plus everything the request
 captured.
 
 **Session** lists the values captured for the current environment, the same
-ones `apic session` prints and the same ones later runs will use. <kbd>x</kbd>
-clears them after a confirmation.
+ones `apic session` prints and the same ones later runs will use, and the
+cookies in the jar when `cookies: true` is set. <kbd>x</kbd> clears them
+after a confirmation.
 
 The status bar carries the project root, the environment, a spinner with
 progress and a running clock while a request is out, and the result of the

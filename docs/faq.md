@@ -128,6 +128,6 @@ uses them still parses (pass prompted values with `--var`).
 
 ## What is not supported?
 
-No scripting, no cookie jar, no client certificates, no GraphQL or gRPC
-tooling beyond plain HTTP, and no HTML report. The honest full list is in
+No scripting, no browser-based OAuth2 flows, no GraphQL or gRPC tooling
+beyond plain HTTP, and no HTML report. The honest full list is in
 [the comparison](comparison.md#what-apic-does-not-do).

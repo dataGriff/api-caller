@@ -125,6 +125,7 @@ The "response" is always the last request sent in the scenario.
 | `Then the response is successful` | 2xx. Also `a client error` (4xx), `a server error` (5xx). |
 | `Then the response body "$.items[0].id" is "7"` | Compare a JSON value. Operators: `is`, `equals`, `is not`, `contains`, `starts with`, `ends with`, `matches` (regular expression). Numbers compare numerically. |
 | `Then the response header "content-type" contains "json"` | Same operators on a header (case-insensitive name). |
+| `Then the response cookie "sid" exists` / `is "..."` | A cookie the response set (`Set-Cookie`); same operators, plus `exists` and `does not exist`. With the [cookie jar](format.md#cookies) on, each scenario has its own jar; `--use-session` shares the stored one. |
 | `Then the response body "$.error" exists` / `does not exist` | Presence. |
 | `Then the response body is:` + doc string | Semantic JSON equality: key order and whitespace do not matter, extra keys fail. |
 | `Then the response body contains:` + doc string | JSON subset: every key in the doc string must be present and equal; arrays must match in length and order; extra keys in the response are fine. |

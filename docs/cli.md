@@ -18,9 +18,12 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--var name=value` | Override a variable. Repeatable. Highest precedence. |
 | `--json` | Machine-readable output. See each command for the shape. |
 | `--no-color` | Disable colour. |
-| `--no-session` | Do not read or write `.apic/session.json`. |
+| `--no-session` | Do not read or write `.apic/session.json`; with cookies on, the jar stays in memory for the one command. |
+| `--cookies` | Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in `.apic/cookies.json`. Same as `cookies: true` in `apic.yaml`. See [format.md](format.md#cookies). |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
-| `--insecure` | Skip TLS certificate verification. |
+| `--insecure` | Skip TLS certificate verification. Reported as `tls.insecure` in `--json` and by `describe`. |
+| `--cacert <pem>` | Trust the certificates in this PEM file in addition to the system roots, for an API behind a private CA. |
+| `--cert <pem>`, `--key <pem>` | Present a client certificate (mTLS); the key defaults to the `--cert` file. These override `tls:` in `apic.yaml` and the env files' `SSLConfiguration`. See [auth.md](auth.md#tls-and-client-certificates). |
 | `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
 
 ## Exit codes
@@ -121,6 +124,7 @@ apic run get-user --body-only | jq .email
 
 - `request.auth` names the auth type applied, when any; credentials apic adds are never included.
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
+- `request.body` of a [multipart upload](format.md#multipart-uploads) is the summary `<multipart: 2 parts, 1 file>` rather than the assembled bytes.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string. Under `--redact` it is the string `"***"`.
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
@@ -295,10 +299,15 @@ apic session clear [--all]
 (in clear text, since this is the one place you may need to see them).
 Tokens cached by `# @auth oauth2` and `# @auth exec ttl=` appear as
 `$oauth2:<hash>` and `$exec:<hash>` entries with their remaining lifetime.
-`clear` forgets the current environment's values, or every environment with
-`--all`.
+Cookies kept by the [cookie jar](format.md#cookies) are listed under the
+same environment with their name, scope and expiry, values masked.
+`clear` forgets the current environment's values and cookies, or every
+environment's with `--all`.
 
-`--json` on `session` prints the raw map `{"<env>": {"<name>": "<value>"}}`.
+`--json` on `session` prints the raw map `{"<env>": {"<name>": "<value>"}}`;
+cookies are not in it. `session cookies` lists the jar on its own, and with
+`--json` prints `{"<env>": [{"name", "domain", "path", "expires", "secure",
+"http_only"}]}`, never the values.
 
 ## apic curl
 
@@ -395,7 +404,8 @@ Codes:
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
-| `missing-body-file` | A `< file` body whose file does not exist. |
+| `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
+| `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
 
 In a GitHub Actions workflow:
 
@@ -407,9 +417,12 @@ In a GitHub Actions workflow:
 
 ```
 apic import <openapi.yaml|openapi.json> [-o <dir>] [--env-name <name>] [--force]
+apic import <collection.postman.json> [-o <dir>] [--postman-env <file>]... [--force]
+apic import --curl '<command>' [--into <file.http>] [--name <name>]
 ```
 
-Scaffolds `.http` files from an OpenAPI 3 document:
+The format is detected from the file. From an OpenAPI 3 document it
+scaffolds `.http` files:
 
 - one file per tag (`pets.http`), operations without tags go to `api.http`;
 - one request per operation named from `operationId` in kebab-case, else
@@ -429,13 +442,71 @@ schemas; references to other files are not. Path-level parameters are
 merged into each operation. Swagger 2.0 documents are rejected with a
 message. Existing files are kept unless `--force` is given.
 
+From a Postman collection (v2.1, or v2.0 where the shapes coincide; v1
+exports are refused with a message):
+
+- folders become files (`todos.http`; nested folders join with `-`,
+  `todos-archive.http`), requests outside any folder go to a file named
+  after the collection;
+- each request becomes a named request (kebab-case of its name,
+  de-duplicated with a numeric suffix) with its description;
+- URL, method, headers and query map as written: Postman's `{{var}}` is
+  apic's, `:id` path variables become `{{id}}` with their value as a file
+  variable, `{{$guid}}` becomes `{{$uuid}}`, disabled headers and query
+  parameters become comments;
+- bodies: raw (with a `Content-Type` from the language when no header sets
+  one), urlencoded, form-data (as a [multipart body](format.md#multipart-uploads),
+  file parts pointing at a file of the same name beside the `.http` file),
+  a whole-body file, and GraphQL as a JSON `{"query", "variables"}` POST;
+- auth: bearer, basic, awsv4 and oauth2 (client credentials and password
+  grants) become `# @auth`; an API key becomes the header or query value;
+  the collection's own auth becomes `auth.default` in `apic.yaml`; a request
+  with "no auth" under it gets `# @auth none`; digest, NTLM, Hawk and the
+  browser OAuth2 flows are reported;
+- variables: the collection's become `$shared` in `http-client.env.json`,
+  and each `--postman-env` file becomes an environment named after it,
+  its `secret` values going to `http-client.private.env.json` (written
+  `0600`); the first environment becomes `env:` in `apic.yaml`;
+- `pm.test` scripts: `pm.response.to.have.status(200)`,
+  `pm.expect(jsonData.x).to.eql(...)` (also `include`, `exist`, `be.true`),
+  header equality and `include`, `pm.response.to.have.header(...)`,
+  `responseTime` bounds and `pm.expect(pm.response.text()).to.include(...)`
+  become `# @assert`; `pm.environment.set("token", jsonData.token)` (and
+  the `collectionVariables`, `globals` and header forms) become
+  `# @capture`. Every other line, pre-request scripts included, is listed
+  under `unsupported` with the request and a reason, and printed as a
+  `note` line.
+
+From a curl command (`--curl`, the reverse of `apic curl`): one `###`
+block with `# @name` (from `--name`, else the method and path, so
+`POST /todos` becomes `post-todos`), `# @assert status == 200`, the
+headers, and the body. It reads `-X`, `-H`, `-d`/`--data`/`--data-raw`/
+`--data-binary`/`--data-urlencode` (`@file` becomes `< ./file`), `-F` and
+`--form-string` (a multipart body), `-u` (`# @auth basic`), `--url`,
+`-G`, `-I`, `-b` (a `Cookie` header), `-A`, `-e`, `-k` (a comment: run
+with `--insecure`), `-L` and `--compressed`, in both quote styles, with
+`$'…'` escapes and backslash line continuations. Flags about curl's own
+output or transport are ignored with a note; an unknown flag is a note,
+not an error. When the project's environment has a `baseUrl` that prefixes
+the URL, the host becomes `{{baseUrl}}`. Without `--into` the block is
+printed; with it the block is appended to that file, relative to the
+project root, created if needed, with a numeric suffix on a name the file
+already has. `--curl -` reads the command from stdin.
+
 | Flag | Meaning |
 |---|---|
 | `-o, --out <dir>` | Output directory. Default `.`. |
-| `--env-name <name>` | Environment name in the generated env file. Default `dev`. |
+| `--env-name <name>` | Environment name in the generated env file (OpenAPI). Default `dev`. |
+| `--postman-env <file>` | A Postman environment export to import as an environment. Repeatable. |
 | `--force` | Overwrite existing files. |
+| `--curl <command>` | A curl command to turn into a request block; `-` reads stdin. |
+| `--into <file.http>` | Append the block to this file instead of printing it. |
+| `--name <name>` | The request's `# @name`. |
 
-`--json` prints `{"files": [...], "requests": N, "base_url": "...", "env_file": "...", "skipped": [...]}`.
+`--json` prints `{"files": [...], "requests": N, "base_url": "...", "env_file": "...", "skipped": [...]}`;
+for a collection it adds `private_env_file` and
+`unsupported: [{"request", "what", "reason"}]`. For `--curl` it prints
+`{"file", "name", "request", "warnings": [...]}`.
 
 ## apic mcp
 
@@ -540,6 +611,13 @@ dir: requests   # subdirectory to scan for .http files
 timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
+cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
+tls:                    # a private CA and a client certificate; see auth.md
+  caFile: certs/internal-ca.pem
+  certFile: certs/client.pem
+  keyFile: certs/client-key.pem
+  hosts:
+    api.internal.example.com: {certFile: certs/internal.pem, keyFile: certs/internal-key.pem}
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
   allowExec: false                # permit # @auth exec
@@ -575,3 +653,4 @@ and the URL above.
 | `http-client.private.env.json` | Secret per-environment variables. Gitignore it. |
 | `.env` | `KEY=value` lines; lowest precedence after file `@vars`. |
 | `.apic/session.json` | Captured values per environment. Written by `run`, cleared by `session clear`. `.apic/.gitignore` is created alongside so it is never committed. |
+| `.apic/cookies.json` | The cookie jar per environment, when cookies are on. Written `0600` by `run`, cleared by `session clear`, listed by `session cookies`. |

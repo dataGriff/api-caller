@@ -18,6 +18,14 @@ Content-Type: application/json
 {"user": "{{user}}", "password": "{{password}}"}
 ```
 
+## Bodies
+
+| Body | Syntax |
+|---|---|
+| Inline | Everything after the blank line, `{{vars}}` substituted |
+| From a file | `< ./payload.json` as it is, `<@ ./payload.json` with `{{vars}}` substituted |
+| Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
+
 ## Commands
 
 | Command | What it does |
@@ -31,7 +39,8 @@ Content-Type: application/json
 | `apic session [clear]` | Captured values; `clear --all` for every environment |
 | `apic curl <id>` | The equivalent curl command |
 | `apic init [dir]` | Scaffold a project |
-| `apic import <spec>` | `.http` files from an OpenAPI 3 document |
+| `apic import <spec>` | `.http` files from an OpenAPI 3 document or a Postman collection (`--postman-env` for its environments) |
+| `apic import --curl '<cmd>' --into f.http` | One request block from a curl command |
 | `apic validate` | Parse everything and report problems (CI); `--format github\|sarif` |
 | `apic mcp` | Serve the project to agents over MCP |
 | `apic demo` | Scaffold and serve the bundled fake API |
@@ -40,7 +49,8 @@ Content-Type: application/json
 `users.http#get-user` · `users.http#3` (third request).
 
 **Global flags:** `-C/--dir`, `-e/--env`, `--var k=v`, `--json`,
-`--no-color`, `--timeout`, `--no-session`, `--insecure`, `--redact`.
+`--no-color`, `--timeout`, `--no-session`, `--insecure`, `--cacert`,
+`--cert`, `--key`, `--redact`, `--cookies`.
 
 **Exit codes:** `0` ok · `1` assertion or capture failed · `2` usage, parse
 error, unknown request or missing variable · `3` network error.
@@ -61,6 +71,7 @@ Written as comments before the request line, so editors ignore them.
 | `# @forceRef login` | Run `login` first every time |
 | `# @no-redirect` | Do not follow 3xx |
 | `# @no-session` | Do not persist this request's captures |
+| `# @no-cookies` | Send and keep no cookies for this request |
 | `# @timeout 10s` | Per-request timeout |
 | `# @retry 10 2s` | Re-send until the assertions pass, up to 10 times, 2s apart |
 | `# @note text` | Free text, ignored (REST Client compatibility) |
@@ -103,6 +114,7 @@ First match wins:
 | `status` | status code |
 | `statusText` | e.g. `OK` |
 | `header.<name>` | first value of a response header |
+| `cookie.<name>` | value of a cookie the response set |
 | `body` | raw body |
 | `body.$` | whole JSON body |
 | `body.$.<path>` | `body.$.items[0].id`, `body.$.items.#` (count), `body.$["key.with.dots"]` |
@@ -140,6 +152,7 @@ And the response status is not 500
 And the response is successful          # or a client error, a server error
 And the response body "$.name" is "alice"
 And the response header "content-type" contains "json"
+And the response cookie "sid" exists
 And the response body "$.id" exists
 And the response body is:
   """
@@ -156,7 +169,7 @@ everything available in the current project.
 
 ```
 api/
-  apic.yaml                      env, dir, timeout, auth.default, auth.allowExec, test.paths
+  apic.yaml                      env, dir, timeout, retry, cookies, tls, auth.default, auth.allowExec, test.paths
   features/*.feature             Gherkin specs run by `apic test`
   http-client.env.json           public per-environment variables
   http-client.private.env.json   secrets (gitignored)
@@ -164,6 +177,7 @@ api/
   auth.http
   users.http
   .apic/session.json             captured values (created by apic, self-ignored)
+  .apic/cookies.json             the cookie jar, when cookies: true
 ```
 
 ## Terminal UI keys

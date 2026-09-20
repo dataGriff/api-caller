@@ -259,7 +259,40 @@ GET {{baseUrl}}/jobs/{{jobId}}
 for i in $(seq 1 30); do apic run job-status && break; sleep 2; done
 ```
 
-## Send a file as the body
+## Upload a file
+
+A multipart form, the way the editors write it: the boundary in the header,
+each part between delimiter lines, and a file part whose content is a
+`< file` reference. apic sends the file's bytes, not the text.
+
+```http
+### Upload a report with a title
+# @name upload-report
+# @assert status == 201
+# @assert body.$.files[0].filename == report.pdf
+POST {{baseUrl}}/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="title"
+
+Quarterly report for {{user}}
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="report.pdf"
+Content-Type: application/pdf
+
+< ./report.pdf
+--WebAppBoundary--
+```
+
+Text parts are templates, so `{{user}}` resolves as anywhere else. `apic
+curl upload-report` prints the same upload as `--form-string` and
+`-F file=@report.pdf` options, and `apic validate` fails when the part file
+is missing. The demo API's `POST /upload` echoes the parts back, so
+`apic demo` gives you something to try this against.
+
+When the whole body is a file rather than a form, the reference stands
+alone:
 
 ```http
 ### Upload a payload written by something else
@@ -393,6 +426,41 @@ tasks:
 
 Keep `dir:` on every apic task so they share one session. More patterns in
 [the Taskfile guide](taskfile.md).
+
+## Start from a curl command
+
+Every API's docs have a curl example; paste it and get a named request:
+
+```sh
+apic import --curl 'curl -X POST https://api.example.com/todos \
+  -H "Content-Type: application/json" \
+  -d "{\"title\": \"x\"}"' --into todos.http --name create-todo
+```
+
+The host becomes `{{baseUrl}}` when the environment has one, `-u` becomes
+`# @auth basic`, `-F` becomes a multipart body, and anything apic cannot
+carry (`-o`, `--retry`, an unknown flag) is a note on stderr rather than a
+failure. On a Mac, `pbpaste | apic import --curl - --into todos.http`
+takes the command straight from the clipboard.
+
+## Migrate a Postman collection
+
+```sh
+apic import My-API.postman_collection.json -o api --postman-env staging.postman_environment.json
+apic validate -C api
+apic list -C api
+```
+
+Folders become files, requests keep their names in kebab-case, the
+collection's variables land in `$shared` and each environment export
+becomes an environment, secrets in the private file. Bearer, basic, AWS
+and OAuth2 client-credentials auth become `# @auth` lines, an API key
+becomes its header, and the simple `pm.test` checks (`to.have.status`,
+`pm.expect(jsonData.x).to.eql(...)`, header checks) become `# @assert`
+lines, with `pm.environment.set("token", jsonData.token)` becoming
+`# @capture`. What has no equivalent, pre-request scripts and the rest of
+the test scripts, is printed as `note` lines so nothing is lost silently;
+the [comparison](comparison.md#against-postman) says what to do instead.
 
 ## Start from an OpenAPI document
 

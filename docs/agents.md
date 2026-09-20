@@ -99,7 +99,7 @@ Tools exposed:
 | `run_request {name, env?, vars?}` | send one request; returns the same JSON as `apic run --json` |
 | `run_file {file, env?, vars?, keep_going?}` | run a file as a flow |
 | `list_environments {env?}` | environments and effective variables (secrets masked) |
-| `clear_session {env?, all?}` | forget captured values |
+| `clear_session {env?, all?}` | forget captured values and cookies |
 | `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
 
 Each `.http` file is also exposed as a resource so the agent can read the

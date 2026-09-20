@@ -35,6 +35,10 @@ type globals struct {
 	noSess   bool
 	insecure bool
 	redact   bool
+	cookies  bool
+	cacert   string
+	cert     string
+	key      string
 }
 
 // App holds the command tree and IO streams (swappable for tests).
@@ -79,6 +83,10 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	pf.DurationVar(&a.g.timeout, "timeout", 0, "request timeout (default 30s or apic.yaml)")
 	pf.BoolVar(&a.g.noSess, "no-session", false, "do not read or write captured values in .apic/session.json")
 	pf.BoolVar(&a.g.insecure, "insecure", false, "skip TLS certificate verification")
+	pf.StringVar(&a.g.cacert, "cacert", "", "PEM file with certificates to trust in addition to the system roots")
+	pf.StringVar(&a.g.cert, "cert", "", "PEM client certificate to present (mTLS)")
+	pf.StringVar(&a.g.key, "key", "", "PEM private key for --cert (default: the --cert file)")
+	pf.BoolVar(&a.g.cookies, "cookies", false, "keep a cookie jar per environment in .apic/cookies.json (or set cookies: true in apic.yaml)")
 	pf.BoolVar(&a.g.redact, "redact", false, "mask all request headers, bodies, query values and captures in output (for CI logs)")
 	root.SetOut(a.Stdout)
 	root.SetErr(a.Stderr)
@@ -143,7 +151,7 @@ func (a *App) newRunner() (*runner.Runner, error) {
 		return nil, err
 	}
 	runner.Version = Version
-	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact})
+	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key})
 }
 
 func (a *App) versionCmd() *cobra.Command {

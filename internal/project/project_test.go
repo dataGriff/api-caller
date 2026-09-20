@@ -38,7 +38,7 @@ GET https://example.com
 // check, since editors and the github/sarif formats key on them.
 func TestValidateSpansAndCodes(t *testing.T) {
 	dir := t.TempDir()
-	src := "### a\n# @name dup\n# @step I run {x}\n# @auth bogus\n# @capture v = nope.$\nGET https://example.com\n\n### b\n# @name dup\n# @assert status =\nPOST https://example.com\n\n< ./missing.json\n\n### c\n# @name c\n# @ref nope\n# @ref d\nGET https://example.com\n\n### d\n# @name d\n# @ref c\n# @retry soon\nGET https://example.com\n\n### e\n# @name e\n# @ref e\nGET https://example.com\n"
+	src := "### a\n# @name dup\n# @step I run {x}\n# @auth bogus\n# @capture v = nope.$\nGET https://example.com\n\n### b\n# @name dup\n# @assert status =\nPOST https://example.com\n\n< ./missing.json\n\n### c\n# @name c\n# @ref nope\n# @ref d\nGET https://example.com\n\n### d\n# @name d\n# @ref c\n# @retry soon\nGET https://example.com\n\n### e\n# @name e\n# @ref e\nGET https://example.com\n\n### f\n# @name f\nPOST https://example.com\nContent-Type: multipart/form-data; boundary=b\n\n--b\nContent-Disposition: form-data; name=\"f\"; filename=\"x\"\n\n< ./nope.bin\n--b--\n\n### g\n# @name g\nPOST https://example.com\nContent-Type: multipart/form-data\n\n--b\n--b--\n"
 	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,8 @@ func TestValidateSpansAndCodes(t *testing.T) {
 		"bad-auth":          {{4, 9, 14}},
 		"unknown-selector":  {{5, 16, 22}},
 		"bad-assert":        {{10, 11, 19}},
-		"missing-body-file": {{13, 3, 17}},
+		"missing-body-file": {{13, 3, 17}, {40, 3, 13}},
+		"bad-multipart":     {{48, 0, 0}},
 		"bad-ref":           {{17, 8, 12}},
 		"ref-cycle":         {{18, 8, 9}, {23, 8, 9}, {29, 8, 9}},
 		"bad-retry":         {{24, 10, 14}},

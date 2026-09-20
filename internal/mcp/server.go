@@ -19,6 +19,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
+	"github.com/dataGriff/api-caller/internal/session"
 )
 
 // Config controls the server.
@@ -276,6 +277,14 @@ func (s *service) clearSession(_ context.Context, _ *sdk.CallToolRequest, in cle
 	}
 	r.Session.Clear(target)
 	if err := r.Session.Save(); err != nil {
+		return toolError(err)
+	}
+	jar, err := session.OpenJar(r.Project.Root)
+	if err != nil {
+		return toolError(err)
+	}
+	jar.Clear(target)
+	if err := jar.Save(); err != nil {
 		return toolError(err)
 	}
 	return structured(map[string]any{"cleared": target})

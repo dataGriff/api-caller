@@ -6,7 +6,7 @@
   "patterns": [
     {
       "name": "meta.directive.apic",
-      "match": "^\\s*((?:#|//)\\s*)(@(?:name|description|capture|assert|auth|step|ref|forceRef|no-redirect|no-session|timeout|retry|note|prompt))\\b(.*)$",
+      "match": "^\\s*((?:#|//)\\s*)(@(?:name|description|capture|assert|auth|step|ref|forceRef|no-redirect|no-session|no-cookies|timeout|retry|note|prompt))\\b(.*)$",
       "captures": {
         "1": { "name": "punctuation.definition.comment.apic" },
         "2": { "name": "keyword.control.directive.apic" },

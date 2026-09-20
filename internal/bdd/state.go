@@ -33,7 +33,11 @@ type Config struct {
 	Timeout    time.Duration
 	Insecure   bool
 	Redact     bool
+	Cookies    bool // keep a cookie jar (in memory per scenario, shared on disk under UseSession)
 	Stderr     io.Writer
+	CACert     string // --cacert, --cert and --key
+	Cert       string
+	Key        string
 
 	usageErr      error           // first usage error raised by a step (unknown environment, request or variable)
 	transportErr  error           // first transport error raised by a step
@@ -237,21 +241,30 @@ type scenario struct {
 type ctxKey struct{}
 
 func (c *Config) newScenario(env string) (*scenario, error) {
-	return c.scenarioWith(env, nil)
+	return c.scenarioWith(env, nil, nil)
 }
 
-// scenarioWith builds a scenario for env, reusing store (the previous
-// scenario's session) when switching environments mid-scenario.
-func (c *Config) scenarioWith(env string, store *session.Store) (*scenario, error) {
+// scenarioWith builds a scenario for env, reusing store and jar (the
+// previous scenario's session and cookies) when switching environments
+// mid-scenario.
+func (c *Config) scenarioWith(env string, store *session.Store, jar *session.Jar) (*scenario, error) {
 	vars := map[string]string{}
 	for k, v := range c.Vars {
 		vars[k] = v
 	}
-	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact}
+	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact, Cookies: c.Cookies,
+		CACert: c.CACert, Cert: c.Cert, Key: c.Key}
 	if store != nil {
 		opts.Session = store
 	} else if !c.UseSession {
 		opts.Session = session.NewMemory()
+	}
+	// Each scenario gets its own jar, like its own session; --use-session
+	// shares .apic/cookies.json instead.
+	if jar != nil {
+		opts.CookieJar = jar
+	} else if !c.UseSession {
+		opts.CookieJar = session.NewMemoryJar()
 	}
 	r, err := runner.New(c.Project, opts)
 	if err != nil {

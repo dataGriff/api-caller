@@ -66,6 +66,7 @@ type Request struct {
 	HTTPVersion       string
 	Headers           []Header
 	Body              string // raw template, empty when none
+	BodyLine          int    // line of the first body line, 0 when there is no body
 	BodyFile          string // set when the body is `< ./file`
 	BodyFileTemplated bool   // `<@ ./file`: substitute {{vars}} inside the file too
 	BodyFileLine      int    // line of the `< ./file` reference, for diagnostics

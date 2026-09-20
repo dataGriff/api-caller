@@ -9,7 +9,7 @@ import (
 func TestSelect(t *testing.T) {
 	resp := &Response{
 		Status: 201, StatusText: "Created",
-		Headers:  http.Header{"Content-Type": {"application/json; charset=utf-8"}},
+		Headers:  http.Header{"Content-Type": {"application/json; charset=utf-8"}, "Set-Cookie": {"sid=s-1; Path=/; HttpOnly", "theme=dark"}},
 		Body:     []byte(`{"id": 7, "name": "x", "items": [{"id": "a"}, {"id": "b"}], "nested": {"k.y": true}}`),
 		Duration: 1500 * time.Millisecond,
 	}
@@ -24,6 +24,11 @@ func TestSelect(t *testing.T) {
 		{"header.content-type", "application/json; charset=utf-8", true, false},
 		{"headers.Content-Type", "application/json; charset=utf-8", true, false},
 		{"header.x-missing", "", false, false},
+		{"cookie.sid", "s-1", true, false},
+		{"cookie.theme", "dark", true, false},
+		{"cookie.SID", "", false, false},
+		{"cookie.nope", "", false, false},
+		{"cookie.", "", false, true},
 		{"body.$.id", "7", true, false},
 		{"body.$.name", "x", true, false},
 		{"body.$.items[1].id", "b", true, false},

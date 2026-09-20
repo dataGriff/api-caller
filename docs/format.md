@@ -41,6 +41,7 @@ Accept: application/json
 | Headers | `Name: value` lines until the first blank line. Any RFC 7230 token character may appear in a name, except that a line starting with `#` is a comment |
 | Body | everything after the blank line until the next `###` |
 | Body from file | `< ./payload.json` (raw) or `<@ ./payload.json` (with `{{vars}}` substituted), relative to the `.http` file |
+| Multipart body | `Content-Type: multipart/form-data; boundary=X` with the parts written between `--X` lines; a part whose content is `< ./file` sends that file's bytes. See [Multipart uploads](#multipart-uploads) |
 | Editor script blocks | `> {% … %}`, `< {% … %}` and `> ./handler.js` are skipped with a warning, not sent — apic has no scripting. `apic validate` lists them |
 
 Files are found by walking the project root for `*.http` and `*.rest`,
@@ -60,6 +61,7 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @forceRef login` | Run `login` first every time this request runs. Repeatable. |
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
+| `# @no-cookies` | Send no cookies with this request and keep none it sets, when the [cookie jar](#cookies) is on. |
 | `# @timeout 10s` | Per-request timeout. |
 | `# @retry 10 2s` | Re-send until every assertion passes, up to 10 times, 2s apart (default 1s). See [Retries](#retries). |
 | `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
@@ -95,7 +97,9 @@ Unknown directives are reported as warnings by `apic validate` and ignored.
 Select with `--env dev`, or set a default in `apic.yaml` (`env: dev`).
 Keep secrets in `http-client.private.env.json` and gitignore it; apic masks
 values from that file, from `.env` and from the session in `describe`, `env`
-and MCP output.
+and MCP output. A JetBrains `SSLConfiguration` entry in either file is not
+a variable: it configures a client certificate, see
+[auth.md](auth.md#tls-and-client-certificates).
 
 ### Built-ins
 
@@ -130,6 +134,7 @@ Used by `@capture` and `@assert`:
 | `status` | status code, e.g. `200` |
 | `statusText` | e.g. `OK` |
 | `header.<name>` | first value of a response header, case-insensitive |
+| `cookie.<name>` | value of a cookie the response set (`Set-Cookie`), whether or not the jar is on |
 | `body` | raw body |
 | `body.$` | whole body (must be JSON) |
 | `body.$.<path>` | JSON path such as `body.$.items[0].id`, `body.$.items.#` (count), `body.$["key with dots"]` |
@@ -217,6 +222,79 @@ attempt only, and every attempt gets the full `# @timeout`.
 `# @retry`, `--retry "<attempts> [interval]"` overrides that for one run,
 and `--no-retry` sends everything once. The order is directive, flag, file.
 `apic validate` reports a policy it cannot read as `bad-retry`.
+
+## Cookies
+
+apic sends no cookies unless a jar is switched on, with `cookies: true` in
+`apic.yaml` or `--cookies` on the command line. With it on, a cookie a
+response sets is sent with later requests to the same site, in the same
+run and in later ones: the jar is stored per environment in
+`.apic/cookies.json`, beside the session, so a login that answers with a
+session cookie works like one that answers with a token.
+
+```http
+### Log in with a form
+# @name login
+# @assert status == 204
+# @assert cookie.sid exists
+POST {{baseUrl}}/login
+Content-Type: application/x-www-form-urlencoded
+
+user={{user}}&password={{password}}
+
+### The cookie goes out by itself
+# @name me
+# @assert status == 200
+GET {{baseUrl}}/me
+```
+
+Which cookies go where follows Go's `net/http/cookiejar`: domain, path,
+`Secure` and expiry are honoured; there is no public-suffix list, so a
+cookie set for `example.com` is sent to every host under it. A cookie
+without an expiry is kept until `apic session clear`, like a captured
+value. `# @no-cookies` exempts one request, `--no-session` keeps the jar in
+memory for one command, and `apic test` gives every scenario its own empty
+jar unless `--use-session` shares the stored one. `Cookie` and `Set-Cookie`
+headers are masked in output whether or not `--redact` is set.
+
+## Multipart uploads
+
+A `multipart/form-data` body is written the way REST Client and JetBrains
+write it, with the boundary declared in the header and each part between
+delimiter lines:
+
+```http
+### Upload a report
+# @name upload-report
+# @assert status == 201
+POST {{baseUrl}}/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="title"
+
+Quarterly report for {{user}}
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="report.pdf"
+Content-Type: application/pdf
+
+< ./report.pdf
+--WebAppBoundary--
+```
+
+apic reads the parts and assembles the body itself, so a part whose only
+content is `< ./report.pdf` sends the file's bytes (binary-safe, with
+`Content-Length` set), not the reference as text. `<@ ./file` substitutes
+`{{variables}}` inside the file first, and text parts and part headers are
+templates like the rest of the request. Paths are relative to the `.http`
+file and confined to the project root, like a whole-body `< file`.
+
+`apic validate` reports a body under a `multipart/form-data` content type
+that has no boundary, or whose parts are not laid out between the
+delimiters (`bad-multipart`), and a part file that does not exist
+(`missing-body-file`). In output the body is shown as
+`<multipart: 2 parts, 1 file>` rather than its bytes; `apic curl` turns the
+parts into `--form-string` and `-F name=@file` options.
 
 ## Project layout
 

@@ -30,15 +30,15 @@ var Builtin = []BuiltinStep{
 	{"status-not", `^the response status is not (\d+)$`, []string{"the response status is not {#}"}},
 	{"status-class", `^the response is (successful|a client error|a server error)$`,
 		[]string{"the response is successful", "the response is a client error", "the response is a server error"}},
-	{"compare", `^the response (body|header) "([^"]*)" (is not|is|equals|contains|starts with|ends with|matches) "([^"]*)"$`,
-		expand(`the response {where} "{sel}" {op} "{v}"`, map[string][]string{"{where}": {"body", "header"}, "{op}": {"is not", "is", "equals", "contains", "starts with", "ends with", "matches"}})},
-	{"exists", `^the response (body|header) "([^"]*)" (exists|does not exist)$`,
-		expand(`the response {where} "{sel}" {op}`, map[string][]string{"{where}": {"body", "header"}, "{op}": {"exists", "does not exist"}})},
+	{"compare", `^the response (body|header|cookie) "([^"]*)" (is not|is|equals|contains|starts with|ends with|matches) "([^"]*)"$`,
+		expand(`the response {where} "{sel}" {op} "{v}"`, map[string][]string{"{where}": {"body", "header", "cookie"}, "{op}": {"is not", "is", "equals", "contains", "starts with", "ends with", "matches"}})},
+	{"exists", `^the response (body|header|cookie) "([^"]*)" (exists|does not exist)$`,
+		expand(`the response {where} "{sel}" {op}`, map[string][]string{"{where}": {"body", "header", "cookie"}, "{op}": {"exists", "does not exist"}})},
 	{"body-equals", `^the response body is:$`, []string{"the response body is:"}},
 	{"body-contains", `^the response body contains:$`, []string{"the response body contains:"}},
 	{"duration", `^the response time is under (\d+) ?ms$`, []string{"the response time is under {#} ms", "the response time is under {#ms}"}},
-	{"capture", `^I capture the response (body|header) "([^"]*)" as "([^"]+)"$`,
-		expand(`I capture the response {where} "{sel}" as "{name}"`, map[string][]string{"{where}": {"body", "header"}})},
+	{"capture", `^I capture the response (body|header|cookie) "([^"]*)" as "([^"]+)"$`,
+		expand(`I capture the response {where} "{sel}" as "{name}"`, map[string][]string{"{where}": {"body", "header", "cookie"}})},
 }
 
 // expand substitutes every combination of the given alternations into a shape.

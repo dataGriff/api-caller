@@ -110,8 +110,8 @@ func envSource(file, env string) string {
 }
 
 // resolveExpr resolves any `{{expr}}` for a request.
-func (r *Runner) resolveExpr(req *httpfile.Request, expr string, depth int) (string, bool, error) {
-	val, ok, _, err := r.resolveExprMeta(req, expr, depth)
+func (r *Runner) resolveExpr(req *httpfile.Request, expr string) (string, bool, error) {
+	val, ok, _, err := r.resolveExprMeta(req, expr, 0)
 	return val, ok, err
 }
 

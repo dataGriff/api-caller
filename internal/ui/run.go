@@ -315,6 +315,12 @@ func (m *Model) clearSession() Cmd {
 	if err := m.runner.Session.Save(); err != nil {
 		return m.setStatus("session: " + err.Error())
 	}
+	if m.runner.Jar != nil {
+		m.runner.Jar.Clear(m.env)
+		if err := m.runner.Jar.Save(); err != nil {
+			return m.setStatus("cookies: " + err.Error())
+		}
+	}
 	m.refreshSession()
 	m.refreshDescs()
 	return m.setStatus("session cleared for " + m.envLabel())

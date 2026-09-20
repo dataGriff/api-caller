@@ -12,12 +12,16 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dataGriff/api-caller/internal/assert"
@@ -46,11 +50,22 @@ type Options struct {
 	// apic.yaml's maxBodyBytes, then DefaultMaxBodyBytes.
 	MaxBodyBytes int64
 	Session      *session.Store // use this store instead of opening .apic/session.json (tests use session.NewMemory())
+	// Cookies switches the cookie jar on (--cookies); apic.yaml's `cookies:
+	// true` does the same. CookieJar is the jar to use instead of opening
+	// .apic/cookies.json (tests and `apic test` scenarios pass their own).
+	Cookies   bool
+	CookieJar *session.Jar
 	// Retry is the default retry policy ("<n> [interval]", see ParseRetry)
 	// for requests without `# @retry`; empty means apic.yaml's retry, then
 	// none. NoRetry switches every retry off.
 	Retry   string
 	NoRetry bool
+	// CACert, Cert and Key are the --cacert, --cert and --key flags: a PEM
+	// bundle to trust and a client certificate to present. They override
+	// apic.yaml's tls section and the environment's SSLConfiguration.
+	CACert string
+	Cert   string
+	Key    string
 }
 
 // Progress reports one failed attempt of a request that is being retried,
@@ -67,8 +82,12 @@ type Runner struct {
 	Project *project.Project
 	Envs    *env.Environments
 	Session *session.Store
-	Opts    Options
-	Stderr  io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	// Jar is the cookie jar, nil unless cookies are switched on. It is
+	// in-memory under --no-session and persisted to .apic/cookies.json
+	// otherwise.
+	Jar    *session.Jar
+	Opts   Options
+	Stderr io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
 	// Progress, when set, is called after each failed attempt of a request
 	// that will be retried.
 	Progress func(Progress)
@@ -79,6 +98,8 @@ type Runner struct {
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	results  map[string]*Result
 	captured map[string]string
+	tlsMu    sync.Mutex
+	tlsCache map[string]*tls.Config
 }
 
 // New builds a Runner, loading env files and the session.
@@ -111,6 +132,15 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
+	// Flag paths are the user's own, relative to where they typed them,
+	// which absolute paths tell apart from the project's confined ones.
+	for _, p := range []*string{&opts.CACert, &opts.Cert, &opts.Key} {
+		if *p != "" {
+			if abs, err := filepath.Abs(*p); err == nil {
+				*p = abs
+			}
+		}
+	}
 	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
 	switch {
 	case opts.Session != nil:
@@ -120,24 +150,64 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 			return nil, usagef("session: %v", err)
 		}
 	}
+	if opts.Cookies || p.Config.Cookies {
+		switch {
+		case opts.CookieJar != nil:
+			r.Jar = opts.CookieJar
+		case opts.NoSession:
+			r.Jar = session.NewMemoryJar()
+		default:
+			if r.Jar, err = session.OpenJar(p.Root); err != nil {
+				return nil, usagef("cookies: %v", err)
+			}
+		}
+	}
 	return r, nil
 }
 
 // Resolved is a request with every placeholder substituted.
 type Resolved struct {
-	Name     string            `json:"name,omitempty"`
-	File     string            `json:"file"`
-	Line     int               `json:"line"`
-	Method   string            `json:"method"`
-	URL      string            `json:"url"`
-	Headers  []httpfile.Header `json:"-"`
-	Body     string            `json:"-"`
-	Auth     string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
-	AuthSpec *auth.Spec        `json:"-"`              // rendered spec (contains secrets)
+	Name    string            `json:"name,omitempty"`
+	File    string            `json:"file"`
+	Line    int               `json:"line"`
+	Method  string            `json:"method"`
+	URL     string            `json:"url"`
+	Headers []httpfile.Header `json:"-"`
+	Body    string            `json:"-"`
+	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
+	// TLS is the non-default TLS setup for this request's host: a private
+	// CA, a client certificate or no verification.
+	TLS      *TLSInfo   `json:"tls,omitempty"`
+	AuthSpec *auth.Spec `json:"-"` // rendered spec (contains secrets)
 	// SecretHeaders names headers whose value came from a secret source
 	// (private env file, .env, session or a capture).
 	SecretHeaders map[string]bool `json:"-"`
-	missing       []string
+	// Parts are the parts of a multipart/form-data body, for renderers and
+	// the curl exporter; Body then holds a one-line summary of them.
+	Parts   []FormPart `json:"-"`
+	rawBody []byte     // the assembled multipart body, sent as is
+	missing []string
+}
+
+// FormPart is one part of a resolved multipart/form-data body. Value is
+// the rendered text of a text part; File is the path of a file part,
+// relative to the project root, as `apic curl` needs it.
+type FormPart struct {
+	Name        string
+	Filename    string
+	ContentType string
+	Value       string
+	File        string
+	Size        int
+}
+
+// BodyBytes returns the bytes the request sends: the assembled multipart
+// body when there is one, else the rendered body.
+func (r Resolved) BodyBytes() []byte {
+	if r.rawBody != nil {
+		return r.rawBody
+	}
+	return []byte(r.Body)
 }
 
 // MarshalJSON renders headers as an object (sensitive values masked) and the
@@ -295,7 +365,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res := &Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method}
 	var missing []string
 	render := func(s string) (string, error) {
-		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
+		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 		var me *template.MissingError
 		if errors.As(err, &me) {
 			missing = append(missing, me.Exprs...)
@@ -307,6 +377,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	if res.URL, err = render(strings.TrimSpace(req.URL)); err != nil {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
+	res.TLS = r.tlsInfoForURL(res.URL)
 	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
@@ -322,20 +393,24 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	body := req.Body
 	if req.BodyFile != "" {
-		path, err := r.bodyFilePath(req)
+		data, err := r.readBodyFile(req, req.BodyFile, "body file")
 		if err != nil {
 			return nil, err
-		}
-		// path is resolved and confined to the project root by bodyFilePath.
-		data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
-		if err != nil {
-			return nil, usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
 		}
 		body = string(data)
 		if !req.BodyFileTemplated {
 			res.Body = body
 			body = ""
 		}
+	}
+	if m, err := req.Multipart(); err != nil {
+		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+	} else if m != nil {
+		if res.rawBody, res.Parts, err = r.multipartBody(req, m, render); err != nil {
+			return nil, err
+		}
+		res.Body = fmt.Sprintf("<multipart: %d part%s, %d file%s>", len(m.Parts), plural(len(m.Parts)), m.Files(), plural(m.Files()))
+		body = ""
 	}
 	if body != "" {
 		if res.Body, err = render(body); err != nil {
@@ -410,10 +485,11 @@ func (c sessionCache) Set(key, value string) error {
 	return c.r.Session.Save()
 }
 
-func (r *Runner) authEnv() *auth.Env {
-	tr := cloneDefaultTransport()
-	if r.Opts.Insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
+func (r *Runner) authEnv() (*auth.Env, error) {
+	// Token endpoints get the project-wide settings, not a host override.
+	tr, err := r.transport("")
+	if err != nil {
+		return nil, err
 	}
 	e := &auth.Env{
 		AllowExec: r.Project.Config.Auth.AllowExec,
@@ -423,13 +499,13 @@ func (r *Runner) authEnv() *auth.Env {
 	if r.Session != nil {
 		e.Cache = sessionCache{r}
 	}
-	return e
+	return e, nil
 }
 
 // Render substitutes {{placeholders}} in arbitrary text using the runner's
 // variables (no file-level @vars, since no request is in scope).
 func (r *Runner) Render(s string) (string, error) {
-	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e, 0) })
+	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e) })
 }
 
 // Capture stores a value in the capture layer, below --var and shell
@@ -630,7 +706,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		}
 		expected := expr.Value
 		if expr.Op != "exists" && expr.Op != "not exists" {
-			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
+			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 			if err != nil {
 				var me *template.MissingError
 				if errors.As(err, &me) {
@@ -698,6 +774,12 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			}
 		}
 	}
+	if r.Jar != nil {
+		if err := r.Jar.Save(); err != nil {
+			result.Errors = append(result.Errors, "cookies: "+err.Error())
+			result.OK = false
+		}
+	}
 	return result, nil
 }
 
@@ -710,8 +792,8 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	defer cancel()
 
 	var body io.Reader
-	if resolved.Body != "" {
-		body = strings.NewReader(resolved.Body)
+	if b := resolved.BodyBytes(); len(b) > 0 {
+		body = bytes.NewReader(b)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, resolved.Method, resolved.URL, body)
 	if err != nil {
@@ -727,13 +809,21 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	}
 
 	if resolved.AuthSpec != nil {
-		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, []byte(resolved.Body), r.authEnv()); err != nil {
+		env, err := r.authEnv()
+		if err != nil {
+			return nil, err
+		}
+		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, resolved.BodyBytes(), env); err != nil {
 			return nil, usagef("%s:%d: auth: %v", req.File.Path, req.Line, err)
 		}
 	}
 
+	client, err := r.client(req, httpReq.URL.Host)
+	if err != nil {
+		return nil, err
+	}
 	start := time.Now()
-	httpResp, err := r.client(req).Do(httpReq)
+	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, r.transportError(err)
 	}
@@ -929,6 +1019,7 @@ type Description struct {
 	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
+	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
 	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
 }
 
@@ -1002,7 +1093,20 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	}
 	sort.SliceStable(d.Variables, func(i, j int) bool { return d.Variables[i].Missing && !d.Variables[j].Missing })
 	d.URL = req.URL
+	// Only the host decides the TLS settings, so render the URL alone (as
+	// far as it resolves) rather than the whole request.
+	rendered, _ := template.Render(strings.TrimSpace(req.URL), func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
+	d.TLS = r.tlsInfoForURL(rendered)
 	return d
+}
+
+// tlsInfoForURL reports the non-default TLS setup for a request URL's host.
+func (r *Runner) tlsInfoForURL(rawURL string) *TLSInfo {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return r.tlsFor("").info()
+	}
+	return r.tlsFor(u.Host).info()
 }
 
 // EnvVar lists the effective variables for the current environment, for `apic env`.
@@ -1036,18 +1140,22 @@ func (r *Runner) EnvVars() []VarInfo {
 	return out
 }
 
-func (r *Runner) client(req *httpfile.Request) *http.Client {
-	tr := cloneDefaultTransport()
-	if r.Opts.Insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
+// client builds the HTTP client for one request to host.
+func (r *Runner) client(req *httpfile.Request, host string) (*http.Client, error) {
+	tr, err := r.transport(host)
+	if err != nil {
+		return nil, err
 	}
 	c := &http.Client{Transport: tr}
+	if _, off := req.Directive("no-cookies"); r.Jar != nil && !off {
+		c.Jar = r.Jar.HTTP(r.Opts.Env)
+	}
 	if _, noRedirect := req.Directive("no-redirect"); noRedirect {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		return c
+		return c, nil
 	}
 	c.CheckRedirect = stripSensitiveOnCrossHostRedirect
-	return c
+	return c, nil
 }
 
 // stripSensitiveOnCrossHostRedirect drops apic's own credential headers when a
@@ -1106,32 +1214,132 @@ func jsonOrString(data []byte) any {
 	return string(data)
 }
 
-func (r *Runner) bodyFilePath(req *httpfile.Request) (string, error) {
-	root, err := filepath.EvalSymlinks(r.Project.Root)
+// readBodyFile reads a `< file` the request refers to (the whole body, or
+// one part of a multipart body); what names it in errors.
+func (r *Runner) readBodyFile(req *httpfile.Request, rel, what string) ([]byte, error) {
+	path, err := r.filePath(req, rel, what)
 	if err != nil {
-		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+		return nil, err
 	}
-	path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), req.BodyFile)
-	abs, err := filepath.Abs(path)
+	// path is resolved and confined to the project root by filePath.
+	data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
 	if err != nil {
-		return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+		return nil, usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+	}
+	return data, nil
+}
+
+// multipartBody assembles a multipart/form-data body from its parts: text
+// parts are rendered as templates, `< file` parts read the file (rendered
+// too for `<@`). The result is binary-safe and uses the boundary the file
+// declares, so the Content-Type header written in the file is right.
+func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, render func(string) (string, error)) ([]byte, []FormPart, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if err := w.SetBoundary(m.Boundary); err != nil {
+		return nil, nil, usagef("%s:%d: multipart boundary %q: %v", req.File.Path, req.Line, m.Boundary, err)
+	}
+	parts := make([]FormPart, 0, len(m.Parts))
+	for _, p := range m.Parts {
+		hdr := textproto.MIMEHeader{}
+		fp := FormPart{Name: p.Name, Filename: p.Filename, ContentType: p.ContentType}
+		for _, h := range p.Headers {
+			v, err := render(h.Value)
+			if err != nil {
+				return nil, nil, usagef("%s:%d: part header %s: %v", req.File.Path, p.Line, h.Name, err)
+			}
+			hdr.Add(h.Name, v)
+			switch {
+			case strings.EqualFold(h.Name, "Content-Disposition"):
+				if _, params, err := mime.ParseMediaType(v); err == nil {
+					fp.Name, fp.Filename = params["name"], params["filename"]
+				}
+			case strings.EqualFold(h.Name, "Content-Type"):
+				fp.ContentType = v
+			}
+		}
+		var data []byte
+		if p.File != "" {
+			var err error
+			if data, err = r.readBodyFile(req, p.File, "part file"); err != nil {
+				return nil, nil, err
+			}
+			if p.FileTemplated {
+				s, err := render(string(data))
+				if err != nil {
+					return nil, nil, usagef("%s:%d: part file %s: %v", req.File.Path, p.FileLine, p.File, err)
+				}
+				data = []byte(s)
+			}
+			fp.File = filepath.ToSlash(filepath.Join(filepath.Dir(req.File.Path), p.File))
+		} else {
+			s, err := render(p.Body)
+			if err != nil {
+				return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+			}
+			data, fp.Value = []byte(s), s
+		}
+		fp.Size = len(data)
+		pw, err := w.CreatePart(hdr)
+		if err != nil {
+			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+		}
+		if _, err := pw.Write(data); err != nil {
+			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+		}
+		parts = append(parts, fp)
+	}
+	if err := w.Close(); err != nil {
+		return nil, nil, usagef("%s:%d: multipart body: %v", req.File.Path, req.Line, err)
+	}
+	return buf.Bytes(), parts, nil
+}
+
+// filePath resolves a `< file` reference relative to the request's file and
+// confines it to the project root.
+func (r *Runner) filePath(req *httpfile.Request, rel, what string) (string, error) {
+	real, err := confine(r.Project.Root, filepath.Join(r.Project.Root, filepath.Dir(req.File.Path)), rel)
+	if errors.Is(err, errOutsideRoot) {
+		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
+	}
+	if err != nil {
+		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+	}
+	return real, nil
+}
+
+var errOutsideRoot = errors.New("resolves outside project root")
+
+// confine resolves rel against dir, follows symlinks, and returns the real
+// path if it lies under root, else errOutsideRoot.
+func confine(root, dir, rel string) (string, error) {
+	rootReal, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	joined := rel
+	if !filepath.IsAbs(rel) {
+		joined = filepath.Join(dir, rel)
+	}
+	abs, err := filepath.Abs(joined)
+	if err != nil {
+		return "", err
 	}
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
-			if derr != nil {
-				real = abs
-			} else {
-				real = filepath.Join(dirReal, filepath.Base(abs))
-			}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
+		if derr != nil {
+			real = abs
 		} else {
-			return "", usagef("%s:%d: body file: %v", req.File.Path, req.Line, err)
+			real = filepath.Join(dirReal, filepath.Base(abs))
 		}
 	}
-	rel, err := filepath.Rel(root, real)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", usagef("%s:%d: body file %q resolves outside project root", req.File.Path, req.Line, req.BodyFile)
+	inside, err := filepath.Rel(rootReal, real)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
+		return "", errOutsideRoot
 	}
 	return real, nil
 }

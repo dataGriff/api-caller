@@ -70,7 +70,7 @@ terminal and agents need:
 - **Safe to log.** Sensitive headers are masked in output, on the request and the response; `--redact` masks both bodies, all header values, query values, captures and assertion values for stored CI logs, keeping status, timing and pass/fail.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
-- **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import openapi.yaml` scaffolds files from a spec.
+- **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import` scaffolds files from an OpenAPI spec or a Postman collection.
 
 The same file is clickable in VS Code, JetBrains and Neovim, because apic's
 additions are comments.
@@ -173,6 +173,8 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
+| `apic import <collection.postman.json>` | Folders to files, requests to named requests, variables to env files, simple `pm.test` checks to assertions. |
+| `apic import --curl '<command>'` | One named request from a curl command, appended to a file with `--into`. |
 | `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |

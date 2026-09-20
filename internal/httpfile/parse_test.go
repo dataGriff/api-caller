@@ -13,8 +13,8 @@ func TestParseSample(t *testing.T) {
 	if len(f.Vars) != 2 || f.Vars[0].Name != "baseUrl" || f.Vars[0].Value != "https://api.example.com" {
 		t.Fatalf("vars = %+v", f.Vars)
 	}
-	if len(f.Requests) != 5 {
-		t.Fatalf("want 5 requests, got %d", len(f.Requests))
+	if len(f.Requests) != 6 {
+		t.Fatalf("want 6 requests, got %d", len(f.Requests))
 	}
 
 	login := f.Requests[0]
@@ -106,8 +106,81 @@ func TestParseSample(t *testing.T) {
 	if a := get.Asserts[0]; a.Column != 11 {
 		t.Errorf("assert expr column = %d, want 11", a.Column)
 	}
-	if up.BodyFileLine != 37 || up.BodyFileColumn != 3 {
-		t.Errorf("body file position = %d:%d, want 37:3", up.BodyFileLine, up.BodyFileColumn)
+	if up.BodyFileLine != 37 || up.BodyFileColumn != 3 || up.BodyLine != 37 {
+		t.Errorf("body file position = %d:%d (body line %d), want 37:3", up.BodyFileLine, up.BodyFileColumn, up.BodyLine)
+	}
+	if login.BodyLine != 11 || health.BodyLine != 0 {
+		t.Errorf("body lines = %d, %d, want 11, 0", login.BodyLine, health.BodyLine)
+	}
+
+	// A multipart body is kept verbatim and read into parts on demand: a
+	// text part is a template, a `< file` part reads the file.
+	mp := f.Requests[5]
+	if !mp.IsMultipart() || mp.BodyFile != "" || !strings.HasPrefix(mp.Body, "--WebAppBoundary\n") {
+		t.Fatalf("multipart request = %+v", mp)
+	}
+	m, err := mp.Multipart()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Boundary != "WebAppBoundary" || len(m.Parts) != 2 || m.Files() != 1 {
+		t.Fatalf("multipart = %+v", m)
+	}
+	title, file := m.Parts[0], m.Parts[1]
+	if title.Name != "title" || title.Body != "Quarterly report for {{user}}" || title.File != "" || title.Line != 49 {
+		t.Errorf("title part = %+v", title)
+	}
+	if file.Name != "file" || file.Filename != "report.pdf" || file.ContentType != "application/pdf" || file.File != "./report.pdf" || file.Body != "" {
+		t.Errorf("file part = %+v", file)
+	}
+	if file.FileLine != 57 || file.FileColumn != 3 || file.Line != 53 {
+		t.Errorf("file part position = %d:%d (delimiter %d), want 57:3 (53)", file.FileLine, file.FileColumn, file.Line)
+	}
+	if refs := mp.BodyFiles(); len(refs) != 1 || refs[0] != (FileRef{Path: "./report.pdf", Line: 57, Column: 3}) {
+		t.Errorf("body files = %+v", refs)
+	}
+	if refs := up.BodyFiles(); len(refs) != 1 || refs[0] != (FileRef{Path: "./payload.json", Line: 37, Column: 3}) {
+		t.Errorf("whole-body file = %+v", refs)
+	}
+	if login.IsMultipart() {
+		t.Error("a JSON request is not multipart")
+	}
+	if m, err := login.Multipart(); m != nil || err != nil {
+		t.Errorf("Multipart() on a JSON request = %v, %v", m, err)
+	}
+}
+
+func TestMultipartErrors(t *testing.T) {
+	cases := map[string]string{
+		"no boundary":   "POST http://x\nContent-Type: multipart/form-data\n\n--a\nContent-Disposition: form-data; name=\"a\"\n\n1\n--a--\n",
+		"empty":         "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n",
+		"no delimiter":  "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\nplain text\n",
+		"not closed":    "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n--a\nContent-Disposition: form-data; name=\"a\"\n\n1\n",
+		"bad header":    "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n--a\nnot a header\n\n1\n--a--\n",
+		"no parts":      "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n--a--\n",
+		"stray content": "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n--a\nContent-Disposition: form-data; name=\"a\"\n\n1\n--a\n--b\n--a--\n",
+	}
+	for name, src := range cases {
+		f, _ := Parse("x.http", src)
+		if len(f.Requests) != 1 {
+			t.Fatalf("%s: %d requests", name, len(f.Requests))
+		}
+		if _, err := f.Requests[0].Multipart(); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+	// A whole-body file under a multipart content type is the editors'
+	// other spelling: the file holds the encoded body, so there are no parts.
+	f, _ := Parse("x.http", "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n< ./body.bin\n")
+	if m, err := f.Requests[0].Multipart(); m != nil || err != nil {
+		t.Errorf("whole-body file = %v, %v", m, err)
+	}
+	// Multi-line text content keeps its inner line breaks; the newline
+	// before a delimiter belongs to the delimiter.
+	f, _ = Parse("x.http", "POST http://x\nContent-Type: multipart/form-data; boundary=a\n\n--a\nContent-Disposition: form-data; name=\"a\"\n\nline 1\n\nline 3\n--a--\n")
+	m, err := f.Requests[0].Multipart()
+	if err != nil || len(m.Parts) != 1 || m.Parts[0].Body != "line 1\n\nline 3" {
+		t.Errorf("multi-line part = %+v, %v", m, err)
 	}
 }
 

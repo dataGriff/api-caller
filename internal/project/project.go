@@ -29,11 +29,31 @@ type Config struct {
 	Dir     string `yaml:"dir"`     // directory holding .http files, relative to the project root
 	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
 	Retry   string `yaml:"retry"`   // default retry policy, "<attempts> [interval]", e.g. "10 2s"
+	Cookies bool   `yaml:"cookies"` // keep a cookie jar per environment in .apic/cookies.json
 	// MaxBodyBytes caps how much of a response apic will read into memory.
 	// Zero means the built-in default; see runner.DefaultMaxBodyBytes.
 	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
 	Auth         AuthConfig `yaml:"auth"`
 	Test         TestConfig `yaml:"test"`
+	TLS          TLSConfig  `yaml:"tls"`
+}
+
+// TLSConfig is the `tls:` section of apic.yaml. Paths are relative to the
+// project root and confined to it.
+type TLSConfig struct {
+	CAFile     string             `yaml:"caFile"`     // PEM bundle added to the system roots
+	CertFile   string             `yaml:"certFile"`   // client certificate (PEM)
+	KeyFile    string             `yaml:"keyFile"`    // its private key (PEM); defaults to certFile
+	VerifyHost *bool              `yaml:"verifyHost"` // verify the server certificate; default true
+	Hosts      map[string]TLSHost `yaml:"hosts"`      // per-host overrides, by host name or *.suffix
+}
+
+// TLSHost overrides TLSConfig for one host.
+type TLSHost struct {
+	CAFile     string `yaml:"caFile"`
+	CertFile   string `yaml:"certFile"`
+	KeyFile    string `yaml:"keyFile"`
+	VerifyHost *bool  `yaml:"verifyHost"`
 }
 
 // TestConfig is the `test:` section of apic.yaml.
@@ -338,14 +358,21 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 					fmt.Sprintf("capture %q: unknown selector %q", c.Name, c.Selector)))
 			}
 		}
-		if r.BodyFile != "" {
-			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), r.BodyFile)); errors.Is(err, fs.ErrNotExist) {
-				line := r.BodyFileLine
+		if _, err := r.Multipart(); err != nil {
+			line := r.BodyLine
+			if line == 0 {
+				line = r.Line
+			}
+			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
+		}
+		for _, ref := range r.BodyFiles() {
+			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), ref.Path)); errors.Is(err, fs.ErrNotExist) {
+				line := ref.Line
 				if line == 0 {
 					line = r.Line
 				}
-				diags = append(diags, diag(r.File.Path, "error", "missing-body-file", line, r.BodyFileColumn, r.BodyFileColumn+len(r.BodyFile),
-					fmt.Sprintf("body file %s not found", r.BodyFile)))
+				diags = append(diags, diag(r.File.Path, "error", "missing-body-file", line, ref.Column, ref.Column+len(ref.Path),
+					fmt.Sprintf("body file %s not found", ref.Path)))
 			}
 		}
 	}
@@ -365,8 +392,8 @@ func validSelector(s string) bool {
 	switch {
 	case s == "status", s == "statusText", s == "duration", s == "body", s == "body.$":
 		return true
-	case strings.HasPrefix(s, "header."), strings.HasPrefix(s, "headers."), strings.HasPrefix(s, "body.$."), strings.HasPrefix(s, "body.$["):
-		return true
+	case strings.HasPrefix(s, "header."), strings.HasPrefix(s, "headers."), strings.HasPrefix(s, "cookie."), strings.HasPrefix(s, "body.$."), strings.HasPrefix(s, "body.$["):
+		return len(s) > strings.Index(s, ".")+1
 	}
 	return false
 }

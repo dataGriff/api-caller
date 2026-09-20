@@ -19,10 +19,13 @@ lands against the tools you might otherwise use.
 | MCP server for agents | no | no | no | no | no | yes |
 | Gherkin features without a Cucumber runtime | no | no | no | no | no | yes (`apic test`) |
 | OpenAPI import | no | no | no | yes | no | yes |
+| Postman import | no | no | no | yes | no | yes (`apic import`, with environments and simple tests) |
 | curl export | is curl | yes | extension | GUI | no | yes |
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
 | Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code), basic, bearer, exec |
-| Cookie jar, client certs | via curl flags | some | yes | yes | yes | no |
+| Cookie jar | via curl flags | some | yes | yes | yes | yes (opt-in, per environment) |
+| Client certificates, private CAs | via curl flags | JetBrains | yes | yes | yes | yes (`tls:` in apic.yaml, flags, JetBrains `SSLConfiguration`) |
+| Multipart uploads with file parts | `curl -F` | yes | yes | yes | yes | yes |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
 | GUI | no | the editor | VS Code extension | yes | no | terminal UI (`apic ui`) |
 
@@ -110,6 +113,12 @@ Postman is a hosted product with collaboration, mocking, monitoring and a
 cloud workspace. apic is a local file runner with none of that. The overlap
 is only "send a request with variables and check the result", and there
 apic's answer is plain files in git, no account, no runtime.
+`apic import collection.postman.json` brings a collection across: folders,
+requests, variables, environments, auth and the simple `pm.test` checks;
+pre-request scripts and the rest of the test scripts are listed as notes,
+since apic has no scripting. Their usual jobs have homes: a computed value
+comes from `--var` or `APIC_VAR_*`, a token from `# @auth` or a `# @ref`
+request, a check from `# @assert`.
 
 ## What apic does not do
 
@@ -118,10 +127,9 @@ So you are not surprised later:
 - No scripting. Anything needing computed signatures, loops or conditional
   logic has nowhere to go. The escape hatch is a shell script around
   `apic run --json`.
-- No browser-based OAuth2 flows (authorization code, PKCE), no cookie jar,
-  no client certificates. Client credentials, password and device code
-  grants, AWS SigV4, basic and command-provided tokens are covered in
-  [auth.md](auth.md).
+- No browser-based OAuth2 flows (authorization code, PKCE). Client
+  credentials, password and device code grants, AWS SigV4, basic and
+  command-provided tokens are covered in [auth.md](auth.md).
 - HTTP only. No GraphQL-specific tooling (a GraphQL query is just a POST),
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover
