@@ -28,6 +28,7 @@ nav:
       - "10. Agents and MCP": learn/10-agents.md
       - "11. Real APIs and the Taskfile front door": learn/11-real-apis.md
       - "12. Editors": learn/12-editors.md
+      - "13. How apic works inside, and contributing": learn/13-inside-apic.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
