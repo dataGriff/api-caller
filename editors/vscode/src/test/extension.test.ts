@@ -74,6 +74,29 @@ suite("apic extension", () => {
     assert.strictEqual(vscode.window.activeTextEditor?.selection.active.line, 3);
   });
 
+  test("formats a request file through apic fmt", async function () {
+    if (!findOnPath("apic")) {
+      this.skip();
+    }
+    await api();
+    const doc = await vscode.workspace.openTextDocument({ content: "### a\n# @assert status == 200\n# @name a\nGET http://x  \n", language: "http" });
+    // Untitled documents have no file pattern; the provider is registered
+    // for *.http, so ask through a file inside the fixture instead.
+    const uri = vscode.Uri.file(path.join(fixture(), "api.http"));
+    const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", uri, { tabSize: 2, insertSpaces: true });
+    assert.deepStrictEqual(edits ?? [], [], "the fixture file is already canonical");
+    const tmp = path.join(fixture(), "messy.http");
+    fs.writeFileSync(tmp, doc.getText());
+    try {
+      const messy = await vscode.workspace.openTextDocument(vscode.Uri.file(tmp));
+      const got = await vscode.commands.executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", messy.uri, { tabSize: 2, insertSpaces: true });
+      assert.ok(got && got.length === 1, JSON.stringify(got));
+      assert.strictEqual(got[0].newText, "### a\n# @name a\n# @assert status == 200\nGET http://x\n");
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  });
+
   test("finds the project root above a request file", async () => {
     const { projectRoot } = await api();
     const file = vscode.Uri.file(path.join(fixture(), "nested", "deep.http"));

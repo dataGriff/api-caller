@@ -11,6 +11,7 @@ import { ApicCodeLens } from "./codeLens";
 import { Decorations } from "./decorations";
 import { Diagnostics, triggersValidation, WATCH_GLOB } from "./diagnostics";
 import { Environments } from "./environment";
+import { Formatter } from "./formatter";
 import { projectRoot } from "./project";
 import { RequestsView } from "./requestsView";
 import { ResponsePanel } from "./responsePanel";
@@ -87,6 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     watcher.onDidDelete(onDisk),
     vscode.workspace.onDidSaveTextDocument((doc) => diagnostics.changed(doc.uri)),
     vscode.languages.registerCodeLensProvider(requestFiles, lens),
+    vscode.languages.registerDocumentFormattingEditProvider(requestFiles, new Formatter(apic)),
     vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives, (doc) => lens.names(doc)), ApicCodeActions.metadata),
     envs.onDidChange((root) => {
       lens.invalidate(root);

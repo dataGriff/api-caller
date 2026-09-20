@@ -186,6 +186,11 @@
           "default": 300,
           "minimum": 0,
           "markdownDescription": "How long to wait after a save before validating, so a burst of saves becomes one run."
+        },
+        "apic.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer **Format Document** for `.http` files through `apic fmt`, so `editor.formatOnSave` keeps them in canonical form."
         }
       }
     },
@@ -357,6 +362,29 @@
       {
         "view": "apic.requests",
         "contents": "No request files yet. Open a folder with `.http` files, or scaffold one:\n[Run apic init in a terminal](command:workbench.action.terminal.new)\n\n[Learn the format](https://datagriff.github.io/api-caller/format/)"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          "http-client.env.json",
+          "http-client.private.env.json"
+        ],
+        "url": "./schemas/http-client.env.schema.json"
+      },
+      {
+        "fileMatch": [
+          ".apic/session.json"
+        ],
+        "url": "./schemas/session.schema.json"
+      }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "apic.yaml"
+        ],
+        "url": "./schemas/apic.schema.json"
       }
     ]
   },

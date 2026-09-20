@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "envs": {
+      "type": "object",
+      "description": "Environment name (or `default` when none was selected) to its captured values.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Captured values by name. Keys starting with `$oauth2:` or `$exec:` hold cached tokens as JSON text.",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$id": "https://datagriff.github.io/api-caller/schemas/session.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": ".apic/session.json",
+  "description": "Values captured by `# @capture` and tokens cached by `# @auth`, per environment. Written by apic; `apic session` shows it and `apic session clear` empties it.",
+  "required": [
+    "envs"
+  ],
+  "additionalProperties": false
+}

@@ -25,15 +25,17 @@ func TestSchemasAreCurrent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := os.ReadFile(filepath.Join("..", "..", "docs", "schemas", name))
-		if err != nil {
-			t.Fatalf("%s: %v (run `task schemas`)", name, err)
-		}
-		// A checkout with autocrlf (the Windows runner) turns the committed
-		// LF file into CRLF; that is not staleness.
-		got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
-		if !bytes.Equal(got, want) {
-			t.Errorf("docs/schemas/%s is stale; run `task schemas`", name)
+		for _, dir := range Dirs {
+			got, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(dir), name))
+			if err != nil {
+				t.Fatalf("%s/%s: %v (run `task schemas`)", dir, name, err)
+			}
+			// A checkout with autocrlf (the Windows runner) turns the committed
+			// LF file into CRLF; that is not staleness.
+			got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
+			if !bytes.Equal(got, want) {
+				t.Errorf("%s/%s is stale; run `task schemas`", dir, name)
+			}
 		}
 	}
 }
