@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -27,6 +26,10 @@ type tlsSettings struct {
 	// Passphrase marks a key the env file says is encrypted, which apic
 	// cannot use.
 	Passphrase bool
+	// caFromFlag and certFromFlag mark paths the user typed on the
+	// command line, the only ones not confined to the project root.
+	caFromFlag   bool
+	certFromFlag bool
 }
 
 func (s tlsSettings) isDefault() bool {
@@ -95,10 +98,10 @@ func (r *Runner) tlsFor(host string) tlsSettings {
 		}
 	}
 	if r.Opts.CACert != "" {
-		s.CAFile = r.Opts.CACert
+		s.CAFile, s.caFromFlag = r.Opts.CACert, true
 	}
 	if r.Opts.Cert != "" {
-		s.CertFile, s.KeyFile, s.Passphrase = r.Opts.Cert, r.Opts.Key, false
+		s.CertFile, s.KeyFile, s.Passphrase, s.certFromFlag = r.Opts.Cert, r.Opts.Key, false, true
 	}
 	if s.CertFile != "" && s.KeyFile == "" {
 		s.KeyFile = s.CertFile
@@ -155,7 +158,10 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 	if s.isDefault() {
 		return nil, nil
 	}
-	key := fmt.Sprintf("%s|%s|%s|%v", s.CAFile, s.CertFile, s.KeyFile, s.Verify)
+	if s.CertFile != "" && s.Passphrase {
+		return nil, usagef("tls: the client key for %s needs a passphrase (hasCertificatePassphrase), which apic cannot supply; store a decrypted key instead", s.CertFile)
+	}
+	key := fmt.Sprintf("%s|%s|%s|%v|%v|%v", s.CAFile, s.CertFile, s.KeyFile, s.Verify, s.caFromFlag, s.certFromFlag)
 	r.tlsMu.Lock()
 	defer r.tlsMu.Unlock()
 	if r.tlsCache == nil {
@@ -169,7 +175,7 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 		c.InsecureSkipVerify = true //nolint:gosec // explicit --insecure or verifyHost: false
 	}
 	if s.CAFile != "" {
-		path, err := r.tlsPath(s.CAFile, "ca file")
+		path, err := r.tlsPath(s.CAFile, "ca file", s.caFromFlag)
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +193,11 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 		c.RootCAs = pool
 	}
 	if s.CertFile != "" {
-		if s.Passphrase {
-			return nil, usagef("tls: the client key for %s needs a passphrase (hasCertificatePassphrase), which apic cannot supply; store a decrypted key instead", s.CertFile)
-		}
-		certPath, err := r.tlsPath(s.CertFile, "client certificate")
+		certPath, err := r.tlsPath(s.CertFile, "client certificate", s.certFromFlag)
 		if err != nil {
 			return nil, err
 		}
-		keyPath, err := r.tlsPath(s.KeyFile, "client key")
+		keyPath, err := r.tlsPath(s.KeyFile, "client key", s.certFromFlag)
 		if err != nil {
 			return nil, err
 		}
@@ -211,11 +214,11 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 	return c, nil
 }
 
-// tlsPath resolves a certificate path: absolute paths (the flags) are
-// taken as they are, the rest is relative to the project root and confined
-// to it.
-func (r *Runner) tlsPath(p, what string) (string, error) {
-	if filepath.IsAbs(p) {
+// tlsPath resolves a certificate path: one from a flag is the user's own,
+// taken as it is; one from apic.yaml or an env file is relative to the
+// project root and confined to it, absolute or not.
+func (r *Runner) tlsPath(p, what string, fromFlag bool) (string, error) {
+	if fromFlag {
 		return p, nil
 	}
 	real, err := confine(r.Project.Root, r.Project.Root, p)

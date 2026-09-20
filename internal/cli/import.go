@@ -145,6 +145,21 @@ func (a *App) importCurl(command, into, name string) error {
 			name = fmt.Sprintf("%s-%d", base, i)
 		}
 	}
+	if req.Body != "" && curlimport.SplitsBlock(req.Body) {
+		// The parser would read this body as a new block or a file
+		// reference, so it goes into a side file the request points at.
+		if target == "" {
+			req.Warnings = append(req.Warnings, "the body starts a new block or looks like a file reference as written; use --into so it can go into a side file")
+		} else {
+			side := name + ".body.txt"
+			sidePath := filepath.Join(filepath.Dir(target), side)
+			if err := os.WriteFile(sidePath, []byte(req.Body), 0o644); err != nil { //nolint:gosec // a request body file the user edits and commits
+				return &runner.UsageError{Msg: err.Error()}
+			}
+			req.Body, req.BodyFile = "", "./"+side
+			fmt.Fprintf(a.Stdout, "wrote %s\n", filepath.Join(filepath.Dir(into), side))
+		}
+	}
 	block := curlimport.Render(req, name, baseURL)
 	if target != "" {
 		text := block

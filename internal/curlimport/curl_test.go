@@ -80,3 +80,26 @@ func TestParseErrors(t *testing.T) {
 		t.Errorf("tokens = %q, %v", toks, err)
 	}
 }
+
+func TestUnknownValueFlagsDoNotEatTheURL(t *testing.T) {
+	r, err := Parse("curl --oauth2-bearer eyJ --max-redirs 5 --something odd https://api.example.com/me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.URL != "https://api.example.com/me" || len(r.Headers) != 1 || r.Headers[0].Value != "Bearer eyJ" {
+		t.Errorf("request = %+v", r)
+	}
+	if strings.Join(r.Warnings, "\n") != "--max-redirs is about curl's own output or transport and has no place in a request file (ignored)\nunknown flag --something (ignored)\nextra argument \"odd\" (ignored)" {
+		t.Errorf("warnings = %q", r.Warnings)
+	}
+	r, err = Parse(`curl --json '{"a":1}' https://x/j -F 'cv=@résumé.pdf'`)
+	if err != nil || r.Method != "POST" || len(r.Parts) != 1 {
+		t.Fatalf("--json with a form: %+v %v", r, err)
+	}
+	if got := Render(r, "j", ""); !strings.Contains(got, `filename="résumé.pdf"`) || strings.Contains(got, `\u`) {
+		t.Errorf("non-ASCII filename: %s", got)
+	}
+	if !SplitsBlock("### heading\ntext") || !SplitsBlock("< 5 items") || SplitsBlock("plain\nbody") {
+		t.Error("SplitsBlock")
+	}
+}

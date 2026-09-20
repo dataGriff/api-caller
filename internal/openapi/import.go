@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/dataGriff/api-caller/internal/httpfile"
 )
 
 // Result summarises what was generated.
@@ -426,9 +428,9 @@ func (o *operation) render() string {
 		for _, p := range o.Parts {
 			fmt.Fprintf(&b, "--%s\n", multipartBoundary)
 			if p.File {
-				fmt.Fprintf(&b, "Content-Disposition: form-data; name=%q; filename=%q\n", p.Name, filepath.Base(p.Path))
+				fmt.Fprintf(&b, "Content-Disposition: form-data; name=%s; filename=%s\n", httpfile.QuoteParam(p.Name), httpfile.QuoteParam(filepath.Base(p.Path)))
 			} else {
-				fmt.Fprintf(&b, "Content-Disposition: form-data; name=%q\n", p.Name)
+				fmt.Fprintf(&b, "Content-Disposition: form-data; name=%s\n", httpfile.QuoteParam(p.Name))
 			}
 			if p.ContentType != "" {
 				fmt.Fprintf(&b, "Content-Type: %s\n", p.ContentType)
@@ -579,11 +581,9 @@ func (d *document) multipartParts(rb *yaml.Node) []formPart {
 		if !strings.EqualFold(strings.TrimSpace(strings.SplitN(mt.key, ";", 2)[0]), "multipart/form-data") {
 			continue
 		}
-		schema := d.resolve(d.get(d.resolve(mt.value), "schema"))
-		if schema == nil {
-			return nil
-		}
-		encoding := d.get(d.resolve(mt.value), "encoding")
+		media := d.resolve(mt.value)
+		schema := d.resolve(d.get(media, "schema"))
+		encoding := d.get(media, "encoding")
 		var parts []formPart
 		for _, p := range d.entries(d.get(schema, "properties")) {
 			ps := d.resolve(p.value)
@@ -620,9 +620,29 @@ func (d *document) multipartParts(rb *yaml.Node) []formPart {
 			}
 			parts = append(parts, part)
 		}
+		if len(parts) == 0 {
+			// No property list: an example object names the fields, and
+			// with nothing at all one placeholder keeps the body valid.
+			if obj, ok := decode(d.getRaw(media, "example")).(*orderedObject); ok {
+				for _, k := range obj.keys {
+					v := concretize(obj.vals[k])
+					part := formPart{Name: oneLine(k)}
+					if s, isStr := v.(string); isStr {
+						part.Value = oneLine(noTemplate(s, "", ""))
+					} else if v != nil {
+						data, _ := json.Marshal(v)
+						part.Value, part.ContentType = string(data), "application/json"
+					}
+					parts = append(parts, part)
+				}
+			}
+			if len(parts) == 0 {
+				parts = []formPart{{Name: "field", Value: "value"}}
+			}
+		}
 		return parts
 	}
-	return nil
+	return []formPart{{Name: "field", Value: "value"}}
 }
 
 // queryNameEscaper encodes the characters that would let a parameter name

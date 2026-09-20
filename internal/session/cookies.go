@@ -42,11 +42,12 @@ func (c Cookie) key() string { return c.Domain + "|" + c.Path + "|" + c.Name }
 // is net/http/cookiejar's, without a public-suffix list: a project that
 // talks to one API has no need for one, and it keeps the binary small.
 type Jar struct {
-	path string
-	mu   sync.Mutex
-	envs map[string][]Cookie
-	live map[string]*EnvJar
-	now  func() time.Time
+	path  string
+	mu    sync.Mutex
+	envs  map[string][]Cookie
+	live  map[string]*EnvJar
+	now   func() time.Time
+	dirty bool // something changed since the last Save
 }
 
 // NewMemoryJar returns a jar that is never written to disk.
@@ -132,6 +133,7 @@ func (j *Jar) EnvNames() []string {
 func (j *Jar) Clear(env string) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	j.dirty = true
 	if env == "*" {
 		j.envs = map[string][]Cookie{}
 		j.live = map[string]*EnvJar{}
@@ -149,6 +151,10 @@ func (j *Jar) Save() error {
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if !j.dirty {
+		return nil
+	}
+	j.dirty = false
 	envs := map[string][]Cookie{}
 	for env, cookies := range j.envs {
 		if live := j.unexpired(cookies); len(live) > 0 {
@@ -256,6 +262,7 @@ func (e *EnvJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 		list = append(list, c)
 	}
 	e.parent.envs[e.env] = list
+	e.parent.dirty = true
 }
 
 func (e *EnvJar) accepted(rec Cookie) bool {

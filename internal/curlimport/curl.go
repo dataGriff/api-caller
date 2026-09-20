@@ -10,6 +10,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/dataGriff/api-caller/internal/httpfile"
 )
 
 // Request is what a curl command line asked for.
@@ -54,17 +56,16 @@ func Parse(command string) (*Request, error) {
 	var dataFile string
 	var get, head bool
 	var contentTypeSet bool
+	var positional []string
 	warn := func(format string, args ...any) { r.Warnings = append(r.Warnings, fmt.Sprintf(format, args...)) }
 	for i := 0; i < len(tokens); i++ {
 		tok := tokens[i]
 		if tok == "--" {
-			for _, rest := range tokens[i+1:] {
-				r.positional(rest, warn)
-			}
+			positional = append(positional, tokens[i+1:]...)
 			break
 		}
 		if !strings.HasPrefix(tok, "-") || tok == "-" {
-			r.positional(tok, warn)
+			positional = append(positional, tok)
 			continue
 		}
 		name, value, attached := splitFlag(tok)
@@ -132,7 +133,16 @@ func Parse(command string) (*Request, error) {
 		case "user":
 			r.User = value
 		case "url":
-			r.positional(value, warn)
+			positional = append(positional, value)
+		case "json":
+			data = append(data, value)
+			if !contentTypeSet {
+				r.Headers = append(r.Headers, Header{Name: "Content-Type", Value: "application/json"})
+				contentTypeSet = true
+			}
+			r.Headers = append(r.Headers, Header{Name: "Accept", Value: "application/json"})
+		case "oauth2-bearer":
+			r.Headers = append(r.Headers, Header{Name: "Authorization", Value: "Bearer " + value})
 		case "get":
 			get = true
 		case "head":
@@ -158,6 +168,23 @@ func Parse(command string) (*Request, error) {
 			warn("%s: configure tls: in apic.yaml, or pass %s to apic itself", tok, tok)
 		case "ignored":
 			warn("%s is about curl's own output or transport and has no place in a request file (ignored)", tok)
+		}
+	}
+	// The URL is the argument that looks like one; when none does, the
+	// first, with curl's own http:// default. Anything else is reported.
+	for _, p := range positional {
+		if strings.Contains(p, "://") && r.URL == "" {
+			r.URL = p
+		}
+	}
+	for _, p := range positional {
+		switch {
+		case p == r.URL && r.URL != "":
+			r.URL = p // keep
+		case r.URL == "":
+			r.URL = "http://" + p
+		default:
+			warn("extra argument %q (ignored)", p)
 		}
 	}
 	if r.URL == "" {
@@ -202,17 +229,6 @@ func Parse(command string) (*Request, error) {
 	return r, nil
 }
 
-func (r *Request) positional(tok string, warn func(string, ...any)) {
-	if r.URL != "" {
-		warn("extra argument %q (ignored)", tok)
-		return
-	}
-	if !strings.Contains(tok, "://") {
-		tok = "http://" + tok // curl's own default
-	}
-	r.URL = tok
-}
-
 type flagSpec struct {
 	name       string
 	takesValue bool
@@ -240,6 +256,22 @@ var flags = map[string]flagSpec{
 	"-v": {"quiet", false}, "--verbose": {"quiet", false}, "-i": {"quiet", false}, "--include": {"quiet", false},
 	"-#": {"quiet", false}, "--progress-bar": {"quiet", false}, "-f": {"quiet", false}, "--fail": {"quiet", false},
 	"--cacert": {"tls", true}, "--cert": {"tls", true}, "--key": {"tls", true}, "-E": {"tls", true},
+	"--json": {"json", true}, "--oauth2-bearer": {"oauth2-bearer", true},
+	// Value-taking options apic knows nothing to do with: named so their
+	// value is never mistaken for the URL.
+	"--max-redirs": {"ignored", true}, "--resolve": {"ignored", true}, "-T": {"ignored", true}, "--upload-file": {"ignored", true},
+	"--limit-rate": {"ignored", true}, "-U": {"ignored", true}, "--proxy-user": {"ignored", true}, "--interface": {"ignored", true},
+	"--dns-servers": {"ignored", true}, "--unix-socket": {"ignored", true}, "--abstract-unix-socket": {"ignored", true},
+	"-K": {"ignored", true}, "--config": {"ignored", true}, "--keepalive-time": {"ignored", true}, "--speed-limit": {"ignored", true},
+	"--speed-time": {"ignored", true}, "--ciphers": {"ignored", true}, "--tls-max": {"ignored", true}, "--pinnedpubkey": {"ignored", true},
+	"-r": {"ignored", true}, "--range": {"ignored", true}, "--stderr": {"ignored", true}, "--trace": {"ignored", true},
+	"--trace-ascii": {"ignored", true}, "-z": {"ignored", true}, "--time-cond": {"ignored", true}, "--aws-sigv4": {"ignored", true},
+	"--proto": {"ignored", true}, "--proto-default": {"ignored", true}, "--url-query": {"ignored", true}, "--variable": {"ignored", true},
+	"--connect-to": {"ignored", true}, "--happy-eyeballs-timeout-ms": {"ignored", true}, "--retry-delay": {"ignored", true},
+	"--retry-max-time": {"ignored", true}, "--max-filesize": {"ignored", true}, "-y": {"ignored", true}, "-Y": {"ignored", true},
+	"--ntlm": {"quiet", false}, "--digest": {"quiet", false}, "--negotiate": {"quiet", false}, "--basic": {"quiet", false}, "--anyauth": {"quiet", false},
+	"--http1.1": {"quiet", false}, "--http2": {"quiet", false}, "--http3": {"quiet", false}, "--tlsv1.2": {"quiet", false}, "--tlsv1.3": {"quiet", false},
+	"-4": {"quiet", false}, "-6": {"quiet", false}, "-N": {"quiet", false}, "--no-buffer": {"quiet", false}, "--retry-all-errors": {"quiet", false},
 	"-o": {"ignored", true}, "--output": {"ignored", true}, "-w": {"ignored", true}, "--write-out": {"ignored", true},
 	"-x": {"ignored", true}, "--proxy": {"ignored", true}, "--max-time": {"ignored", true}, "-m": {"ignored", true},
 	"--connect-timeout": {"ignored", true}, "--retry": {"ignored", true}, "-c": {"ignored", true}, "--cookie-jar": {"ignored", true},
@@ -452,6 +484,22 @@ func Name(r *Request) string {
 	return name
 }
 
+// SplitsBlock reports whether the inline body would be misread by the
+// .http parser: a line starting with ### opens a new request block and a
+// body starting with `< ` refers to a file. Such a body belongs in a side
+// file (BodyFile).
+func SplitsBlock(body string) bool {
+	if t := strings.TrimSpace(body); strings.HasPrefix(t, "< ") || strings.HasPrefix(t, "<@ ") {
+		return true
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "###") {
+			return true
+		}
+	}
+	return false
+}
+
 // Render writes the request as a `###` block. baseURL, when it prefixes
 // the URL, is replaced by {{baseUrl}}.
 func Render(r *Request, name, baseURL string) string {
@@ -484,9 +532,9 @@ func Render(r *Request, name, baseURL string) string {
 			b.WriteString("--WebAppBoundary\n")
 			if p.File != "" {
 				if p.Filename != "" {
-					fmt.Fprintf(&b, "Content-Disposition: form-data; name=%q; filename=%q\n", p.Name, p.Filename)
+					fmt.Fprintf(&b, "Content-Disposition: form-data; name=%s; filename=%s\n", httpfile.QuoteParam(p.Name), httpfile.QuoteParam(p.Filename))
 				} else {
-					fmt.Fprintf(&b, "Content-Disposition: form-data; name=%q\n", p.Name)
+					fmt.Fprintf(&b, "Content-Disposition: form-data; name=%s\n", httpfile.QuoteParam(p.Name))
 				}
 				if p.ContentType != "" {
 					fmt.Fprintf(&b, "Content-Type: %s\n", oneLine(p.ContentType))
@@ -494,7 +542,7 @@ func Render(r *Request, name, baseURL string) string {
 				fmt.Fprintf(&b, "\n< %s\n", relativeFile(p.File))
 				continue
 			}
-			fmt.Fprintf(&b, "Content-Disposition: form-data; name=%q\n", p.Name)
+			fmt.Fprintf(&b, "Content-Disposition: form-data; name=%s\n", httpfile.QuoteParam(p.Name))
 			if p.ContentType != "" {
 				fmt.Fprintf(&b, "Content-Type: %s\n", oneLine(p.ContentType))
 			}

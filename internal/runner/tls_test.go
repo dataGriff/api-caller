@@ -221,6 +221,33 @@ func TestClientCertificatesAndPrivateCA(t *testing.T) {
 	if _, err := run(Options{CACert: p.caFile, Cert: filepath.Join(dir, "certs", "missing.pem")}); ExitCode(err) != ExitUsage {
 		t.Errorf("missing cert: %v", err)
 	}
+	// A passphrase key reached after the same files were cached from
+	// elsewhere is still refused: the check comes before the cache.
+	if err := os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r = newRunner(t, dir, Options{Env: "dev", NoSession: true})
+	if _, err := r.tlsConfig(r.tlsFor("")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.tlsConfig(tlsSettings{CAFile: "certs/ca.pem", CertFile: "certs/client.pem", KeyFile: "certs/client-key.pem", Verify: true, Passphrase: true}); ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "passphrase") {
+		t.Errorf("passphrase after cache: %v", err)
+	}
+	// An absolute path in apic.yaml or an env file is confined like a
+	// relative one; only a flag path is the user's own.
+	if _, err := r.tlsConfig(tlsSettings{CAFile: p.caFile, Verify: true}); err != nil {
+		t.Errorf("absolute config path inside the project: %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "ca.pem")
+	if err := os.WriteFile(outside, p.caPEM, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.tlsConfig(tlsSettings{CAFile: outside, Verify: true}); ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "outside the project root") {
+		t.Errorf("absolute config path outside the project: %v", err)
+	}
+	if _, err := r.tlsConfig(tlsSettings{CAFile: outside, Verify: true, caFromFlag: true}); err != nil {
+		t.Errorf("the same path from a flag: %v", err)
+	}
 	escape := "tls:\n  caFile: ../outside.pem\n"
 	if err := os.WriteFile(filepath.Join(dir, "apic.yaml"), []byte(escape), 0o644); err != nil {
 		t.Fatal(err)

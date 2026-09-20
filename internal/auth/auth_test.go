@@ -431,3 +431,17 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func TestParseKeepsEqualsInBearerAndBasicValues(t *testing.T) {
+	s, err := Parse("bearer abc==")
+	if err != nil || len(s.Args) != 1 || s.Args[0] != "abc==" || len(s.Options) != 0 {
+		t.Fatalf("bearer with padding: %+v %v", s, err)
+	}
+	s, err = Parse("basic admin p=ss")
+	if err != nil || len(s.Args) != 2 || s.Args[1] != "p=ss" {
+		t.Fatalf("basic with = in the password: %+v %v", s, err)
+	}
+	if _, err := Parse("aws region=eu-west-2"); err != nil {
+		t.Fatalf("aws still takes options: %v", err)
+	}
+}

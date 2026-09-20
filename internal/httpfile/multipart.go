@@ -164,6 +164,14 @@ func (r *Request) Multipart() (*Multipart, error) {
 	return m, nil
 }
 
+// QuoteParam quotes a Content-Disposition parameter value the way RFC 2616
+// quoted-strings are written: only backslash and the double quote are
+// escaped, so a non-ASCII name or filename survives mime.ParseMediaType
+// (Go's %q would write \u escapes it reads as literal letters).
+func QuoteParam(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
+}
+
 // FileRef is a `< path` or `<@ path` reference in a request: the whole
 // body, or one part of a multipart body.
 type FileRef struct {

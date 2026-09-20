@@ -365,7 +365,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res := &Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method}
 	var missing []string
 	render := func(s string) (string, error) {
-		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
+		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 		var me *template.MissingError
 		if errors.As(err, &me) {
 			missing = append(missing, me.Exprs...)
@@ -377,9 +377,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	if res.URL, err = render(strings.TrimSpace(req.URL)); err != nil {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
-	if u, err := url.Parse(res.URL); err == nil {
-		res.TLS = r.tlsFor(u.Host).info()
-	}
+	res.TLS = r.tlsInfoForURL(res.URL)
 	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
@@ -507,7 +505,7 @@ func (r *Runner) authEnv() (*auth.Env, error) {
 // Render substitutes {{placeholders}} in arbitrary text using the runner's
 // variables (no file-level @vars, since no request is in scope).
 func (r *Runner) Render(s string) (string, error) {
-	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e, 0) })
+	return template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(nil, e) })
 }
 
 // Capture stores a value in the capture layer, below --var and shell
@@ -708,7 +706,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		}
 		expected := expr.Value
 		if expr.Op != "exists" && expr.Op != "not exists" {
-			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e, 0) })
+			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 			if err != nil {
 				var me *template.MissingError
 				if errors.As(err, &me) {
@@ -1095,12 +1093,20 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	}
 	sort.SliceStable(d.Variables, func(i, j int) bool { return d.Variables[i].Missing && !d.Variables[j].Missing })
 	d.URL = req.URL
-	if resolved, err := r.Resolve(req); err == nil {
-		d.TLS = resolved.TLS
-	} else {
-		d.TLS = r.tlsFor("").info()
-	}
+	// Only the host decides the TLS settings, so render the URL alone (as
+	// far as it resolves) rather than the whole request.
+	rendered, _ := template.Render(strings.TrimSpace(req.URL), func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
+	d.TLS = r.tlsInfoForURL(rendered)
 	return d
+}
+
+// tlsInfoForURL reports the non-default TLS setup for a request URL's host.
+func (r *Runner) tlsInfoForURL(rawURL string) *TLSInfo {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return r.tlsFor("").info()
+	}
+	return r.tlsFor(u.Host).info()
 }
 
 // EnvVar lists the effective variables for the current environment, for `apic env`.
@@ -1311,7 +1317,11 @@ func confine(root, dir, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	abs, err := filepath.Abs(filepath.Join(dir, rel))
+	joined := rel
+	if !filepath.IsAbs(rel) {
+		joined = filepath.Join(dir, rel)
+	}
+	abs, err := filepath.Abs(joined)
 	if err != nil {
 		return "", err
 	}

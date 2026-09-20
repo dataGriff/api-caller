@@ -227,3 +227,29 @@ func TestTranslateTests(t *testing.T) {
 		t.Errorf("unsupported = %q", got.Unsupported)
 	}
 }
+
+func TestImportAPIKeyInQueryOpensTheQueryString(t *testing.T) {
+	dir := t.TempDir()
+	col := filepath.Join(dir, "c.json")
+	_ = os.WriteFile(col, []byte(`{"info": {"name": "c", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+"auth": {"type": "apikey", "apikey": [{"key": "in", "value": "query"}, {"key": "key", "value": "api_key"}, {"key": "value", "value": "{{apiKey}}"}]},
+"item": [{"name": "users", "request": "https://x/users"}, {"name": "search", "request": "https://x/search?q=1"},
+{"name": "upload", "request": {"method": "POST", "url": "https://x/up", "body": {"mode": "formdata", "formdata": [{"key": "cv", "type": "file", "src": "résumé.pdf"}]}}}]}`), 0o644)
+	if _, err := Import(col, Options{OutDir: filepath.Join(dir, "out")}); err != nil {
+		t.Fatal(err)
+	}
+	got := mustRead(t, filepath.Join(dir, "out", "c.http"))
+	has(t, got, "GET https://x/users\n    ?api_key={{apiKey}}\n", "GET https://x/search?q=1\n    &api_key={{apiKey}}\n",
+		"Content-Disposition: form-data; name=\"cv\"; filename=\"résumé.pdf\"\n")
+	p, err := project.Load(filepath.Join(dir, "out"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u := p.Requests()[0].URL; u != "https://x/users?api_key={{apiKey}}" {
+		t.Errorf("parsed url = %q", u)
+	}
+	m, err := p.Requests()[2].Multipart()
+	if err != nil || m.Parts[0].Filename != "résumé.pdf" {
+		t.Errorf("non-ASCII filename round trip: %+v %v", m, err)
+	}
+}

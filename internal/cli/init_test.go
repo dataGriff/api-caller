@@ -139,3 +139,31 @@ func TestImportCurlAppendsARequest(t *testing.T) {
 		t.Errorf("--into without --curl: code=%d err=%q", code, errOut)
 	}
 }
+
+func TestImportCurlBodyThatSplitsTheBlockGoesToASideFile(t *testing.T) {
+	dir := t.TempDir()
+	app := New()
+	var stdout, stderr bytes.Buffer
+	app.Stdout, app.Stderr = &stdout, &stderr
+	if code := app.Execute(context.Background(), []string{"-C", dir, "import", "--curl", "curl -d '### heading\ntext' https://x/notes", "--into", "notes.http"}); code != 0 {
+		t.Fatalf("code=%d %s%s", code, stdout.String(), stderr.String())
+	}
+	got := mustReadFile(t, filepath.Join(dir, "notes.http"))
+	if !strings.Contains(got, "\n< ./post-notes.body.txt\n") || strings.Contains(got, "### heading") {
+		t.Errorf("file:\n%s", got)
+	}
+	if side := mustReadFile(t, filepath.Join(dir, "post-notes.body.txt")); side != "### heading\ntext" {
+		t.Errorf("side file = %q", side)
+	}
+	p, err := project.Load(dir)
+	if err != nil || len(p.Requests()) != 1 || len(p.Validate()) != 0 {
+		t.Errorf("project: %v %d %v", err, len(p.Requests()), p.Validate())
+	}
+	app = New() // flags are per command tree
+	stdout.Reset()
+	stderr.Reset()
+	app.Stdout, app.Stderr = &stdout, &stderr
+	if code := app.Execute(context.Background(), []string{"-C", dir, "import", "--curl", "curl -d '< 5 items' https://x/notes"}); code != 0 || !strings.Contains(stderr.String(), "use --into") {
+		t.Errorf("without --into: code=%d err=%s", code, stderr.String())
+	}
+}

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/dataGriff/api-caller/internal/httpfile"
 )
 
 // Options controls generation.
@@ -456,7 +458,7 @@ func (g *generator) body(r *request, b *Body, hasContentType bool) {
 			if f.Type == "file" {
 				src := strings.TrimSpace(string(f.Src))
 				base := nonEmpty(baseName(src), f.Key)
-				fmt.Fprintf(&parts, "Content-Disposition: form-data; name=%q; filename=%q\n", oneLine(f.Key), oneLine(base))
+				fmt.Fprintf(&parts, "Content-Disposition: form-data; name=%s; filename=%s\n", httpfile.QuoteParam(oneLine(f.Key)), httpfile.QuoteParam(oneLine(base)))
 				if f.ContentType != "" {
 					fmt.Fprintf(&parts, "Content-Type: %s\n", oneLine(f.ContentType))
 				}
@@ -466,7 +468,7 @@ func (g *generator) body(r *request, b *Body, hasContentType bool) {
 				}
 				continue
 			}
-			fmt.Fprintf(&parts, "Content-Disposition: form-data; name=%q\n", oneLine(f.Key))
+			fmt.Fprintf(&parts, "Content-Disposition: form-data; name=%s\n", httpfile.QuoteParam(oneLine(f.Key)))
 			if f.ContentType != "" {
 				fmt.Fprintf(&parts, "Content-Type: %s\n", oneLine(f.ContentType))
 			}
@@ -596,7 +598,13 @@ func (r *request) render(hasDefaultAuth bool) string {
 		fmt.Fprintf(&b, "# @assert %s\n", a)
 	}
 	fmt.Fprintf(&b, "%s %s\n", r.Method, r.URL)
+	hasQuery := strings.Contains(r.URL, "?")
 	for _, q := range r.Query {
+		if !strings.HasPrefix(q, "#") && !hasQuery {
+			// The parser appends continuation lines verbatim, so the first
+			// active parameter opens the query string.
+			q, hasQuery = "?"+strings.TrimPrefix(q, "&"), true
+		}
 		fmt.Fprintf(&b, "    %s\n", q)
 	}
 	if r.ContentType != "" {

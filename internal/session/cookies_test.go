@@ -127,3 +127,31 @@ func TestMemoryJarWritesNothing(t *testing.T) {
 		t.Error("default path")
 	}
 }
+
+func TestSaveIsANoOpWhenNothingChanged(t *testing.T) {
+	root := t.TempDir()
+	j, _ := OpenJar(root)
+	j.HTTP("dev").SetCookies(mustURL("http://x/"), []*http.Cookie{{Name: "a", Value: "1"}})
+	if err := j.Save(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, Dir, CookieFile)
+	before, _ := os.Stat(path)
+	if err := os.Chtimes(path, before.ModTime().Add(-time.Hour), before.ModTime().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Save(); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.Stat(path)
+	if !after.ModTime().Equal(before.ModTime().Add(-time.Hour)) {
+		t.Error("a clean jar was rewritten")
+	}
+	j.Clear("dev")
+	if err := j.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("clearing marks the jar dirty")
+	}
+}
