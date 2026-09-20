@@ -38,14 +38,14 @@ lesson cannot quietly stop working when apic changes.
 | 6 | [Authentication](06-authentication.md) | bearer, basic, API keys, OAuth2, AWS SigV4, `exec` | coming soon |
 | 7 | [Behaviour tests with Gherkin](07-gherkin.md) | `# @step`, features, reports | coming soon |
 | 8 | [CI without leaking secrets](08-ci.md) | GitHub Actions, `--redact`, JUnit | coming soon |
-| 9 | From OpenAPI to a project, and back to curl | `import`, `curl`, Postman import | coming soon |
-| 10 | Agents and MCP | The shell contract, `claude mcp add` | coming soon |
-| 11 | Real APIs and the Taskfile front door | The GitHub and Spotify examples | coming soon |
-| 12 | Editors | The VS Code extension, JetBrains, Neovim | coming soon |
-| 13 | How apic works inside, and contributing | Architecture, a first pull request | coming soon |
+| 9 | [From OpenAPI to a project, and back to curl](09-import-export.md) | `import`, `curl`, Postman import | coming soon |
+| 10 | [Agents and MCP](10-agents.md) | The shell contract, `claude mcp add` | coming soon |
+| 11 | [Real APIs and the Taskfile front door](11-real-apis.md) | The GitHub and Spotify examples | coming soon |
+| 12 | [Editors](12-editors.md) | The VS Code extension, JetBrains, Neovim | coming soon |
+| 13 | [How apic works inside, and contributing](13-inside-apic.md) | Architecture, a first pull request | coming soon |
 
-Lessons appear in the navigation as they are written; the episode column
-links to the video once it is recorded. Each lesson is tracked in the
+Every lesson is written; the episode column links to the video once it
+is recorded. Each lesson is tracked in the
 [course epic](https://github.com/dataGriff/api-caller/issues/28) on GitHub.
 
 Start with [lesson 0](00-what-is-apic.md), or jump straight to

@@ -24,6 +24,11 @@ nav:
       - "6. Authentication": learn/06-authentication.md
       - "7. Behaviour tests with Gherkin": learn/07-gherkin.md
       - "8. CI without leaking secrets": learn/08-ci.md
+      - "9. From OpenAPI to a project, and back to curl": learn/09-import-export.md
+      - "10. Agents and MCP": learn/10-agents.md
+      - "11. Real APIs and the Taskfile front door": learn/11-real-apis.md
+      - "12. Editors": learn/12-editors.md
+      - "13. How apic works inside, and contributing": learn/13-inside-apic.md
   - Guides:
       - The .http format: format.md
       - Authentication: auth.md
