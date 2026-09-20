@@ -1,0 +1,76 @@
+name: vscode-release
+# Publishes the VS Code extension in editors/vscode on a `vscode-v*` tag:
+# to the Visual Studio Marketplace (VSCE_PAT), to Open VSX (OVSX_PAT, for
+# VSCodium, Gitpod and Theia users), and as a .vsix attached to a GitHub
+# release named after the tag. The extension is versioned separately from
+# the binary: a `v0.3.0` binary release never touches it, and
+# `vscode-v0.1.0` never touches the binary. The version in the tag must be
+# the one in package.json, so a stale manifest fails before anything is
+# published.
+on:
+  push:
+    tags: ["vscode-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the GitHub release and its .vsix
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Check the tag against package.json
+        run: |
+          tag="${GITHUB_REF_NAME#vscode-v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "tag vscode-v$tag does not match package.json version $version" >&2
+            exit 1
+          fi
+      # The electron tests run against the binary built from this commit,
+      # the way CI does on every pull request.
+      - run: go build -o "$RUNNER_TEMP/bin/apic" ./cmd/apic
+        working-directory: .
+      - run: echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test:unit
+      - run: xvfb-run -a npm test
+      - run: npx vsce package --no-dependencies
+      - name: Publish to the Visual Studio Marketplace
+        if: env.VSCE_PAT != ''
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --no-dependencies --packagePath ./*.vsix
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish ./*.vsix --pat "$OVSX_PAT"
+      - name: Attach the .vsix to a GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes="$(awk -v v="${GITHUB_REF_NAME#vscode-v}" '
+            $0 ~ "^## " v "( |$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" ./*.vsix \
+            --title "VS Code extension ${GITHUB_REF_NAME#vscode-}" \
+            --notes "${notes:-See editors/vscode/CHANGELOG.md.}"

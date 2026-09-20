@@ -13,33 +13,37 @@ Two extensions, and they cooperate:
 - **REST Client** (`humao.rest-client`) provides the `http` language, the
   highlighting, and "Send Request" above each request. apic's `# @` lines
   are comments to it, so a file with assertions and captures still sends.
-- **apic** (`dataGriff.apic`, in `editors/vscode` of the repository)
-  layers apic on top. **Run**, **Describe** and **Copy as curl** sit above
-  every request, and **Run file as flow** at the top of a file; a run goes
+- **apic** (`dataGriff.apic`, on the
+  [Marketplace](https://marketplace.visualstudio.com/items?itemName=dataGriff.apic)
+  and [Open VSX](https://open-vsx.org/extension/dataGriff/apic)) layers
+  apic on top. **Run**, **Describe** and **Copy as curl** sit above every
+  request, and **Run file as flow** at the top of a file; a run goes
   through apic's runner, assertions, captures and `# @ref` dependencies
   included, marks the request line `✓ 200 · 12 ms`, and opens a response
   panel beside the editor with the body highlighted, every assertion's
   actual against expected, and the captures. `apic validate` runs when a
-  request file, `apic.yaml` or an env file is saved, and its findings land
-  in the Problems panel at the exact span with quick fixes for a mistyped
-  directive, a duplicate name and a missing body file. The environment for
-  the project is picked from the status bar. Session and request views,
-  completions and hovers, Test Explorer for `.feature` files and the
-  Marketplace release follow, tracked in the
-  [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
+  request file, `apic.yaml` or an env file changes on disk, and its
+  findings land in the Problems panel at the exact span with quick fixes
+  for a mistyped directive, a duplicate name and a missing body file. An
+  **apic** view in the activity bar lists every request by file with a
+  ready/not-ready icon and shows the session (captured values and
+  cookies) for the environment in effect, which the status bar names and
+  **apic: Select environment** changes. **Format Document** goes through
+  `apic fmt`, and the bundled schemas validate `apic.yaml` (with the YAML
+  extension), the env files and the session file. Completions and hovers,
+  Test Explorer for `.feature` files and a language server follow,
+  tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
 
-Until the extension is on the Marketplace, build it from the repository:
+Install it from the Marketplace or Open VSX (search for **apic**), or
+from the `.vsix` attached to a `vscode-v*` entry on the
+[releases page](https://github.com/dataGriff/api-caller/releases?q=vscode):
 
 ```sh
-cd editors/vscode
-npm ci
-npm run package        # writes apic-<version>.vsix
-code --install-extension apic-*.vsix
+code --install-extension apic-<version>.vsix
 ```
 
-`apic.yaml` gets completion and validation from the YAML extension through
-the schema modeline `apic init` writes; the env files can be associated
-with [their schema](cli.md#configuration-file) in `json.schemas`.
+To build it from the repository instead: `cd editors/vscode && npm ci &&
+npm run package`.
 
 ## JetBrains IDEs
 
