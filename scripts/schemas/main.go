@@ -34,17 +34,28 @@ const (
 // descriptions documents every key of apic.yaml by its dotted path. The
 // generator refuses to run when a struct field is missing here.
 var descriptions = map[string]string{
-	"env":            "Environment from http-client.env.json to use when --env is not given.",
-	"dir":            "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",
-	"timeout":        "Default request timeout as a Go duration, for example 10s or 1m30s. Default 30s. `--timeout` and `# @timeout` override it.",
-	"retry":          "Default retry policy for requests without `# @retry`: `<attempts> [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",
-	"cookies":        "Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in .apic/cookies.json, like captured values. Off by default; `--cookies` switches it on for one command and `# @no-cookies` exempts a request.",
-	"maxBodyBytes":   "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
-	"auth":           "Project-wide authentication defaults; see the Authentication guide.",
-	"auth.default":   "An auth spec applied to every request without its own `# @auth`, for example `aws region=eu-west-2` or `bearer {{token}}`. May use {{variables}}.",
-	"auth.allowExec": "Permit `# @auth exec ...`, which runs a command from a request file. Off by default because agents edit request files.",
-	"test":           "Defaults for `apic test`.",
-	"test.paths":     "Feature files or directories `apic test` runs when none are given, relative to the project root. Default: features.",
+	"env":                    "Environment from http-client.env.json to use when --env is not given.",
+	"dir":                    "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",
+	"timeout":                "Default request timeout as a Go duration, for example 10s or 1m30s. Default 30s. `--timeout` and `# @timeout` override it.",
+	"retry":                  "Default retry policy for requests without `# @retry`: `<attempts> [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",
+	"cookies":                "Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in .apic/cookies.json, like captured values. Off by default; `--cookies` switches it on for one command and `# @no-cookies` exempts a request.",
+	"maxBodyBytes":           "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
+	"auth":                   "Project-wide authentication defaults; see the Authentication guide.",
+	"auth.default":           "An auth spec applied to every request without its own `# @auth`, for example `aws region=eu-west-2` or `bearer {{token}}`. May use {{variables}}.",
+	"auth.allowExec":         "Permit `# @auth exec ...`, which runs a command from a request file. Off by default because agents edit request files.",
+	"test":                   "Defaults for `apic test`.",
+	"test.paths":             "Feature files or directories `apic test` runs when none are given, relative to the project root. Default: features.",
+	"tls":                    "TLS settings: a private CA to trust and a client certificate to present (mTLS). Paths are relative to the project root. `--cacert`, `--cert` and `--key` override them for one command; a JetBrains `SSLConfiguration` block in the env files is read too.",
+	"tls.caFile":             "PEM file with certificates to trust in addition to the system roots, for an API behind a private CA.",
+	"tls.certFile":           "PEM client certificate presented to servers that ask for one.",
+	"tls.keyFile":            "PEM private key for certFile; defaults to certFile when both are in one file. Refused when world-readable.",
+	"tls.verifyHost":         "Verify the server's certificate. Default true; `--insecure` turns it off for one command.",
+	"tls.hosts":              "Overrides for particular hosts, by host name (`api.internal.example.com`) or wildcard (`*.internal.example.com`).",
+	"tls.hosts.*":            "The override for one host; unset keys fall back to the settings above.",
+	"tls.hosts.*.caFile":     "PEM file with certificates to trust for this host.",
+	"tls.hosts.*.certFile":   "PEM client certificate for this host.",
+	"tls.hosts.*.keyFile":    "PEM private key for this host's certFile.",
+	"tls.hosts.*.verifyHost": "Verify this host's certificate. Default true.",
 }
 
 // examples adds example values to a few keys, for editor completion.
@@ -54,6 +65,9 @@ var examples = map[string][]any{
 	"timeout":      {"10s", "1m"},
 	"retry":        {"10 2s", "5 500ms"},
 	"auth.default": {"bearer {{token}}", "aws service=execute-api region=eu-west-2"},
+	"tls.caFile":   {"certs/internal-ca.pem"},
+	"tls.certFile": {"certs/client.pem"},
+	"tls.keyFile":  {"certs/client-key.pem"},
 	"test.paths":   {[]string{"features", "smoke.feature"}},
 }
 
@@ -177,6 +191,22 @@ func fieldSchema(t reflect.Type, path string) (*jsonschema.Schema, error) {
 		return &jsonschema.Schema{Type: "array", Items: item}, nil
 	case reflect.Struct:
 		return structSchema(t, path)
+	case reflect.Pointer:
+		return fieldSchema(t.Elem(), path)
+	case reflect.Map:
+		if t.Key().Kind() != reflect.String {
+			break
+		}
+		desc, ok := descriptions[path+".*"]
+		if !ok {
+			return nil, fmt.Errorf("apic.yaml key %q has no description in scripts/schemas", path+".*")
+		}
+		item, err := fieldSchema(t.Elem(), path+".*")
+		if err != nil {
+			return nil, err
+		}
+		item.Description = desc
+		return &jsonschema.Schema{Type: "object", AdditionalProperties: item}, nil
 	}
 	return nil, fmt.Errorf("apic.yaml key %q: unsupported Go type %s", path, t)
 }
@@ -188,6 +218,8 @@ func envSchema() *jsonschema.Schema {
 	// A schema is a tree, so the value schema used in two places lives in
 	// $defs and is referenced from each.
 	value := &jsonschema.Schema{Ref: "#/$defs/value"}
+	// The same reference twice would break the tree, so each use gets its own node.
+	sslRef := func() *jsonschema.Schema { return &jsonschema.Schema{Ref: "#/$defs/sslConfiguration"} }
 	return &jsonschema.Schema{
 		Schema:      draft,
 		ID:          baseURL + "http-client.env.schema.json",
@@ -199,19 +231,40 @@ func envSchema() *jsonschema.Schema {
 				Types:       []string{"string", "number", "boolean", "null"},
 				Description: "A variable value. Non-strings are converted to text when substituted.",
 			},
+			"sslConfiguration": {
+				Type:        "object",
+				Description: "JetBrains HTTP Client's TLS block: a client certificate to present and whether to verify the server. Not a variable. Paths are relative to the project root.",
+				Properties: map[string]*jsonschema.Schema{
+					"clientCertificate": {
+						Description: "The client certificate: a PEM path, or an object with `path` and `keyPath`.",
+						OneOf: []*jsonschema.Schema{
+							{Type: "string"},
+							{Type: "object", Required: []string{"path"}, Properties: map[string]*jsonschema.Schema{
+								"path":    {Type: "string", Description: "PEM client certificate."},
+								"keyPath": {Type: "string", Description: "PEM private key; defaults to path."},
+								"format":  {Type: "string", Description: "Accepted for compatibility; apic reads PEM only."},
+							}},
+						},
+					},
+					"hasCertificatePassphrase": {Type: "boolean", Description: "The key is encrypted. apic cannot prompt for a passphrase and refuses such a key."},
+					"verifyHostCertificate":    {Type: "boolean", Description: "Verify the server's certificate. Default true."},
+				},
+			},
 		},
 		Properties: map[string]*jsonschema.Schema{
 			"$shared": {
 				Type:                 "object",
 				Description:          "Variables that apply to every environment; an environment's own value wins.",
+				Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef()},
 				AdditionalProperties: value,
 			},
 		},
 		AdditionalProperties: &jsonschema.Schema{
 			Type:                 "object",
 			Description:          "The variables of one environment.",
+			Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef()},
 			AdditionalProperties: &jsonschema.Schema{Ref: "#/$defs/value"},
-			PropertyNames:        &jsonschema.Schema{Pattern: `^[A-Za-z_][\w.-]*$`},
+			PropertyNames:        &jsonschema.Schema{Pattern: `^[A-Za-z_$][\w.-]*$`},
 		},
 		Examples: []any{map[string]any{
 			"$shared": map[string]any{"userId": 42},

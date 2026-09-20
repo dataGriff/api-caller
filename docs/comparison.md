@@ -23,7 +23,7 @@ lands against the tools you might otherwise use.
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
 | Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code), basic, bearer, exec |
 | Cookie jar | via curl flags | some | yes | yes | yes | yes (opt-in, per environment) |
-| Client certificates | via curl flags | JetBrains | yes | yes | yes | no |
+| Client certificates, private CAs | via curl flags | JetBrains | yes | yes | yes | yes (`tls:` in apic.yaml, flags, JetBrains `SSLConfiguration`) |
 | Multipart uploads with file parts | `curl -F` | yes | yes | yes | yes | yes |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
 | GUI | no | the editor | VS Code extension | yes | no | terminal UI (`apic ui`) |
@@ -120,9 +120,9 @@ So you are not surprised later:
 - No scripting. Anything needing computed signatures, loops or conditional
   logic has nowhere to go. The escape hatch is a shell script around
   `apic run --json`.
-- No browser-based OAuth2 flows (authorization code, PKCE) and no client
-  certificates. Client credentials, password and device code grants, AWS
-  SigV4, basic and command-provided tokens are covered in [auth.md](auth.md).
+- No browser-based OAuth2 flows (authorization code, PKCE). Client
+  credentials, password and device code grants, AWS SigV4, basic and
+  command-provided tokens are covered in [auth.md](auth.md).
 - HTTP only. No GraphQL-specific tooling (a GraphQL query is just a POST),
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover

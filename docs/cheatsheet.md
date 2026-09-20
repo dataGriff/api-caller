@@ -48,8 +48,8 @@ Content-Type: application/json
 `users.http#get-user` · `users.http#3` (third request).
 
 **Global flags:** `-C/--dir`, `-e/--env`, `--var k=v`, `--json`,
-`--no-color`, `--timeout`, `--no-session`, `--insecure`, `--redact`,
-`--cookies`.
+`--no-color`, `--timeout`, `--no-session`, `--insecure`, `--cacert`,
+`--cert`, `--key`, `--redact`, `--cookies`.
 
 **Exit codes:** `0` ok · `1` assertion or capture failed · `2` usage, parse
 error, unknown request or missing variable · `3` network error.
@@ -168,7 +168,7 @@ everything available in the current project.
 
 ```
 api/
-  apic.yaml                      env, dir, timeout, retry, cookies, auth.default, auth.allowExec, test.paths
+  apic.yaml                      env, dir, timeout, retry, cookies, tls, auth.default, auth.allowExec, test.paths
   features/*.feature             Gherkin specs run by `apic test`
   http-client.env.json           public per-environment variables
   http-client.private.env.json   secrets (gitignored)

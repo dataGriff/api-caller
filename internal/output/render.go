@@ -29,6 +29,9 @@ func RequestDetail(t Theme, res *runner.Result) string {
 	for _, h := range res.Request.DisplayHeaders(res.Redact) {
 		fmt.Fprintf(&b, "%s %s\n", t.Header.Render(h.Name+":"), h.Value)
 	}
+	if res.Request.TLS != nil {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("tls:"), res.Request.TLS)
+	}
 	if body := res.Request.DisplayBody(res.Redact); body != "" {
 		fmt.Fprintf(&b, "\n%s\n", strings.TrimRight(body, "\n"))
 	}
@@ -252,6 +255,10 @@ func Describe(t Theme, d *runner.Description, headers []httpfile.Header) string 
 	if d.BodyFile != "" {
 		b.WriteString(Section(t, "body file"))
 		b.WriteString("  " + d.BodyFile + "\n")
+	}
+	if d.TLS != nil {
+		b.WriteString(Section(t, "tls"))
+		b.WriteString("  " + d.TLS.String() + "\n")
 	}
 	b.WriteString(Section(t, "variables"))
 	if len(d.Variables) == 0 {

@@ -21,7 +21,9 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--no-session` | Do not read or write `.apic/session.json`; with cookies on, the jar stays in memory for the one command. |
 | `--cookies` | Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in `.apic/cookies.json`. Same as `cookies: true` in `apic.yaml`. See [format.md](format.md#cookies). |
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
-| `--insecure` | Skip TLS certificate verification. |
+| `--insecure` | Skip TLS certificate verification. Reported as `tls.insecure` in `--json` and by `describe`. |
+| `--cacert <pem>` | Trust the certificates in this PEM file in addition to the system roots, for an API behind a private CA. |
+| `--cert <pem>`, `--key <pem>` | Present a client certificate (mTLS); the key defaults to the `--cert` file. These override `tls:` in `apic.yaml` and the env files' `SSLConfiguration`. See [auth.md](auth.md#tls-and-client-certificates). |
 | `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
 
 ## Exit codes
@@ -549,6 +551,12 @@ timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
+tls:                    # a private CA and a client certificate; see auth.md
+  caFile: certs/internal-ca.pem
+  certFile: certs/client.pem
+  keyFile: certs/client-key.pem
+  hosts:
+    api.internal.example.com: {certFile: certs/internal.pem, keyFile: certs/internal-key.pem}
 auth:
   default: aws region=eu-west-2   # applied to requests without # @auth; see auth.md
   allowExec: false                # permit # @auth exec

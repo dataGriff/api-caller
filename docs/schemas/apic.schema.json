@@ -81,6 +81,65 @@
         "1m"
       ],
       "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "caFile": {
+          "type": "string",
+          "description": "PEM file with certificates to trust in addition to the system roots, for an API behind a private CA.",
+          "examples": [
+            "certs/internal-ca.pem"
+          ]
+        },
+        "certFile": {
+          "type": "string",
+          "description": "PEM client certificate presented to servers that ask for one.",
+          "examples": [
+            "certs/client.pem"
+          ]
+        },
+        "hosts": {
+          "type": "object",
+          "description": "Overrides for particular hosts, by host name (`api.internal.example.com`) or wildcard (`*.internal.example.com`).",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "caFile": {
+                "type": "string",
+                "description": "PEM file with certificates to trust for this host."
+              },
+              "certFile": {
+                "type": "string",
+                "description": "PEM client certificate for this host."
+              },
+              "keyFile": {
+                "type": "string",
+                "description": "PEM private key for this host's certFile."
+              },
+              "verifyHost": {
+                "type": "boolean",
+                "description": "Verify this host's certificate. Default true."
+              }
+            },
+            "description": "The override for one host; unset keys fall back to the settings above.",
+            "additionalProperties": false
+          }
+        },
+        "keyFile": {
+          "type": "string",
+          "description": "PEM private key for certFile; defaults to certFile when both are in one file. Refused when world-readable.",
+          "examples": [
+            "certs/client-key.pem"
+          ]
+        },
+        "verifyHost": {
+          "type": "boolean",
+          "description": "Verify the server's certificate. Default true; `--insecure` turns it off for one command."
+        }
+      },
+      "description": "TLS settings: a private CA to trust and a client certificate to present (mTLS). Paths are relative to the project root. `--cacert`, `--cert` and `--key` override them for one command; a JetBrains `SSLConfiguration` block in the env files is read too.",
+      "additionalProperties": false
     }
   },
   "$id": "https://datagriff.github.io/api-caller/schemas/apic.schema.json",

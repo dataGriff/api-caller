@@ -60,7 +60,8 @@ phrase) · 3 a server could not be reached.`,
 			}
 			opts := bdd.Options{
 				Config: bdd.Config{Project: p, Env: a.g.env, Vars: vars, UseSession: useSession,
-					Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, Stderr: a.Stderr},
+					Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, Stderr: a.Stderr,
+					CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key},
 				Paths: args, Format: format, Tags: tags, StopOnFailure: stopOnFailure,
 				NoColors: a.g.noColor || a.g.json || os.Getenv("NO_COLOR") != "" || output != "" || !isTerminal(a.Stdout),
 				Output:   a.Stdout,

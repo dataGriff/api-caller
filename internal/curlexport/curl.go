@@ -41,6 +41,7 @@ func Command(r *runner.Resolved, redact bool) string {
 		parts = append(parts, "--data-raw "+quote(body))
 	}
 	parts = append(parts, authFlags(r.AuthSpec, redact)...)
+	parts = append(parts, tlsFlags(r.TLS)...)
 	parts = append(parts, quote(r.DisplayURL(redact)))
 	return strings.Join(parts, " \\\n  ")
 }
@@ -69,6 +70,27 @@ func formFlags(parts []runner.FormPart, redact bool) []string {
 			spec += ";filename=" + p.Filename
 		}
 		out = append(out, "-F "+quote(spec))
+	}
+	return out
+}
+
+// tlsFlags maps the request's TLS setup onto curl's own options.
+func tlsFlags(t *runner.TLSInfo) []string {
+	if t == nil {
+		return nil
+	}
+	var out []string
+	if t.CAFile != "" {
+		out = append(out, "--cacert "+quote(t.CAFile))
+	}
+	if t.CertFile != "" {
+		out = append(out, "--cert "+quote(t.CertFile))
+		if t.KeyFile != "" && t.KeyFile != t.CertFile {
+			out = append(out, "--key "+quote(t.KeyFile))
+		}
+	}
+	if t.Insecure {
+		out = append(out, "--insecure")
 	}
 	return out
 }

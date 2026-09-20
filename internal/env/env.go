@@ -34,16 +34,47 @@ type Environments struct {
 	Private map[string]map[string]string
 	DotEnv  map[string]string
 	Found   []string // files that were present
+	ssl     map[string]*SSLConfig
+}
+
+// SSLConfig is the JetBrains `SSLConfiguration` block of an environment:
+//
+//	"SSLConfiguration": {
+//	  "clientCertificate": {"path": "certs/client.pem", "keyPath": "certs/client-key.pem"},
+//	  "hasCertificatePassphrase": false,
+//	  "verifyHostCertificate": true
+//	}
+//
+// It is read from either env file (the private one wins) and is not a
+// variable. Paths are relative to the project root.
+type SSLConfig struct {
+	CertFile      string
+	KeyFile       string
+	HasPassphrase bool
+	VerifyHost    *bool
+}
+
+// SSL returns the SSLConfiguration block for env, merged over $shared, or
+// nil when neither file declares one.
+func (e *Environments) SSL(env string) *SSLConfig {
+	if c, ok := e.ssl[env]; ok && env != "" {
+		return c
+	}
+	if c, ok := e.ssl[sharedKey]; ok {
+		return c
+	}
+	return nil
 }
 
 // Load reads the env files in root. Missing files are fine.
 func Load(root string) (*Environments, error) {
 	e := &Environments{Public: map[string]map[string]string{}, Private: map[string]map[string]string{}, DotEnv: map[string]string{}}
 	var err error
-	if e.Public, err = loadJSON(filepath.Join(root, PublicFile), &e.Found); err != nil {
+	e.ssl = map[string]*SSLConfig{}
+	if e.Public, err = loadJSON(filepath.Join(root, PublicFile), &e.Found, e.ssl); err != nil {
 		return nil, err
 	}
-	if e.Private, err = loadJSON(filepath.Join(root, PrivateFile), &e.Found); err != nil {
+	if e.Private, err = loadJSON(filepath.Join(root, PrivateFile), &e.Found, e.ssl); err != nil {
 		return nil, err
 	}
 	dot := filepath.Join(root, DotEnvFile)
@@ -102,7 +133,11 @@ func merge(base, over map[string]string) map[string]string {
 	return out
 }
 
-func loadJSON(path string, found *[]string) (map[string]map[string]string, error) {
+const sslKey = "SSLConfiguration"
+
+// loadJSON reads one env file. An SSLConfiguration block is lifted out of
+// the variables into ssl, later files overriding earlier ones.
+func loadJSON(path string, found *[]string, ssl map[string]*SSLConfig) (map[string]map[string]string, error) {
 	out := map[string]map[string]string{}
 	data, err := os.ReadFile(path) //nolint:gosec // reading the project's env file by path is the whole job
 	if errors.Is(err, fs.ErrNotExist) {
@@ -118,12 +153,50 @@ func loadJSON(path string, found *[]string) (map[string]map[string]string, error
 	for envName, vars := range raw {
 		m := map[string]string{}
 		for k, v := range vars {
+			if k == sslKey {
+				c, err := parseSSL(v)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %s: %s: %w", filepath.Base(path), envName, sslKey, err)
+				}
+				ssl[envName] = c
+				continue
+			}
 			m[k] = stringify(v)
 		}
 		out[envName] = m
 	}
 	*found = append(*found, filepath.Base(path))
 	return out, nil
+}
+
+// parseSSL reads a JetBrains SSLConfiguration value. clientCertificate is
+// an object with path and keyPath, or a bare path string.
+func parseSSL(v any) (*SSLConfig, error) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return nil, errors.New("expected an object")
+	}
+	c := &SSLConfig{}
+	switch cert := obj["clientCertificate"].(type) {
+	case nil:
+	case string:
+		c.CertFile = cert
+	case map[string]any:
+		c.CertFile, _ = cert["path"].(string)
+		c.KeyFile, _ = cert["keyPath"].(string)
+		if c.CertFile == "" {
+			return nil, errors.New("clientCertificate needs a path")
+		}
+	default:
+		return nil, errors.New("clientCertificate must be a path or an object with path and keyPath")
+	}
+	if b, ok := obj["hasCertificatePassphrase"].(bool); ok {
+		c.HasPassphrase = b
+	}
+	if b, ok := obj["verifyHostCertificate"].(bool); ok {
+		c.VerifyHost = &b
+	}
+	return c, nil
 }
 
 func stringify(v any) string {

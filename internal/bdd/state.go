@@ -35,6 +35,9 @@ type Config struct {
 	Redact     bool
 	Cookies    bool // keep a cookie jar (in memory per scenario, shared on disk under UseSession)
 	Stderr     io.Writer
+	CACert     string // --cacert, --cert and --key
+	Cert       string
+	Key        string
 
 	usageErr      error           // first usage error raised by a step (unknown environment, request or variable)
 	transportErr  error           // first transport error raised by a step
@@ -249,7 +252,8 @@ func (c *Config) scenarioWith(env string, store *session.Store, jar *session.Jar
 	for k, v := range c.Vars {
 		vars[k] = v
 	}
-	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact, Cookies: c.Cookies}
+	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact, Cookies: c.Cookies,
+		CACert: c.CACert, Cert: c.Cert, Key: c.Key}
 	if store != nil {
 		opts.Session = store
 	} else if !c.UseSession {

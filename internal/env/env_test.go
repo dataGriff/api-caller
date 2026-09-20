@@ -204,3 +204,31 @@ func TestBadPrivateJSONNamesTheFile(t *testing.T) {
 		t.Errorf("error should name the file, got %q", err)
 	}
 }
+
+func TestSSLConfigurationIsReadNotAVariable(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, PublicFile, `{"$shared": {"SSLConfiguration": {"clientCertificate": "certs/shared.pem"}}, "dev": {"baseUrl": "https://dev", "SSLConfiguration": {"clientCertificate": {"path": "certs/dev.pem", "keyPath": "certs/dev-key.pem"}, "verifyHostCertificate": false}}, "prod": {"baseUrl": "https://prod"}}`)
+	write(t, dir, PrivateFile, `{"prod": {"SSLConfiguration": {"clientCertificate": {"path": "certs/prod.pem"}, "hasCertificatePassphrase": true}}}`)
+	e, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.PublicVars("dev")["SSLConfiguration"]; ok {
+		t.Error("SSLConfiguration leaked into the variables")
+	}
+	dev := e.SSL("dev")
+	if dev == nil || dev.CertFile != "certs/dev.pem" || dev.KeyFile != "certs/dev-key.pem" || dev.VerifyHost == nil || *dev.VerifyHost {
+		t.Errorf("dev = %+v", dev)
+	}
+	prod := e.SSL("prod")
+	if prod == nil || prod.CertFile != "certs/prod.pem" || !prod.HasPassphrase || prod.VerifyHost != nil {
+		t.Errorf("prod (private file) = %+v", prod)
+	}
+	if other := e.SSL("staging"); other == nil || other.CertFile != "certs/shared.pem" {
+		t.Errorf("$shared fallback = %+v", other)
+	}
+	write(t, dir, PrivateFile, `{"prod": {"SSLConfiguration": {"clientCertificate": 42}}}`)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "clientCertificate") {
+		t.Errorf("bad block: %v", err)
+	}
+}

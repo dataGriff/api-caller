@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dataGriff/api-caller/internal/assert"
@@ -59,6 +60,12 @@ type Options struct {
 	// none. NoRetry switches every retry off.
 	Retry   string
 	NoRetry bool
+	// CACert, Cert and Key are the --cacert, --cert and --key flags: a PEM
+	// bundle to trust and a client certificate to present. They override
+	// apic.yaml's tls section and the environment's SSLConfiguration.
+	CACert string
+	Cert   string
+	Key    string
 }
 
 // Progress reports one failed attempt of a request that is being retried,
@@ -91,6 +98,8 @@ type Runner struct {
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	results  map[string]*Result
 	captured map[string]string
+	tlsMu    sync.Mutex
+	tlsCache map[string]*tls.Config
 }
 
 // New builds a Runner, loading env files and the session.
@@ -123,6 +132,15 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
+	// Flag paths are the user's own, relative to where they typed them,
+	// which absolute paths tell apart from the project's confined ones.
+	for _, p := range []*string{&opts.CACert, &opts.Cert, &opts.Key} {
+		if *p != "" {
+			if abs, err := filepath.Abs(*p); err == nil {
+				*p = abs
+			}
+		}
+	}
 	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
 	switch {
 	case opts.Session != nil:
@@ -149,15 +167,18 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 
 // Resolved is a request with every placeholder substituted.
 type Resolved struct {
-	Name     string            `json:"name,omitempty"`
-	File     string            `json:"file"`
-	Line     int               `json:"line"`
-	Method   string            `json:"method"`
-	URL      string            `json:"url"`
-	Headers  []httpfile.Header `json:"-"`
-	Body     string            `json:"-"`
-	Auth     string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
-	AuthSpec *auth.Spec        `json:"-"`              // rendered spec (contains secrets)
+	Name    string            `json:"name,omitempty"`
+	File    string            `json:"file"`
+	Line    int               `json:"line"`
+	Method  string            `json:"method"`
+	URL     string            `json:"url"`
+	Headers []httpfile.Header `json:"-"`
+	Body    string            `json:"-"`
+	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
+	// TLS is the non-default TLS setup for this request's host: a private
+	// CA, a client certificate or no verification.
+	TLS      *TLSInfo   `json:"tls,omitempty"`
+	AuthSpec *auth.Spec `json:"-"` // rendered spec (contains secrets)
 	// SecretHeaders names headers whose value came from a secret source
 	// (private env file, .env, session or a capture).
 	SecretHeaders map[string]bool `json:"-"`
@@ -356,6 +377,9 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	if res.URL, err = render(strings.TrimSpace(req.URL)); err != nil {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
+	if u, err := url.Parse(res.URL); err == nil {
+		res.TLS = r.tlsFor(u.Host).info()
+	}
 	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
@@ -463,10 +487,11 @@ func (c sessionCache) Set(key, value string) error {
 	return c.r.Session.Save()
 }
 
-func (r *Runner) authEnv() *auth.Env {
-	tr := cloneDefaultTransport()
-	if r.Opts.Insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
+func (r *Runner) authEnv() (*auth.Env, error) {
+	// Token endpoints get the project-wide settings, not a host override.
+	tr, err := r.transport("")
+	if err != nil {
+		return nil, err
 	}
 	e := &auth.Env{
 		AllowExec: r.Project.Config.Auth.AllowExec,
@@ -476,7 +501,7 @@ func (r *Runner) authEnv() *auth.Env {
 	if r.Session != nil {
 		e.Cache = sessionCache{r}
 	}
-	return e
+	return e, nil
 }
 
 // Render substitutes {{placeholders}} in arbitrary text using the runner's
@@ -786,13 +811,21 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	}
 
 	if resolved.AuthSpec != nil {
-		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, resolved.BodyBytes(), r.authEnv()); err != nil {
+		env, err := r.authEnv()
+		if err != nil {
+			return nil, err
+		}
+		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, resolved.BodyBytes(), env); err != nil {
 			return nil, usagef("%s:%d: auth: %v", req.File.Path, req.Line, err)
 		}
 	}
 
+	client, err := r.client(req, httpReq.URL.Host)
+	if err != nil {
+		return nil, err
+	}
 	start := time.Now()
-	httpResp, err := r.client(req).Do(httpReq)
+	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, r.transportError(err)
 	}
@@ -988,6 +1021,7 @@ type Description struct {
 	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
+	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
 	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
 }
 
@@ -1061,6 +1095,11 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	}
 	sort.SliceStable(d.Variables, func(i, j int) bool { return d.Variables[i].Missing && !d.Variables[j].Missing })
 	d.URL = req.URL
+	if resolved, err := r.Resolve(req); err == nil {
+		d.TLS = resolved.TLS
+	} else {
+		d.TLS = r.tlsFor("").info()
+	}
 	return d
 }
 
@@ -1095,10 +1134,11 @@ func (r *Runner) EnvVars() []VarInfo {
 	return out
 }
 
-func (r *Runner) client(req *httpfile.Request) *http.Client {
-	tr := cloneDefaultTransport()
-	if r.Opts.Insecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // explicit --insecure
+// client builds the HTTP client for one request to host.
+func (r *Runner) client(req *httpfile.Request, host string) (*http.Client, error) {
+	tr, err := r.transport(host)
+	if err != nil {
+		return nil, err
 	}
 	c := &http.Client{Transport: tr}
 	if _, off := req.Directive("no-cookies"); r.Jar != nil && !off {
@@ -1106,10 +1146,10 @@ func (r *Runner) client(req *httpfile.Request) *http.Client {
 	}
 	if _, noRedirect := req.Directive("no-redirect"); noRedirect {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		return c
+		return c, nil
 	}
 	c.CheckRedirect = stripSensitiveOnCrossHostRedirect
-	return c
+	return c, nil
 }
 
 // stripSensitiveOnCrossHostRedirect drops apic's own credential headers when a
@@ -1252,31 +1292,44 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 // filePath resolves a `< file` reference relative to the request's file and
 // confines it to the project root.
 func (r *Runner) filePath(req *httpfile.Request, rel, what string) (string, error) {
-	root, err := filepath.EvalSymlinks(r.Project.Root)
+	real, err := confine(r.Project.Root, filepath.Join(r.Project.Root, filepath.Dir(req.File.Path)), rel)
+	if errors.Is(err, errOutsideRoot) {
+		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
+	}
 	if err != nil {
 		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
-	path := filepath.Join(r.Project.Root, filepath.Dir(req.File.Path), rel)
-	abs, err := filepath.Abs(path)
+	return real, nil
+}
+
+var errOutsideRoot = errors.New("resolves outside project root")
+
+// confine resolves rel against dir, follows symlinks, and returns the real
+// path if it lies under root, else errOutsideRoot.
+func confine(root, dir, rel string) (string, error) {
+	rootReal, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+		return "", err
+	}
+	abs, err := filepath.Abs(filepath.Join(dir, rel))
+	if err != nil {
+		return "", err
 	}
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
-			if derr != nil {
-				real = abs
-			} else {
-				real = filepath.Join(dirReal, filepath.Base(abs))
-			}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
+		if derr != nil {
+			real = abs
 		} else {
-			return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+			real = filepath.Join(dirReal, filepath.Base(abs))
 		}
 	}
-	inside, err := filepath.Rel(root, real)
+	inside, err := filepath.Rel(rootReal, real)
 	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
-		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
+		return "", errOutsideRoot
 	}
 	return real, nil
 }

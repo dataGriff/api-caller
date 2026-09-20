@@ -97,7 +97,9 @@ Unknown directives are reported as warnings by `apic validate` and ignored.
 Select with `--env dev`, or set a default in `apic.yaml` (`env: dev`).
 Keep secrets in `http-client.private.env.json` and gitignore it; apic masks
 values from that file, from `.env` and from the session in `describe`, `env`
-and MCP output.
+and MCP output. A JetBrains `SSLConfiguration` entry in either file is not
+a variable: it configures a client certificate, see
+[auth.md](auth.md#tls-and-client-certificates).
 
 ### Built-ins
 

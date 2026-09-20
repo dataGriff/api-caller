@@ -128,3 +128,16 @@ func TestCommandMapsMultipartPartsOntoForm(t *testing.T) {
 		t.Errorf("redacted: %s", got)
 	}
 }
+
+func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
+	r := &runner.Resolved{Method: "GET", URL: "https://api.internal/me", TLS: &runner.TLSInfo{CAFile: "certs/ca.pem", CertFile: "certs/client.pem", KeyFile: "certs/client-key.pem", Insecure: true}}
+	want := "curl -sS \\\n  --cacert 'certs/ca.pem' \\\n  --cert 'certs/client.pem' \\\n  --key 'certs/client-key.pem' \\\n  --insecure \\\n  'https://api.internal/me'"
+	if got := Command(r, false); got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	// One file for both: no --key.
+	r.TLS = &runner.TLSInfo{CertFile: "certs/client.pem", KeyFile: "certs/client.pem"}
+	if got := Command(r, true); strings.Contains(got, "--key") || !strings.Contains(got, "--cert 'certs/client.pem'") {
+		t.Errorf("combined file: %s", got)
+	}
+}

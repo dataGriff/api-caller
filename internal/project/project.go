@@ -35,6 +35,25 @@ type Config struct {
 	MaxBodyBytes int64      `yaml:"maxBodyBytes"`
 	Auth         AuthConfig `yaml:"auth"`
 	Test         TestConfig `yaml:"test"`
+	TLS          TLSConfig  `yaml:"tls"`
+}
+
+// TLSConfig is the `tls:` section of apic.yaml. Paths are relative to the
+// project root and confined to it.
+type TLSConfig struct {
+	CAFile     string             `yaml:"caFile"`     // PEM bundle added to the system roots
+	CertFile   string             `yaml:"certFile"`   // client certificate (PEM)
+	KeyFile    string             `yaml:"keyFile"`    // its private key (PEM); defaults to certFile
+	VerifyHost *bool              `yaml:"verifyHost"` // verify the server certificate; default true
+	Hosts      map[string]TLSHost `yaml:"hosts"`      // per-host overrides, by host name or *.suffix
+}
+
+// TLSHost overrides TLSConfig for one host.
+type TLSHost struct {
+	CAFile     string `yaml:"caFile"`
+	CertFile   string `yaml:"certFile"`
+	KeyFile    string `yaml:"keyFile"`
+	VerifyHost *bool  `yaml:"verifyHost"`
 }
 
 // TestConfig is the `test:` section of apic.yaml.
