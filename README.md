@@ -176,6 +176,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic import <collection.postman.json>` | Folders to files, requests to named requests, variables to env files, simple `pm.test` checks to assertions. |
 | `apic import --curl '<command>'` | One named request from a curl command, appended to a file with `--into`. |
 | `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
+| `apic fmt` | Rewrite `.http` files in their canonical form: directive order, header case, JSON bodies. `--check` for CI, `-` for editors. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 
@@ -201,6 +202,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Testing with Gherkin](docs/testing.md) | `.feature` files, the step vocabulary, reports |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
 | [Editors](docs/editors.md) | VS Code (REST Client plus the apic extension), JetBrains, Neovim |
+| [Architecture](docs/architecture.md) | The request lifecycle, the packages, the three contracts, how to add a directive |
 | [FAQ](docs/faq.md) | Missing variables, 403s, secrets in logs, Windows |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |

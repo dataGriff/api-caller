@@ -43,8 +43,63 @@ suite("apic extension", () => {
   test("activates on a workspace with .http files and registers its commands", async () => {
     await api();
     const commands = await vscode.commands.getCommands(true);
-    for (const c of ["apic.showVersion", "apic.openInstallPage", "apic.runRequest", "apic.runFile", "apic.describeRequest", "apic.copyCurl", "apic.showLastResponse", "apic.pickEnvironment", "apic.validate"]) {
+    for (const c of ["apic.showVersion", "apic.openInstallPage", "apic.runRequest", "apic.runFile", "apic.describeRequest", "apic.copyCurl", "apic.showLastResponse", "apic.selectEnvironment", "apic.pickEnvironment", "apic.validate", "apic.refresh", "apic.clearSession", "apic.clearAllSessions", "apic.openRequest"]) {
       assert.ok(commands.includes(c), `command ${c} missing`);
+    }
+  });
+
+  test("shows the fixture's requests grouped by file, and its environment", async function () {
+    if (!findOnPath("apic")) {
+      this.skip();
+    }
+    const { requestsView, sessionView, environments } = await api();
+    const files = await requestsView.getChildren();
+    assert.deepStrictEqual(
+      files.map((n) => (n.kind === "file" ? n.file : "?")),
+      ["api.http", "nested/deep.http", "warn.http"],
+    );
+    const requests = await requestsView.getChildren(files[0]);
+    assert.strictEqual(requests.length, 1);
+    const ping = requests[0];
+    assert.ok(ping.kind === "request" && ping.entry.id === "ping");
+    const item = requestsView.getTreeItem(ping);
+    assert.strictEqual(item.label, "GET ping");
+    assert.deepStrictEqual(item.command?.arguments, [fixture(), "api.http", 4]);
+    // The fixture's apic.yaml says env: dev, and nothing is picked.
+    assert.strictEqual(environments.current(fixture()), undefined);
+    assert.strictEqual(await environments.effective(fixture()), "dev");
+    assert.strictEqual(await sessionView.effectiveEnv(fixture()), "dev");
+    assert.deepStrictEqual(await sessionView.getChildren(), []);
+    await vscode.commands.executeCommand("apic.openRequest", fixture(), "api.http", 4);
+    assert.strictEqual(vscode.window.activeTextEditor?.selection.active.line, 3);
+  });
+
+  test("formats a request file through apic fmt", async function () {
+    if (!findOnPath("apic")) {
+      this.skip();
+    }
+    await api();
+    const doc = await vscode.workspace.openTextDocument({ content: "### a\n# @assert status == 200\n# @name a\nGET http://x  \n", language: "http" });
+    // Untitled documents have no file pattern; the provider is registered
+    // for *.http, so ask through a file inside the fixture instead.
+    const uri = vscode.Uri.file(path.join(fixture(), "api.http"));
+    const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", uri, { tabSize: 2, insertSpaces: true });
+    assert.deepStrictEqual(edits ?? [], [], "the fixture file is already canonical");
+    const tmp = path.join(fixture(), "messy.http");
+    fs.writeFileSync(tmp, doc.getText());
+    try {
+      const messy = await vscode.workspace.openTextDocument(vscode.Uri.file(tmp));
+      // VS Code may split the provider's one edit into smaller ones, so
+      // apply whatever comes back and compare the text.
+      const got = await vscode.commands.executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", messy.uri, { tabSize: 2, insertSpaces: true });
+      assert.ok(got && got.length > 0, JSON.stringify(got));
+      const edit = new vscode.WorkspaceEdit();
+      edit.set(messy.uri, got);
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      assert.strictEqual(messy.getText(), "### a\n# @name a\n# @assert status == 200\nGET http://x\n");
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      fs.rmSync(tmp, { force: true });
     }
   });
 

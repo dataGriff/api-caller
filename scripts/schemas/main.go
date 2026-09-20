@@ -71,11 +71,22 @@ var examples = map[string][]any{
 	"test.paths":   {[]string{"features", "smoke.feature"}},
 }
 
+// Dirs are where the schemas live: the docs site publishes them at the
+// URLs the schema ids name, and the VS Code extension bundles a copy so
+// they validate offline.
+var Dirs = []string{"docs/schemas", "editors/vscode/schemas"}
+
 func main() {
-	out := flag.String("out", "docs/schemas", "directory to write the schemas into")
+	out := flag.String("out", "", "one directory to write the schemas into (default: every directory in Dirs)")
 	flag.Parse()
-	if err := write(*out); err != nil {
-		log.Fatalf("schemas: %v", err)
+	dirs := Dirs
+	if *out != "" {
+		dirs = []string{*out}
+	}
+	for _, dir := range dirs {
+		if err := write(dir); err != nil {
+			log.Fatalf("schemas: %v", err)
+		}
 	}
 }
 

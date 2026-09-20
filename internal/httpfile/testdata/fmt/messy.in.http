@@ -1,0 +1,60 @@
+@baseUrl=https://api.example.com   
+@user =   alice
+
+
+###   Log in and keep the token   
+// @capture token = body.$.access_token
+# @assert   status == 200
+# a comment that explains the name
+# @name login
+POST   {{baseUrl}}/auth/login    HTTP/1.1
+content-type:application/json
+x-correlation-id:  abc  
+
+{"user":"{{user}}","password":"{{password}}"}
+
+
+###
+# @frobnicate yes
+# @description Fetch a user
+# @ref login
+# @name get-user
+GET {{baseUrl}}/users/{{userId}}  
+  ?expand=profile
+      &fields=id,email
+authorization: Bearer {{token}}
+// a comment among the headers
+accept: application/json
+### Pretty JSON
+# @name create
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{"name":"x","tags":["a","b"],"nested":{"k":1}}   
+
+### Not JSON as far as the header says
+# @name form
+POST {{baseUrl}}/form
+Content-Type: application/x-www-form-urlencoded
+
+{"looks":"like json"}  
+
+### Handler block stays
+# @name with-handler
+GET {{baseUrl}}/x
+
+> {%
+  client.log("hi");
+%}
+### Whole-body file
+# @name upload
+POST {{baseUrl}}/upload
+Content-Type: application/json
+
+<  ./payload.json   
+
+### Only a title, no request
+# just a note
+
+###
+{{baseUrl}}/health

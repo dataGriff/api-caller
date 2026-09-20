@@ -79,6 +79,34 @@ type Project struct {
 
 var skipDirs = map[string]bool{"node_modules": true, "vendor": true, ".git": true, ".apic": true, "testdata": true}
 
+// Discover lists the request files under a directory the way Load reads
+// them: every *.http and *.rest, sorted, skipping hidden directories,
+// node_modules, vendor and testdata. `apic fmt` uses the same walk so the
+// two commands agree on what a project holds.
+func Discover(dir string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != dir && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if ext := filepath.Ext(d.Name()); ext == ".http" || ext == ".rest" {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
 // Load discovers and parses every *.http and *.rest file under root.
 func Load(root string) (*Project, error) {
 	abs, err := filepath.Abs(root)
@@ -95,26 +123,10 @@ func Load(root string) (*Project, error) {
 	if p.Config.Dir != "" {
 		scan = filepath.Join(abs, p.Config.Dir)
 	}
-	var paths []string
-	err = filepath.WalkDir(scan, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if path != scan && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if ext := filepath.Ext(d.Name()); ext == ".http" || ext == ".rest" {
-			paths = append(paths, path)
-		}
-		return nil
-	})
+	paths, err := Discover(scan)
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(paths)
 	for _, path := range paths {
 		f, diags, err := httpfile.ParseFile(path)
 		if err != nil {

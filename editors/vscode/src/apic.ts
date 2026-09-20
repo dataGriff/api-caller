@@ -41,6 +41,8 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Extra environment variables for the process. */
   env?: Record<string, string>;
+  /** Text written to the process's stdin, then closed. */
+  input?: string;
 }
 
 /** Thrown when apic cannot be found at all. */
@@ -110,7 +112,7 @@ export class Apic {
     const full = opts.project ? ["-C", opts.project, ...args] : args;
     this.output.appendLine(`$ apic ${full.join(" ")}`);
     return new Promise((resolve) => {
-      execFile(
+      const child = execFile(
         bin,
         full,
         {
@@ -128,6 +130,16 @@ export class Apic {
           resolve({ code, stdout, stderr, aborted });
         },
       );
+      if (child.stdin) {
+        // A child that exits before reading its input (an older apic
+        // without the command) breaks the pipe; the exit code and stderr
+        // already say what happened, so the write error is not news.
+        child.stdin.on("error", () => undefined);
+        if (opts.input !== undefined) {
+          child.stdin.write(opts.input);
+        }
+        child.stdin.end();
+      }
     });
   }
 

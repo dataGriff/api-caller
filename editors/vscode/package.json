@@ -33,7 +33,9 @@
     "workspaceContains:**/*.http",
     "workspaceContains:**/*.rest",
     "workspaceContains:**/apic.yaml",
-    "onLanguage:http"
+    "onLanguage:http",
+    "onView:apic.requests",
+    "onView:apic.session"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -71,11 +73,6 @@
         "category": "apic"
       },
       {
-        "command": "apic.pickEnvironment",
-        "title": "Pick environment",
-        "category": "apic"
-      },
-      {
         "command": "apic.validate",
         "title": "Validate the project",
         "category": "apic"
@@ -89,6 +86,63 @@
         "command": "apic.openInstallPage",
         "title": "Open the install page",
         "category": "apic"
+      },
+      {
+        "command": "apic.selectEnvironment",
+        "title": "Select environment",
+        "category": "apic",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "apic.pickEnvironment",
+        "title": "Pick environment (same as Select environment)",
+        "category": "apic"
+      },
+      {
+        "command": "apic.refresh",
+        "title": "Refresh",
+        "category": "apic",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "apic.clearSession",
+        "title": "Clear session for this environment",
+        "category": "apic",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "apic.clearAllSessions",
+        "title": "Clear session for every environment",
+        "category": "apic"
+      },
+      {
+        "command": "apic.openRequest",
+        "title": "Open request in editor",
+        "category": "apic"
+      },
+      {
+        "command": "apic.runNode",
+        "title": "Run",
+        "category": "apic",
+        "icon": "$(play)"
+      },
+      {
+        "command": "apic.describeNode",
+        "title": "Describe",
+        "category": "apic",
+        "icon": "$(info)"
+      },
+      {
+        "command": "apic.copyCurlNode",
+        "title": "Copy as curl",
+        "category": "apic",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "apic.runFileNode",
+        "title": "Run file as flow",
+        "category": "apic",
+        "icon": "$(run-all)"
       }
     ],
     "configuration": {
@@ -132,6 +186,11 @@
           "default": 300,
           "minimum": 0,
           "markdownDescription": "How long to wait after a save before validating, so a burst of saves becomes one run."
+        },
+        "apic.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer **Format Document** for `.http` files through `apic fmt`, so `editor.formatOnSave` keeps them in canonical form."
         }
       }
     },
@@ -203,9 +262,131 @@
         {
           "command": "apic.copyCurlRedacted",
           "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.openRequest",
+          "when": "false"
+        },
+        {
+          "command": "apic.runNode",
+          "when": "false"
+        },
+        {
+          "command": "apic.describeNode",
+          "when": "false"
+        },
+        {
+          "command": "apic.copyCurlNode",
+          "when": "false"
+        },
+        {
+          "command": "apic.runFileNode",
+          "when": "false"
+        },
+        {
+          "command": "apic.pickEnvironment",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "apic.refresh",
+          "when": "view == apic.requests || view == apic.session",
+          "group": "navigation@9"
+        },
+        {
+          "command": "apic.selectEnvironment",
+          "when": "view == apic.requests",
+          "group": "navigation@1"
+        },
+        {
+          "command": "apic.clearSession",
+          "when": "view == apic.session",
+          "group": "navigation@1"
+        },
+        {
+          "command": "apic.clearAllSessions",
+          "when": "view == apic.session",
+          "group": "more@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "apic.runNode",
+          "when": "view == apic.requests && viewItem == request",
+          "group": "inline@1"
+        },
+        {
+          "command": "apic.describeNode",
+          "when": "view == apic.requests && viewItem == request",
+          "group": "inline@2"
+        },
+        {
+          "command": "apic.copyCurlNode",
+          "when": "view == apic.requests && viewItem == request",
+          "group": "inline@3"
+        },
+        {
+          "command": "apic.runFileNode",
+          "when": "view == apic.requests && viewItem == file",
+          "group": "inline@1"
         }
       ]
-    }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "apic",
+          "title": "apic",
+          "icon": "media/apic.svg"
+        }
+      ]
+    },
+    "views": {
+      "apic": [
+        {
+          "id": "apic.requests",
+          "name": "Requests",
+          "contextualTitle": "apic requests",
+          "icon": "media/apic.svg"
+        },
+        {
+          "id": "apic.session",
+          "name": "Session",
+          "contextualTitle": "apic session",
+          "icon": "media/apic.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "apic.requests",
+        "contents": "No request files yet. Open a folder with `.http` files, or scaffold one:\n[Run apic init in a terminal](command:workbench.action.terminal.new)\n\n[Learn the format](https://datagriff.github.io/api-caller/format/)"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          "http-client.env.json",
+          "http-client.private.env.json"
+        ],
+        "url": "./schemas/http-client.env.schema.json"
+      },
+      {
+        "fileMatch": [
+          ".apic/session.json"
+        ],
+        "url": "./schemas/session.schema.json"
+      }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "apic.yaml"
+        ],
+        "url": "./schemas/apic.schema.json"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",
@@ -230,6 +411,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.0.0",
     "mocha": "^12.0.2",
+    "ovsx": "^1.2.0",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.70.0"
   }

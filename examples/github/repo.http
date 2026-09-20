@@ -7,8 +7,8 @@ GET {{baseUrl}}/user
 
 ### Fetch a public repo
 # @name get-repo
-# @step I fetch the repo
 # @description octocat/Hello-World needs no permissions, just a token to raise the rate limit
+# @step I fetch the repo
 # @auth bearer {{token}}
 # @assert status == 200
 # @assert body.$.name == "{{repo}}"

@@ -4,7 +4,9 @@ Thanks for looking. Issues and pull requests are welcome.
 
 If you are an AI agent working in this repository, read
 [AGENTS.md](AGENTS.md) instead — it is the same ground in more detail, plus the
-layout and the conventions that are easy to break.
+layout and the conventions that are easy to break. How a request flows
+through the packages, and the checklists for adding a directive, a step or
+a command, are on the [architecture page](docs/architecture.md).
 
 ## Getting set up
 
@@ -42,6 +44,8 @@ publishing), `task docs` (preview the documentation site).
 - **Docs updated in the same change.** A new command needs a row in the README
   table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`; a new
   `.http` feature needs `docs/format.md`.
+- **Example request files in canonical form.** `apic fmt --check` runs in CI
+  over the example projects; `apic fmt -C examples/<name>` rewrites one.
 - **A commit message that says why.** What changed is in the diff; the reason is
   not.
 

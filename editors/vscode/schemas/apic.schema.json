@@ -1,0 +1,150 @@
+{
+  "type": "object",
+  "properties": {
+    "auth": {
+      "type": "object",
+      "properties": {
+        "allowExec": {
+          "type": "boolean",
+          "description": "Permit `# @auth exec ...`, which runs a command from a request file. Off by default because agents edit request files."
+        },
+        "default": {
+          "type": "string",
+          "description": "An auth spec applied to every request without its own `# @auth`, for example `aws region=eu-west-2` or `bearer {{token}}`. May use {{variables}}.",
+          "examples": [
+            "bearer {{token}}",
+            "aws service=execute-api region=eu-west-2"
+          ]
+        }
+      },
+      "description": "Project-wide authentication defaults; see the Authentication guide.",
+      "additionalProperties": false
+    },
+    "cookies": {
+      "type": "boolean",
+      "description": "Keep a cookie jar: cookies a response sets are sent with later requests to the same site and stored per environment in .apic/cookies.json, like captured values. Off by default; `--cookies` switches it on for one command and `# @no-cookies` exempts a request."
+    },
+    "dir": {
+      "type": "string",
+      "description": "Subdirectory of the project root to scan for .http and .rest files. Default: the root itself.",
+      "examples": [
+        "api",
+        "requests"
+      ]
+    },
+    "env": {
+      "type": "string",
+      "description": "Environment from http-client.env.json to use when --env is not given.",
+      "examples": [
+        "dev",
+        "staging"
+      ]
+    },
+    "maxBodyBytes": {
+      "type": "integer",
+      "description": "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
+      "minimum": 0
+    },
+    "retry": {
+      "type": "string",
+      "description": "Default retry policy for requests without `# @retry`: `\u003cattempts\u003e [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",
+      "examples": [
+        "10 2s",
+        "5 500ms"
+      ]
+    },
+    "test": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Feature files or directories `apic test` runs when none are given, relative to the project root. Default: features.",
+          "examples": [
+            [
+              "features",
+              "smoke.feature"
+            ]
+          ]
+        }
+      },
+      "description": "Defaults for `apic test`.",
+      "additionalProperties": false
+    },
+    "timeout": {
+      "type": "string",
+      "description": "Default request timeout as a Go duration, for example 10s or 1m30s. Default 30s. `--timeout` and `# @timeout` override it.",
+      "examples": [
+        "10s",
+        "1m"
+      ],
+      "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "caFile": {
+          "type": "string",
+          "description": "PEM file with certificates to trust in addition to the system roots, for an API behind a private CA.",
+          "examples": [
+            "certs/internal-ca.pem"
+          ]
+        },
+        "certFile": {
+          "type": "string",
+          "description": "PEM client certificate presented to servers that ask for one.",
+          "examples": [
+            "certs/client.pem"
+          ]
+        },
+        "hosts": {
+          "type": "object",
+          "description": "Overrides for particular hosts, by host name (`api.internal.example.com`) or wildcard (`*.internal.example.com`).",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "caFile": {
+                "type": "string",
+                "description": "PEM file with certificates to trust for this host."
+              },
+              "certFile": {
+                "type": "string",
+                "description": "PEM client certificate for this host."
+              },
+              "keyFile": {
+                "type": "string",
+                "description": "PEM private key for this host's certFile."
+              },
+              "verifyHost": {
+                "type": "boolean",
+                "description": "Verify this host's certificate. Default true."
+              }
+            },
+            "description": "The override for one host; unset keys fall back to the settings above.",
+            "additionalProperties": false
+          }
+        },
+        "keyFile": {
+          "type": "string",
+          "description": "PEM private key for certFile; defaults to certFile when both are in one file. Refused when world-readable.",
+          "examples": [
+            "certs/client-key.pem"
+          ]
+        },
+        "verifyHost": {
+          "type": "boolean",
+          "description": "Verify the server's certificate. Default true; `--insecure` turns it off for one command."
+        }
+      },
+      "description": "TLS settings: a private CA to trust and a client certificate to present (mTLS). Paths are relative to the project root. `--cacert`, `--cert` and `--key` override them for one command; a JetBrains `SSLConfiguration` block in the env files is read too.",
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://datagriff.github.io/api-caller/schemas/apic.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "apic.yaml",
+  "description": "Per-project defaults for apic, read from apic.yaml in the project root. Every key is optional.",
+  "additionalProperties": false
+}

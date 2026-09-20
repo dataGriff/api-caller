@@ -4,15 +4,19 @@
 // environment picker. Views and completions land on top of this.
 import * as vscode from "vscode";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } from "./apic";
 import { ApicCodeActions } from "./codeActions";
 import { ApicCodeLens } from "./codeLens";
 import { Decorations } from "./decorations";
-import { Diagnostics, WATCH_GLOB } from "./diagnostics";
+import { Diagnostics, triggersValidation, WATCH_GLOB } from "./diagnostics";
 import { Environments } from "./environment";
+import { Formatter } from "./formatter";
 import { projectRoot } from "./project";
+import { RequestsView } from "./requestsView";
 import { ResponsePanel } from "./responsePanel";
 import { Runner } from "./runner";
+import { SessionView } from "./sessionView";
 import type { RunResult } from "./types";
 import { directivesFromGrammar } from "./validate";
 
@@ -25,6 +29,9 @@ export interface ApicApi {
   /** The results of the last run the panel showed. */
   lastResults: () => RunResult[];
   diagnostics: Diagnostics;
+  environments: Environments;
+  requestsView: RequestsView;
+  sessionView: SessionView;
 }
 
 /** Request files, whatever language an installed extension gives them. */
@@ -42,7 +49,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   const decorations = new Decorations();
   const runner = new Runner(apic, envs, panel, decorations, output);
   const lens = new ApicCodeLens(apic);
-  context.subscriptions.push(output, diagnostics, panel, decorations, lens);
+  const requestsView = new RequestsView(apic, envs);
+  const sessionView = new SessionView(apic, envs);
+  context.subscriptions.push(output, diagnostics, panel, decorations, lens, requestsView, sessionView);
 
   let known: string[] | undefined;
   const knownDirectives = (): readonly string[] => {
@@ -63,6 +72,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   const onDisk = (uri: vscode.Uri) => {
     lens.fileChanged(uri);
     diagnostics.changed(uri);
+    if (uri.scheme === "file" && triggersValidation(uri)) {
+      const root = projectRoot(uri);
+      if (root) {
+        envs.invalidate(root);
+        requestsView.refresh(root);
+        sessionView.refresh();
+      }
+    }
   };
   context.subscriptions.push(
     watcher,
@@ -71,13 +88,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     watcher.onDidDelete(onDisk),
     vscode.workspace.onDidSaveTextDocument((doc) => diagnostics.changed(doc.uri)),
     vscode.languages.registerCodeLensProvider(requestFiles, lens),
+    vscode.languages.registerDocumentFormattingEditProvider(requestFiles, new Formatter(apic)),
     vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives, (doc) => lens.names(doc)), ApicCodeActions.metadata),
     envs.onDidChange((root) => {
       lens.invalidate(root);
+      requestsView.refresh(root);
+      sessionView.refresh();
       if (diagnostics.auto()) {
         diagnostics.schedule(root);
       }
     }),
+    runner.onDidRun(() => sessionView.refresh()),
+    vscode.window.registerTreeDataProvider("apic.requests", requestsView),
+    vscode.window.registerTreeDataProvider("apic.session", sessionView),
     vscode.window.onDidChangeActiveTextEditor((editor) => envs.refreshStatus(editor ? projectRoot(editor.document.uri) : undefined)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("apic.path")) {
@@ -119,7 +142,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
       await guarded(() => runner.run(root!, [file!], file));
     }),
     vscode.commands.registerCommand("apic.showLastResponse", () => panel.reveal()),
-    vscode.commands.registerCommand("apic.pickEnvironment", async () => {
+    vscode.commands.registerCommand("apic.selectEnvironment", async () => {
       const root = activeRoot() ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!root) {
         void vscode.window.showInformationMessage("Open a project first.");
@@ -127,6 +150,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
       }
       await guarded(() => envs.pick(root));
     }),
+    vscode.commands.registerCommand("apic.pickEnvironment", () => vscode.commands.executeCommand("apic.selectEnvironment")),
+    vscode.commands.registerCommand("apic.refresh", () => {
+      requestsView.refresh();
+      sessionView.refresh();
+      for (const root of new Set([activeRoot(), projectRoot(undefined)])) {
+        if (root) {
+          envs.invalidate(root);
+          lens.invalidate(root);
+        }
+      }
+      envs.refreshStatus(activeRoot());
+    }),
+    vscode.commands.registerCommand("apic.clearSession", () => guarded(() => sessionView.clear(false))),
+    vscode.commands.registerCommand("apic.clearAllSessions", () => guarded(() => sessionView.clear(true))),
+    vscode.commands.registerCommand("apic.openRequest", async (root: string, file: string, line: number) => {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(root, file)));
+      const pos = new vscode.Position(Math.max(0, Math.min(line - 1, doc.lineCount - 1)), 0);
+      await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos), preview: true });
+    }),
+    // The view's inline actions pass the node; the lens passes root and target.
+    vscode.commands.registerCommand("apic.runNode", (node: { root: string; entry: { id: string } }) => guarded(() => runner.run(node.root, [node.entry.id]))),
+    vscode.commands.registerCommand("apic.describeNode", (node: { root: string; entry: { id: string } }) => guarded(() => runner.describe(node.root, node.entry.id))),
+    vscode.commands.registerCommand("apic.copyCurlNode", (node: { root: string; entry: { id: string } }) => guarded(() => runner.copyCurl(node.root, node.entry.id, false))),
+    vscode.commands.registerCommand("apic.runFileNode", (node: { root: string; file: string }) => guarded(() => runner.run(node.root, [node.file], node.file))),
     vscode.commands.registerCommand("apic.validate", async (uri?: vscode.Uri) => {
       const root = uri ? projectRoot(uri) : activeRoot();
       await guarded(() => (root ? diagnostics.validate(root) : diagnostics.validateWorkspace(true)));
@@ -173,6 +220,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     validateNow: () => diagnostics.validateWorkspace(),
     lastResults: () => panel.last(),
     diagnostics,
+    environments: envs,
+    requestsView,
+    sessionView,
   };
 }
 
