@@ -1,56 +1,167 @@
 // The apic extension: a thin client over the apic binary's --json contract.
-// This is the scaffold: binary discovery, a version check with an install
-// prompt, an output channel, and one command. CodeLens, diagnostics, the
-// response viewer and the views land on top of it.
+// Binary discovery and a version check, diagnostics from `apic validate`,
+// CodeLens to run, describe and copy a request, a response panel, and an
+// environment picker. Views and completions land on top of this.
 import * as vscode from "vscode";
+import * as fs from "node:fs";
 import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } from "./apic";
+import { ApicCodeActions } from "./codeActions";
+import { ApicCodeLens } from "./codeLens";
+import { Decorations } from "./decorations";
+import { Diagnostics } from "./diagnostics";
+import { Environments } from "./environment";
 import { projectRoot } from "./project";
+import { ResponsePanel } from "./responsePanel";
+import { Runner } from "./runner";
+import type { RunResult } from "./types";
+import { directivesFromGrammar } from "./validate";
 
 /** What activate returns, for tests and for later features to share. */
 export interface ApicApi {
   apic: Apic;
   projectRoot: typeof projectRoot;
+  /** Validates every project in the workspace now and resolves when the diagnostics are published. */
+  validateNow: () => Promise<void>;
+  /** The results of the last run the panel showed. */
+  lastResults: () => RunResult[];
+  diagnostics: Diagnostics;
 }
+
+/** Request files, whatever language an installed extension gives them. */
+const requestFiles: vscode.DocumentSelector = [
+  { scheme: "file", pattern: "**/*.http" },
+  { scheme: "file", pattern: "**/*.rest" },
+];
 
 export async function activate(context: vscode.ExtensionContext): Promise<ApicApi> {
   const output = vscode.window.createOutputChannel("apic");
   const apic = new Apic(output);
-  context.subscriptions.push(output);
+  const envs = new Environments(context, apic);
+  const diagnostics = new Diagnostics(apic);
+  const panel = new ResponsePanel(context);
+  const decorations = new Decorations();
+  const runner = new Runner(apic, envs, panel, decorations, output);
+  const lens = new ApicCodeLens(apic);
+  context.subscriptions.push(output, diagnostics, panel, decorations, lens);
+
+  let known: string[] | undefined;
+  const knownDirectives = (): readonly string[] => {
+    if (!known) {
+      try {
+        known = directivesFromGrammar(fs.readFileSync(vscode.Uri.joinPath(context.extensionUri, "syntaxes", "apic-directives.injection.json").fsPath, "utf8"));
+      } catch {
+        known = [];
+      }
+    }
+    return known;
+  };
 
   context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(requestFiles, lens),
+    vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives), ApicCodeActions.metadata),
+    envs.onDidChange((root) => {
+      lens.invalidate(root);
+      diagnostics.schedule(root);
+    }),
+    vscode.window.onDidChangeActiveTextEditor((editor) => envs.refreshStatus(editor ? projectRoot(editor.document.uri) : undefined)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("apic.path")) {
         apic.reset();
+        void diagnostics.validateWorkspace();
       }
     }),
   );
+
+  const activeRoot = (): string | undefined => projectRoot(vscode.window.activeTextEditor?.document.uri);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("apic.showVersion", async () => {
       try {
         const info = await apic.version();
         const bin = await apic.binary();
-        const root = projectRoot(vscode.window.activeTextEditor?.document.uri);
-        void vscode.window.showInformationMessage(
-          `apic ${info.version} (${info.os}/${info.arch}) at ${bin}${root ? ` · project ${root}` : ""}`,
-        );
+        const root = activeRoot();
+        void vscode.window.showInformationMessage(`apic ${info.version} (${info.os}/${info.arch}) at ${bin}${root ? ` · project ${root}` : ""}`);
       } catch (err) {
         await reportMissing(err);
       }
     }),
     vscode.commands.registerCommand("apic.openInstallPage", () => vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL))),
+    vscode.commands.registerCommand("apic.runRequest", (root?: string, target?: string) => withTarget(root, target, (r, t) => runner.run(r, [t]))),
+    vscode.commands.registerCommand("apic.describeRequest", (root?: string, target?: string) => withTarget(root, target, (r, t) => runner.describe(r, t))),
+    vscode.commands.registerCommand("apic.copyCurl", (root?: string, target?: string) => withTarget(root, target, (r, t) => runner.copyCurl(r, t, false))),
+    vscode.commands.registerCommand("apic.copyCurlRedacted", (root?: string, target?: string) => withTarget(root, target, (r, t) => runner.copyCurl(r, t, true))),
+    vscode.commands.registerCommand("apic.runFile", async (root?: string, file?: string) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!root || !file) {
+        const found = editor ? await lens.positions(editor.document) : undefined;
+        if (!found) {
+          void vscode.window.showInformationMessage("Open a .http file to run it as a flow.");
+          return;
+        }
+        root = found.root;
+        file = found.file;
+      }
+      await runner.run(root, [file], file);
+    }),
+    vscode.commands.registerCommand("apic.showLastResponse", () => panel.reveal()),
+    vscode.commands.registerCommand("apic.pickEnvironment", async () => {
+      const root = activeRoot() ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!root) {
+        void vscode.window.showInformationMessage("Open a project first.");
+        return;
+      }
+      await envs.pick(root);
+    }),
+    vscode.commands.registerCommand("apic.validate", async (uri?: vscode.Uri) => {
+      const root = uri ? projectRoot(uri) : activeRoot();
+      if (root) {
+        await diagnostics.validate(root);
+      } else {
+        await diagnostics.validateWorkspace();
+      }
+    }),
   );
+
+  /** Resolves the request to act on: the lens arguments, else the request under the cursor. */
+  async function withTarget<T>(root: string | undefined, target: string | undefined, fn: (root: string, target: string) => Promise<T>): Promise<T | undefined> {
+    if (!root || !target) {
+      const editor = vscode.window.activeTextEditor;
+      const found = editor ? await lens.requestUnderCursor(editor) : undefined;
+      if (!found) {
+        void vscode.window.showInformationMessage("Put the cursor on a request in a .http file first.");
+        return undefined;
+      }
+      root = found.root;
+      target = found.position.target;
+    }
+    try {
+      return await fn(root, target);
+    } catch (err) {
+      await reportMissing(err);
+      return undefined;
+    }
+  }
+
+  envs.refreshStatus(activeRoot());
 
   // Check the binary once, quietly: a missing or old apic is reported with
   // a way to fix it, and nothing else in the extension will work until it
-  // is, so this is the one prompt worth showing on activation.
-  void checkBinary(apic);
+  // is, so this is the one prompt worth showing on activation. Then
+  // validate what is open, so the Problems panel is populated from the
+  // start.
+  void checkBinary(apic).then(() => diagnostics.validateWorkspace());
 
-  return { apic, projectRoot };
+  return {
+    apic,
+    projectRoot,
+    validateNow: () => diagnostics.validateWorkspace(),
+    lastResults: () => panel.last(),
+    diagnostics,
+  };
 }
 
 export function deactivate(): void {
-  // Nothing to release: the output channel and commands are in context.subscriptions.
+  // Nothing to release: everything is in context.subscriptions.
 }
 
 async function checkBinary(apic: Apic): Promise<void> {

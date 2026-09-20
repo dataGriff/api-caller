@@ -1,0 +1,109 @@
+/* The response panel. Colours are the terminal theme's (internal/output/theme.go,
+   ANSI 256 mapped to hex) on VS Code's own background and text colours, so the
+   panel reads the same as `apic run` in both light and dark editors. */
+:root {
+  --ok: #00d787;
+  --warn: #ffaf00;
+  --fail: #ff5f5f;
+  --url: #00afff;
+  --header: #af87ff;
+  --capture: #5fd7ff;
+  --accent: #ff87d7;
+  --key: #5fd7ff;
+  --str: #87d787;
+  --num: #ffd75f;
+  --lit: #d787d7;
+  --dim: var(--vscode-descriptionForeground);
+}
+body.vscode-light {
+  --ok: #00875f;
+  --warn: #af5f00;
+  --fail: #d70000;
+  --url: #005faf;
+  --header: #5f00af;
+  --capture: #0087af;
+  --accent: #af005f;
+  --key: #0087af;
+  --str: #008700;
+  --num: #af8700;
+  --lit: #8700af;
+}
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  padding: 0 12px 24px;
+  line-height: 1.5;
+}
+h1 { font-size: 1.1em; margin: 12px 0 6px; }
+h2 { font-size: 1em; font-weight: normal; margin: 12px 0 6px; }
+h3 { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); margin: 14px 0 4px; }
+pre, code, .url, .method, .status, .checks, .captures, .errors, table {
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+pre {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 8px 10px;
+  border-radius: 4px;
+  overflow: auto;
+  margin: 4px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+code { background: var(--vscode-textCodeBlock-background); padding: 0 3px; border-radius: 3px; }
+.dim { color: var(--dim); }
+.method { font-weight: bold; color: var(--lit); }
+.method.GET, .method.HEAD, .method.OPTIONS { color: var(--url); }
+.method.POST { color: var(--ok); }
+.method.PUT, .method.PATCH { color: var(--warn); }
+.method.DELETE { color: var(--fail); }
+.url { color: var(--url); }
+.status { font-weight: bold; }
+.status.s2 { color: var(--ok); }
+.status.s3 { color: var(--warn); }
+.status.s4 { color: var(--fail); }
+.mark.pass, .pass { color: var(--ok); }
+.mark.fail, .fail { color: var(--fail); }
+.mark.warn { color: var(--warn); }
+.capture { color: var(--capture); }
+.key { color: var(--key); }
+.str { color: var(--str); }
+.num { color: var(--num); }
+.lit { color: var(--lit); }
+.badge {
+  display: inline-block;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  margin: 8px 0 0;
+}
+.badge.pass { border-color: var(--ok); color: var(--ok); }
+.badge.fail { border-color: var(--fail); color: var(--fail); }
+details.result { margin: 10px 0; border-left: 2px solid var(--vscode-panel-border); padding-left: 10px; }
+details.result > summary, details.headers > summary { cursor: pointer; }
+details.headers { margin: 6px 0; }
+details.headers > summary { color: var(--dim); font-size: 0.9em; }
+.dep { margin-left: 12px; padding-left: 10px; border-left: 2px dashed var(--vscode-panel-border); }
+ul.checks, ul.captures, ul.errors { list-style: none; padding: 0; margin: 8px 0; }
+ul.checks li, ul.captures li, ul.errors li { margin: 2px 0; }
+table { border-collapse: collapse; margin: 6px 0; }
+td { padding: 2px 10px 2px 0; vertical-align: top; }
+table.vars td:nth-child(2) { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar { display: flex; gap: 6px; margin: 6px 0 0; }
+button {
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.hidden { display: none; }

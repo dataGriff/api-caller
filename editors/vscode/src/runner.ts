@@ -1,0 +1,97 @@
+// Runs requests through the apic binary, one at a time like the terminal
+// UI, with a cancellable progress notification, and hands the results to
+// the panel and the decorations. Exit codes 2 and 3 surface the CLI's own
+// error text, with a "Run login" action when the hint names a request.
+import * as vscode from "vscode";
+import type { Apic } from "./apic";
+import type { Decorations } from "./decorations";
+import type { Environments } from "./environment";
+import type { ResponsePanel } from "./responsePanel";
+import type { CurlOutput, Description, RunResult } from "./types";
+
+const capturedBy = /captured by request "([^"]+)"/;
+
+export class Runner {
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly apic: Apic,
+    private readonly envs: Environments,
+    private readonly panel: ResponsePanel,
+    private readonly decorations: Decorations,
+    private readonly output: vscode.OutputChannel,
+  ) {}
+
+  private settings(root: string): { extraArgs: string[]; verbose: boolean } {
+    const cfg = vscode.workspace.getConfiguration("apic", vscode.Uri.file(root));
+    return { extraArgs: cfg.get<string[]>("run.extraArgs", []), verbose: cfg.get<boolean>("run.verbose", false) };
+  }
+
+  /** Runs the targets (request ids or files) as `apic run`; returns the results, or undefined when nothing could be sent. */
+  run(root: string, targets: string[], title?: string): Promise<RunResult[] | undefined> {
+    const job = this.queue.then(() => this.doRun(root, targets, title));
+    this.queue = job.catch(() => undefined);
+    return job;
+  }
+
+  private async doRun(root: string, targets: string[], title: string | undefined): Promise<RunResult[] | undefined> {
+    const { extraArgs, verbose } = this.settings(root);
+    const args = ["run", ...targets, ...this.envs.args(root), ...(verbose ? ["-v"] : []), ...extraArgs];
+    const redact = extraArgs.includes("--redact");
+    const res = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `apic run ${targets.join(" ")}`, cancellable: true },
+      (_progress, token) => {
+        const controller = new AbortController();
+        token.onCancellationRequested(() => controller.abort());
+        return this.apic.ndjson<RunResult>(args, { project: root, signal: controller.signal });
+      },
+    );
+    if (res.aborted) {
+      void vscode.window.setStatusBarMessage("apic: run cancelled", 3000);
+      return undefined;
+    }
+    if (res.values.length > 0) {
+      this.panel.showRun(res.values, { redact, title: title ?? (targets.length > 1 || targets[0]?.endsWith(".http") ? targets.join(" ") : undefined) });
+      this.decorations.show(root, res.values);
+    }
+    if ((res.code === 2 || res.code === 3) && res.values.every((r) => r.response)) {
+      await this.reportError(root, res.stderr, res.code);
+    }
+    return res.values.length > 0 ? res.values : undefined;
+  }
+
+  private async reportError(root: string, stderr: string, code: number): Promise<void> {
+    const text = stderr.trim().split("\n").slice(0, 4).join(" ").replace(/\s+/g, " ") || `apic exited with ${code}`;
+    const hinted = capturedBy.exec(stderr)?.[1];
+    const actions = hinted ? [`Run ${hinted}`, "Show output"] : ["Show output"];
+    const choice = await vscode.window.showErrorMessage(text, ...actions);
+    if (choice === "Show output") {
+      this.output.show(true);
+    } else if (choice && hinted) {
+      await this.run(root, [hinted]);
+    }
+  }
+
+  /** Shows `apic describe` for a request in the panel. */
+  async describe(root: string, target: string): Promise<Description | undefined> {
+    const res = await this.apic.json<Description>(["describe", target, ...this.envs.args(root)], { project: root });
+    if (!res.value) {
+      await this.reportError(root, res.stderr, res.code);
+      return undefined;
+    }
+    this.panel.showDescription(res.value);
+    return res.value;
+  }
+
+  /** Copies the curl command for a request to the clipboard. */
+  async copyCurl(root: string, target: string, redact: boolean): Promise<string | undefined> {
+    const res = await this.apic.json<CurlOutput>(["curl", target, ...this.envs.args(root), ...(redact ? ["--redact"] : [])], { project: root });
+    if (!res.value) {
+      await this.reportError(root, res.stderr, res.code);
+      return undefined;
+    }
+    await vscode.env.clipboard.writeText(res.value.command);
+    void vscode.window.setStatusBarMessage(`apic: curl for ${res.value.id} copied${redact ? " (redacted)" : ""}`, 3000);
+    return res.value.command;
+  }
+}

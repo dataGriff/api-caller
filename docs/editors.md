@@ -14,13 +14,19 @@ Two extensions, and they cooperate:
   highlighting, and "Send Request" above each request. apic's `# @` lines
   are comments to it, so a file with assertions and captures still sends.
 - **apic** (`dataGriff.apic`, in `editors/vscode` of the repository)
-  layers apic on top: it highlights the directives, finds the `apic`
-  binary and your project root, and drives apic from the editor. The first
-  release has the scaffold and the **apic: Show version** command; run,
-  describe and copy-as-curl CodeLens, diagnostics from `apic validate`, a
-  response viewer, an environment picker with session and request views,
-  completions and hovers, and Test Explorer for `.feature` files each
-  follow, tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
+  layers apic on top. **Run**, **Describe** and **Copy as curl** sit above
+  every request, and **Run file as flow** at the top of a file; a run goes
+  through apic's runner, assertions, captures and `# @ref` dependencies
+  included, marks the request line `✓ 200 · 12 ms`, and opens a response
+  panel beside the editor with the body highlighted, every assertion's
+  actual against expected, and the captures. `apic validate` runs when a
+  request file, `apic.yaml` or an env file is saved, and its findings land
+  in the Problems panel at the exact span with quick fixes for a mistyped
+  directive, a duplicate name and a missing body file. The environment for
+  the project is picked from the status bar. Session and request views,
+  completions and hovers, Test Explorer for `.feature` files and the
+  Marketplace release follow, tracked in the
+  [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
 
 Until the extension is on the Marketplace, build it from the repository:
 

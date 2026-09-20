@@ -1,7 +1,7 @@
 {
   "name": "apic",
   "displayName": "apic",
-  "description": "Run .http request files with apic: environments, captured variables, assertions, Gherkin tests and an MCP server, from one static binary.",
+  "description": "Run .http request files with apic from the editor: CodeLens to run, describe and copy as curl, a response panel, problems from apic validate, environments, captured variables, assertions and Gherkin tests, from one static binary.",
   "version": "0.1.0",
   "publisher": "dataGriff",
   "license": "MIT",
@@ -32,11 +32,54 @@
   "activationEvents": [
     "workspaceContains:**/*.http",
     "workspaceContains:**/*.rest",
-    "workspaceContains:**/apic.yaml"
+    "workspaceContains:**/apic.yaml",
+    "onLanguage:http"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "apic.runRequest",
+        "title": "Run the request under the cursor",
+        "category": "apic",
+        "icon": "$(play)"
+      },
+      {
+        "command": "apic.runFile",
+        "title": "Run this file as a flow",
+        "category": "apic",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "apic.describeRequest",
+        "title": "Describe the request under the cursor",
+        "category": "apic"
+      },
+      {
+        "command": "apic.copyCurl",
+        "title": "Copy the request under the cursor as curl",
+        "category": "apic"
+      },
+      {
+        "command": "apic.copyCurlRedacted",
+        "title": "Copy the request under the cursor as curl (redacted)",
+        "category": "apic"
+      },
+      {
+        "command": "apic.showLastResponse",
+        "title": "Show last response",
+        "category": "apic"
+      },
+      {
+        "command": "apic.pickEnvironment",
+        "title": "Pick environment",
+        "category": "apic"
+      },
+      {
+        "command": "apic.validate",
+        "title": "Validate the project",
+        "category": "apic"
+      },
       {
         "command": "apic.showVersion",
         "title": "Show version",
@@ -60,6 +103,35 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Project root passed to every apic command as `-C`. Empty means the nearest directory above the active file that holds `apic.yaml` or `http-client.env.json`, else the workspace folder."
+        },
+        "apic.codeLens.enable": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show **Run**, **Describe** and **Copy as curl** above every request, and **Run file as flow** at the top of a file."
+        },
+        "apic.run.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Extra arguments for every `apic run` from the editor, for example `[\"--redact\"]` or `[\"--no-session\"]`."
+        },
+        "apic.run.verbose": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Pass `-v` to `apic run`, so the response panel shows request and response headers."
+        },
+        "apic.validate.onSave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run `apic validate` when a request file, `apic.yaml` or an env file is opened or saved, and show its findings in the Problems panel. apic validates from disk, so an unsaved buffer keeps the findings of its last save."
+        },
+        "apic.validate.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "minimum": 0,
+          "markdownDescription": "How long to wait after a save before validating, so a burst of saves becomes one run."
         }
       }
     },
@@ -72,7 +144,68 @@
           "text.http"
         ]
       }
-    ]
+    ],
+    "keybindings": [
+      {
+        "command": "apic.runRequest",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus && resourceExtname =~ /\\.(http|rest)$/"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "apic.runRequest",
+          "group": "navigation@1",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.runFile",
+          "group": "navigation@2",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "apic.runRequest",
+          "group": "apic@1",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.describeRequest",
+          "group": "apic@2",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.copyCurl",
+          "group": "apic@3",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "apic.runRequest",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.runFile",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.describeRequest",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.copyCurl",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        },
+        {
+          "command": "apic.copyCurlRedacted",
+          "when": "resourceExtname =~ /\\.(http|rest)$/"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",
@@ -83,7 +216,8 @@
     "pretest": "npm run build && npm run compile-tests",
     "test": "vscode-test",
     "package": "vsce package --no-dependencies",
-    "check": "npm run lint && npm run typecheck && npm run build && npm run package"
+    "check": "npm run lint && npm run typecheck && npm run build && npm run package",
+    "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
