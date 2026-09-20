@@ -81,6 +81,14 @@ GET {{baseUrl}}/region
 GET {{baseUrl}}/me?region={{region}}
 Authorization: Bearer {{token}}
 
+### A diamond: both paths lead to login, which must run once
+# @name diamond
+# @ref whoami
+# @ref whoami-in-region
+# @assert status == 200
+GET {{baseUrl}}/me?region={{region}}
+Authorization: Bearer {{token}}
+
 ### Depends on a failing request
 # @name broken-login
 # @assert status == 200
@@ -323,5 +331,28 @@ func TestDescribeReportsRefs(t *testing.T) {
 	d = r.Describe(lookup(t, r, "region"))
 	if len(d.Refs) != 0 {
 		t.Fatalf("region has no refs, got %v", d.Refs)
+	}
+}
+
+// TestRefDiamondRunsSharedDependencyOnce: two dependencies that both lead
+// to login share the "already ran" set of the invocation, so login goes
+// out once even though it is reachable twice.
+func TestRefDiamondRunsSharedDependencyOnce(t *testing.T) {
+	dir, logins := refProject(t)
+	r := newRunner(t, dir, Options{Env: "dev", Session: session.NewMemory()})
+	res, err := r.Run(context.Background(), lookup(t, r, "diamond"))
+	if err != nil || !res.OK {
+		t.Fatalf("%+v err=%v", res, err)
+	}
+	if logins.Load() != 1 {
+		t.Fatalf("login ran %d times, want 1", logins.Load())
+	}
+	// whoami (with login under it), then whoami-in-region (with only region
+	// under it: whoami had already run).
+	if n := names(res.Deps); len(n) != 2 || n[0] != "whoami" || n[1] != "whoami-in-region" {
+		t.Fatalf("deps = %v", n)
+	}
+	if n := names(res.Deps[1].Deps); len(n) != 1 || n[0] != "region" {
+		t.Fatalf("nested deps of whoami-in-region = %v, want only region", n)
 	}
 }
