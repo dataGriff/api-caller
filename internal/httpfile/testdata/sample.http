@@ -13,6 +13,7 @@ Content-Type: application/json
 ### Fetch a user
 # @name get-user
 # @description Fetch a single user by id
+# @ref login
 # @assert status == 200
 # @assert body.$.id == {{userId}}
 # @assert header.content-type contains json

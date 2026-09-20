@@ -118,7 +118,9 @@ force, so a screenshot never hides that values were masked.
   another, and each row turns green or red as its response arrives, so a long
   flow shows progress instead of a frozen screen.
 - **Captures apply immediately.** After `login` passes, requests that need
-  `{{token}}` flip from `○` to `●` without a reload.
+  `{{token}}` flip from `○` to `●` without a reload. A request with
+  `# @ref login` is `●` from the start: running it runs `login` first when
+  the token is missing, and `login`'s row shows that result too.
 - **Scrolling stays put.** Reading down a long response and it finishes
   changing underneath you (a later step of a flow landing, the terminal
   being resized) leaves you where you were. Moving to another request, tab

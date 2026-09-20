@@ -81,6 +81,13 @@ Content-Type: application/json
 # @step I fetch user {userId}
 GET {{baseUrl}}/users/{{userId}}
 Authorization: Bearer {{token}}
+
+### get, logging in by itself
+# @name get-user-ref
+# @ref login
+# @step I fetch user {userId} logged in
+GET {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{token}}
 `
 
 func newProject(t *testing.T, srv *httptest.Server) *project.Project {
@@ -1235,5 +1242,23 @@ Feature: Empty
 	})
 	if code != ExitUsage || err == nil || !strings.Contains(err.Error(), "no requests") || sum.OK {
 		t.Fatalf("the empty file must be a usage error, not a pass on the login response: code=%d err=%v sum=%+v", code, err, sum)
+	}
+}
+
+// TestStepRunsRefsFirst: a request's `# @ref` applies in a scenario too, so
+// a step can be the first line of a scenario without a login step before it.
+func TestStepRunsRefsFirst(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, `
+Feature: Refs
+  Scenario: fetch without logging in first
+    Given a user named "bob" exists
+    When I fetch user {{userId}} logged in
+    Then the response status is 200
+    And the response body "$.name" is "bob"
+`, "dev")
+	if code != 0 || sum.Failed != 0 {
+		t.Fatalf("code=%d summary=%+v", code, sum)
 	}
 }

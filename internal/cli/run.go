@@ -24,7 +24,9 @@ Targets:
   users.http#3         the third request in the file
 
 Captured values (# @capture) are stored per environment in .apic/session.json
-so a later invocation can use them. Use --no-session to disable.`,
+so a later invocation can use them. Use --no-session to disable. A request
+that declares "# @ref login" runs login first when a value it needs is
+missing; "# @forceRef login" runs it first every time.`,
 		Example: `  apic run login
   apic run get-user --env staging --var userId=42
   apic run smoke.http --json | jq .response.status
@@ -63,7 +65,9 @@ so a later invocation can use them. Use --no-session to disable.`,
 						fmt.Fprintln(a.Stdout)
 					}
 					if res.Response == nil && runErr != nil && i == len(results)-1 {
-						// The error is printed by Execute; show the request line for context.
+						// The error is printed by Execute; show what ran first
+						// and the request line for context.
+						output.Deps(a.Stdout, res, verbose)
 						fmt.Fprintf(a.Stdout, "%s %s\n", res.Request.Method, res.Request.DisplayURL(res.Redact))
 						continue
 					}

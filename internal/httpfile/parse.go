@@ -49,6 +49,8 @@ var Codes = map[string]string{
 	"bad-config-auth":   "auth.default in apic.yaml does not parse",
 	"bad-step":          "a `# @step` phrase that does not parse",
 	"ambiguous-step":    "a `# @step` phrase that matches the same text as another step",
+	"bad-ref":           "a `# @ref` or `# @forceRef` whose target is not one request in the project",
+	"ref-cycle":         "a `# @ref` chain that leads back to the request it started from",
 	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, body or body.$*",
 	"missing-body-file": "a `< file` body whose file does not exist",
 }
@@ -78,6 +80,8 @@ var KnownDirectives = map[string]string{
 	"assert":      "assert on the response: `# @assert selector op value`",
 	"auth":        "authentication: `# @auth bearer|basic|aws|oauth2|exec|none ...`",
 	"step":        "Gherkin phrase that runs this request: `# @step a user named {name} exists`",
+	"ref":         "run another request first when a variable is missing: `# @ref login`",
+	"forceRef":    "run another request first, every time: `# @forceRef login`",
 	"no-redirect": "do not follow redirects",
 	"no-session":  "do not persist captures from this request",
 	"timeout":     "per-request timeout, e.g. `10s`",

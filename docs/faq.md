@@ -15,7 +15,8 @@ error: users.http:14: missing variable
 `apic describe <id>` shows every variable the request needs, the source each
 one resolved from, and whether the request is ready to send. The
 [precedence order](cheatsheet.md#variable-precedence) decides which source
-wins.
+wins. Put `# @ref login` on the request and apic runs `login` itself when
+the token is missing; see [dependencies](format.md#dependencies).
 
 ## Why does a variable have the wrong value?
 

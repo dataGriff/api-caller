@@ -104,6 +104,29 @@ func (r *Request) Steps() []string {
 	return out
 }
 
+// Ref is a `# @ref` or `# @forceRef` directive: another request to run
+// before this one. A ref runs only when this request is missing a variable;
+// a forceRef runs every time.
+type Ref struct {
+	ID     string
+	Force  bool
+	Line   int
+	Column int // column where the target starts
+}
+
+// Refs returns every `# @ref` and `# @forceRef` declared on the request, in
+// order.
+func (r *Request) Refs() []Ref {
+	var out []Ref
+	for _, d := range r.Directives {
+		switch d.Key {
+		case "ref", "forceRef":
+			out = append(out, Ref{ID: d.Value, Force: d.Key == "forceRef", Line: d.Line, Column: d.Column})
+		}
+	}
+	return out
+}
+
 // Directive returns the value of the first directive with the given key.
 func (r *Request) Directive(key string) (string, bool) {
 	for _, d := range r.Directives {

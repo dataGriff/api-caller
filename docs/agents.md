@@ -25,7 +25,8 @@ Requests live in `api/*.http` and are run with `apic` (install: see README).
 
 Exit codes: 0 ok, 1 assertion failed, 2 usage/parse/missing variable, 3 network.
 Values captured with `# @capture` (like a login token) persist in `.apic/session.json`,
-so run `login` once and dependent requests will find the token. If a request reports a
+so run `login` once and dependent requests will find the token. A request that declares
+`# @ref login` runs login by itself when the token is missing. If a request reports a
 missing variable, the error says which request captures it.
 ```
 
@@ -70,7 +71,10 @@ $ apic run whoami --json | jq '{ok, status: .response.status, body: .response.bo
 
 The agent never has to guess: `describe` says what is missing and which
 request provides it, and the token persists, so `login` is run once rather
-than before every call.
+than before every call. When `whoami` declares `# @ref login`, even that
+step goes away: `apic run whoami --json` prints `login`'s object and then
+`whoami`'s, and `describe` reports `"ready": true` with
+`"ref_runs": true` on the token.
 
 ## 2. MCP (Claude Code, Cursor, Windsurf, any MCP client)
 

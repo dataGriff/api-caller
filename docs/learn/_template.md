@@ -70,7 +70,7 @@ matter:
 ID              METHOD  URL                        LINE  DESCRIPTION
 auth.http
 login           POST    {{baseUrl}}/auth/login     :5    Log in and keep the token
-whoami          GET     {{baseUrl}}/me             :15   Who am I, using the token captured by login
+whoami          GET     {{baseUrl}}/me             :16   Who am I, using the token captured by login (which runs first if needed)
 ```
 
 ### 2. Do the next thing

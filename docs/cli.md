@@ -63,7 +63,11 @@ unless `--keep-going` is set, and prints a pass/fail summary.
 
 Captured values are available to later requests in the same run, and are
 saved to `.apic/session.json` for the current environment (unless
-`--no-session` or the request has `# @no-session`).
+`--no-session` or the request has `# @no-session`). A request with
+`# @ref login` runs `login` first when a value it needs is missing, and one
+with `# @forceRef login` runs it first every time; see
+[format.md](format.md#dependencies). The terminal output shows the
+dependency's report first, under `↳ ran login first (# @ref)`.
 
 | Flag | Meaning |
 |---|---|
@@ -112,7 +116,13 @@ apic run get-user --body-only | jq .email
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
 - `errors` (omitted when empty) lists failed captures and other problems.
-- `ok` is false when any assertion or capture failed.
+- `ok` is false when any assertion or capture failed, and when a request a
+  `# @ref` ran first failed; `errors` then names it (`@ref login failed`).
+- Requests a `# @ref` or `# @forceRef` ran first are printed as objects of
+  their own, before the request that needed them, so there is still exactly
+  one object per request sent. The `ran_first` key is only present in the
+  MCP `run_request` result, where the dependency's result nests under the
+  request's.
 - When a request could not be sent at all (missing variable, network), the
   error goes to stderr and the exit code is 2 or 3; in a flow, the earlier
   results are still printed.
@@ -189,8 +199,9 @@ requests whose id, URL, file or description contains it, case-insensitively.
 ```
 
 `name` is omitted for unnamed requests; `id` is then `file.http#N`. `steps`
-lists the request's `# @step` phrases when it has any. A pattern filters the
-`requests` array; the shape does not change.
+lists the request's `# @step` phrases and `refs` its `# @ref` and
+`# @forceRef` targets, when it has any. A pattern filters the `requests`
+array; the shape does not change.
 
 ## apic describe
 
@@ -201,7 +212,9 @@ apic describe <target>
 Shows one request's method, URL template, headers, body, every variable it
 references with the source it resolved from, its captures and asserts, and
 whether it is ready to run. Missing variables come first, with the request
-that captures them if there is one.
+that captures them if there is one. A missing variable that a `# @ref` of
+the request supplies does not make it unready: the line says the request
+runs first.
 
 `--json`:
 
@@ -212,19 +225,22 @@ that captures them if there is one.
   "method": "GET", "url_template": "{{baseUrl}}/bearer", "url": "https://httpbin.org/bearer",
   "headers": {"Authorization": "Bearer {{token}}"},
   "variables": [
-    {"name": "token", "source": "missing", "missing": true, "captured_by": "login"},
+    {"name": "token", "source": "missing", "missing": true, "captured_by": "login", "ref_runs": true},
     {"name": "baseUrl", "value": "https://httpbin.org", "source": "http-client.env.json [dev]"}
   ],
   "captures": ["email = body.$.email"],
   "asserts": ["status == 200", "body.$.authenticated == true"],
+  "refs": ["login"],
   "auth": "bearer {{token}}",
   "auth_source": "apic.yaml",
-  "ready": false
+  "ready": true
 }
 ```
 
 `auth` and `auth_source` are present when a `# @auth` directive or
-`auth.default` applies; see [auth.md](auth.md).
+`auth.default` applies; see [auth.md](auth.md). `refs` lists the request's
+`# @ref` and `# @forceRef` targets, and a missing variable has
+`"ref_runs": true` when one of them captures it, so `ready` stays true.
 
 Sources are one of `--var`, `shell APIC_VAR_<name>`, `captured this run`,
 `session`, `http-client.private.env.json [env]`, `http-client.env.json [env]`,
@@ -363,6 +379,8 @@ Codes:
 | `bad-config-auth` | `auth.default` in `apic.yaml` does not parse. |
 | `bad-step` | A `# @step` phrase that does not parse. |
 | `ambiguous-step` | A `# @step` phrase that matches the same text as another step. |
+| `bad-ref` | A `# @ref` or `# @forceRef` whose target is not exactly one request in the project. |
+| `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body whose file does not exist. |
 

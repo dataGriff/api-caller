@@ -298,6 +298,8 @@ func Variables(t Theme, vars []runner.VarInfo, hints bool) string {
 	for _, v := range vars {
 		pad := strings.Repeat(" ", nameW-len(v.Name)-2)
 		switch {
+		case v.Missing && v.RefRuns && hints:
+			fmt.Fprintf(&b, "  %s%s  %s  %s\n", t.Warn.Render("○ "+v.Name), pad, "missing", fmt.Sprintf("captured by %s, which # @ref runs first", v.CapturedBy))
 		case v.Missing && v.CapturedBy != "" && hints:
 			fmt.Fprintf(&b, "  %s%s  %s  %s\n", t.Fail.Render("✗ "+v.Name), pad, "missing", fmt.Sprintf("captured by %s — run `apic run %s` first", v.CapturedBy, v.CapturedBy))
 		case v.Missing && hints:

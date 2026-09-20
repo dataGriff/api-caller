@@ -56,6 +56,8 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @assert selector op value` | Check the response. Failures set `ok: false` and exit code 1. |
 | `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
 | `# @step a user named {name} exists` | A Gherkin phrase that runs this request from a `.feature` file; `{name}` becomes a variable. Repeatable. See [testing.md](testing.md). |
+| `# @ref login` | Run `login` first when this request is missing a variable (once per invocation). Repeatable. See [Dependencies](#dependencies). |
+| `# @forceRef login` | Run `login` first every time this request runs. Repeatable. |
 | `# @no-redirect` | Do not follow 3xx redirects. |
 | `# @no-session` | Do not persist this request's captures. |
 | `# @timeout 10s` | Per-request timeout. |
@@ -153,6 +155,39 @@ and may be quoted.
 the first failed assertion, failed capture or transport error (use
 `--keep-going` to continue). Exit code is 1 if anything failed. `--json`
 prints one JSON object per request (NDJSON).
+
+## Dependencies
+
+A request that needs a value another request captures can say so, and apic
+runs that request first when the value is missing:
+
+```http
+### Log in and keep the token
+# @name login
+# @capture token = body.$.access_token
+POST {{baseUrl}}/auth/login
+
+### Who am I
+# @name whoami
+# @ref login
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+```
+
+`apic run whoami` on a fresh session runs `login`, then `whoami`; with the
+token already in the session it runs only `whoami`. A `# @ref` runs at most
+once per invocation, so a flow that needs `login` twice logs in once, and
+the target's own `# @ref` lines apply too. `# @forceRef login` runs `login`
+first every time, for a token that must be fresh. The target is any run
+target (`login`, `auth.http#login`) that names exactly one request; a target
+that does not, or a chain that leads back to itself, is an error `apic
+validate` reports as `bad-ref` or `ref-cycle`.
+
+A dependency that fails (an assertion, a capture, the network) stops the
+request that depends on it: the run reports the dependency's result, then
+the request as failed without sending it. The output shows what ran first
+(`↳ ran login first (# @ref)` in the terminal, `ran_first` in `--json`,
+see [cli.md](cli.md#apic-run)).
 
 ## Project layout
 

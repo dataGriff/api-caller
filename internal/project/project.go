@@ -272,6 +272,26 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 			phrases = append(phrases, declared{r, ph, d.Line})
 		}
+		for _, ref := range r.Refs() {
+			col, end := ref.Column, ref.Column+len(ref.ID)
+			key := "@ref"
+			if ref.Force {
+				key = "@forceRef"
+			}
+			target, err := p.refTarget(r, ref)
+			if err != nil {
+				diags = append(diags, diag(r.File.Path, "error", "bad-ref", ref.Line, col, end, fmt.Sprintf("%s %s: %v", key, ref.ID, err)))
+				continue
+			}
+			if chain := p.refPath(target, r, nil); chain != nil {
+				ids := []string{r.ID()}
+				for _, c := range chain {
+					ids = append(ids, c.ID())
+				}
+				diags = append(diags, diag(r.File.Path, "error", "ref-cycle", ref.Line, col, end,
+					fmt.Sprintf("%s %s is a cycle: %s", key, ref.ID, strings.Join(ids, " -> "))))
+			}
+		}
 		for _, d := range r.Directives {
 			if d.Key != "auth" {
 				continue
@@ -334,6 +354,50 @@ func validSelector(s string) bool {
 		return true
 	}
 	return false
+}
+
+// refTarget resolves a `# @ref` target to the one request it names.
+func (p *Project) refTarget(from *httpfile.Request, ref httpfile.Ref) (*httpfile.Request, error) {
+	if ref.ID == "" {
+		return nil, errors.New("needs a request name")
+	}
+	targets, err := p.Resolve(ref.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) != 1 {
+		return nil, fmt.Errorf("names %d requests; refer to one request by name or file#name", len(targets))
+	}
+	if targets[0] == from {
+		return nil, errors.New("refers to the request itself")
+	}
+	return targets[0], nil
+}
+
+// refPath follows `# @ref` directives from `from` and returns the requests
+// on the way to `to` (ending with it), or nil when `to` is not reachable.
+// Targets that do not resolve are skipped: bad-ref reports those.
+func (p *Project) refPath(from, to *httpfile.Request, seen map[*httpfile.Request]bool) []*httpfile.Request {
+	if from == to {
+		return []*httpfile.Request{to}
+	}
+	if seen == nil {
+		seen = map[*httpfile.Request]bool{}
+	}
+	if seen[from] {
+		return nil
+	}
+	seen[from] = true
+	for _, ref := range from.Refs() {
+		target, err := p.refTarget(from, ref)
+		if err != nil {
+			continue
+		}
+		if rest := p.refPath(target, to, seen); rest != nil {
+			return append([]*httpfile.Request{from}, rest...)
+		}
+	}
+	return nil
 }
 
 // CapturedBy returns the first request that captures a variable of this name.

@@ -7,13 +7,32 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
-// JSON writes one result as a single JSON line.
+// JSON writes one result as a single JSON line. The results of requests
+// `# @ref` ran first are written as lines of their own, before it, so a
+// consumer of `apic run --json` sees exactly one object per request sent;
+// the object itself carries no ran_first.
 func JSON(w io.Writer, res *runner.Result) error {
+	for _, dep := range res.Deps {
+		if err := JSON(w, dep); err != nil {
+			return err
+		}
+	}
+	flat := *res
+	flat.Deps = nil
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(&flat)
+}
+
+// JSONNested writes one result as a single JSON line with the results of
+// its `# @ref` dependencies nested under ran_first.
+func JSONNested(w io.Writer, res *runner.Result) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(res)
@@ -28,9 +47,21 @@ func Body(w io.Writer, res *runner.Result) {
 	_, _ = io.WriteString(w, "\n")
 }
 
-// Human writes a readable report of a result.
+// Human writes a readable report of a result, after the reports of the
+// requests `# @ref` ran first, each under a line saying why it ran.
 func Human(w io.Writer, res *runner.Result, verbose bool) {
+	Deps(w, res, verbose)
 	_, _ = io.WriteString(w, Result(Default(), res, Options{Verbose: verbose}))
+}
+
+// Deps writes the reports of the requests `# @ref` ran before res, each
+// followed by a line saying why it ran.
+func Deps(w io.Writer, res *runner.Result, verbose bool) {
+	t := Default()
+	for _, dep := range res.Deps {
+		Human(w, dep, verbose)
+		_, _ = io.WriteString(w, t.Dim.Render(fmt.Sprintf("↳ ran %s first (# @ref)", resultName(dep)))+"\n\n")
+	}
 }
 
 // Summary writes the per-request table and totals of a flow.

@@ -43,6 +43,13 @@ POST {{baseUrl}}/login
 # @assert body.$.name == alice
 GET {{baseUrl}}/me
 Authorization: Bearer {{token}}
+
+### me, logging in by itself
+# @name me-ref
+# @ref login
+# @assert status == 200
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
 `), 0o644))
 	must(t, os.WriteFile(filepath.Join(dir, "http-client.env.json"), []byte(`{"dev":{"baseUrl":"`+srv.URL+`"}}`), 0o644))
 
@@ -76,9 +83,16 @@ Authorization: Bearer {{token}}
 	}
 
 	list := call("list_requests", map[string]any{})
-	if n := len(list["requests"].([]any)); n != 2 {
+	if n := len(list["requests"].([]any)); n != 3 {
 		t.Fatalf("list: %v", list)
 	}
+	// A request with # @ref logs in by itself and reports what ran first.
+	meRef := call("run_request", map[string]any{"name": "me-ref"})
+	ranFirst, _ := meRef["ran_first"].([]any)
+	if meRef["ok"] != true || len(ranFirst) != 1 || ranFirst[0].(map[string]any)["ok"] != true {
+		t.Fatalf("me-ref: %v", meRef)
+	}
+	call("clear_session", map[string]any{})
 	desc := call("describe_request", map[string]any{"name": "me"})
 	if desc["ready"] != false {
 		t.Fatalf("me should not be ready before login: %v", desc)
@@ -98,7 +112,7 @@ Authorization: Bearer {{token}}
 		t.Fatalf("bad token should fail asserts: %v", e)
 	}
 	flow := call("run_file", map[string]any{"file": "api.http"})
-	if flow["ok"] != true || len(flow["results"].([]any)) != 2 {
+	if flow["ok"] != true || len(flow["results"].([]any)) != 3 {
 		t.Fatalf("flow: %v", flow)
 	}
 	envs := call("list_environments", map[string]any{})

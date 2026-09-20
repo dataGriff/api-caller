@@ -57,6 +57,8 @@ Written as comments before the request line, so editors ignore them.
 | `# @assert selector op value` | Check the response; failures exit 1 |
 | `# @auth type ...` | `none`, `bearer`, `basic`, `aws`, `oauth2`, `exec`; see [auth](auth.md) |
 | `# @step a user named {name} exists` | Gherkin phrase that runs this request |
+| `# @ref login` | Run `login` first when a variable is missing |
+| `# @forceRef login` | Run `login` first every time |
 | `# @no-redirect` | Do not follow 3xx |
 | `# @no-session` | Do not persist this request's captures |
 | `# @timeout 10s` | Per-request timeout |

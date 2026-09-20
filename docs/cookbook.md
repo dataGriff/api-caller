@@ -50,6 +50,22 @@ The token lands in `.apic/session.json` under the current environment.
 ignores it for one run. If you forget the login, the error says which
 request would have captured the missing value.
 
+To not have to remember it, let the request say what it needs:
+
+```http
+### Anything else
+# @name whoami
+# @ref login
+# @assert status == 200
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+```
+
+Now `apic run whoami` logs in first when `{{token}}` is missing and goes
+straight to `/me` when it is not. `# @forceRef login` logs in every time,
+for a token that must not be reused. See
+[format.md](format.md#dependencies).
+
 ## Create, read, update, delete in one flow
 
 Requests in a file run in order and pass values down the chain, so a full

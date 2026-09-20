@@ -426,13 +426,40 @@ func TestRedactMasksValues(t *testing.T) {
 
 func TestPreviewShowsMissingVariableHint(t *testing.T) {
 	f := newFixture(t, runner.Options{})
-	f.press("j") // whoami needs {{token}}
+	f.press("j") // whoami needs {{token}}, and # @ref login supplies it
 	v := f.view()
-	if !strings.Contains(v, "not ready") || !strings.Contains(v, "captured by login") {
-		t.Fatalf("preview should explain the missing token:\n%s", v)
+	if strings.Contains(v, "not ready") || !strings.Contains(v, "captured by login, which # @ref runs first") {
+		t.Fatalf("preview should say login runs first:\n%s", v)
 	}
-	if !strings.Contains(v, "○ GET    whoami") {
-		t.Fatalf("list should mark whoami as not ready:\n%s", v)
+	if !strings.Contains(v, "● GET    whoami") {
+		t.Fatalf("list should mark whoami as ready:\n%s", v)
+	}
+	f.press("/")
+	for _, r := range "get-job" {
+		f.press(string(r))
+	}
+	f.press("enter") // get-job needs {{jobId}} from create-job, and nothing runs that for it
+	v = f.view()
+	if !strings.Contains(v, "not ready") || !strings.Contains(v, "captured by create-job") {
+		t.Fatalf("preview should explain the missing jobId:\n%s", v)
+	}
+	if !strings.Contains(v, "○ GET    get-job") {
+		t.Fatalf("list should mark get-job as not ready:\n%s", v)
+	}
+}
+
+func TestRunStoresWhatRefRanFirst(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	f.press("j") // whoami
+	f.drain(f.press("enter"))
+	if res := f.m.Result(f.m.Selected()); res == nil || !res.OK || len(res.Deps) != 1 {
+		t.Fatalf("whoami should pass after login ran first: %+v", res)
+	}
+	v := f.view()
+	for _, want := range []string{"✓ POST   login", "✓ GET    whoami", "last: ✓ whoami"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q in view:\n%s", want, v)
+		}
 	}
 }
 

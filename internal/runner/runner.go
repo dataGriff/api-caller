@@ -57,6 +57,7 @@ type Runner struct {
 
 	results  map[string]*Result
 	captured map[string]string
+	refsRan  map[*httpfile.Request]bool // `# @ref` targets already run this invocation
 }
 
 // New builds a Runner, loading env files and the session.
@@ -89,7 +90,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, refsRan: map[*httpfile.Request]bool{}}
 	switch {
 	case opts.Session != nil:
 		r.Session = opts.Session
@@ -214,9 +215,18 @@ type Result struct {
 	Captures map[string]string `json:"captures,omitempty"`
 	Asserts  []assert.Result   `json:"asserts,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
-	Redact   bool              `json:"-"` // set from Options.Redact
-	raw      *selector.Response
+	// Deps are the results of the requests `# @ref` and `# @forceRef` ran
+	// first, in run order; a dependency's own dependencies nest under it.
+	Deps   []*Result `json:"ran_first,omitempty"`
+	Redact bool      `json:"-"` // set from Options.Redact
+	raw    *selector.Response
+	req    *httpfile.Request
 }
+
+// Req returns the request this result is for, so a caller holding results
+// of dependencies (Deps) can map them back to the requests that produced
+// them. It is nil for results built by hand.
+func (r *Result) Req() *httpfile.Request { return r.req }
 
 // MarshalJSON masks sensitive request and response headers always, and
 // everything (headers, bodies, query values, captures and assertion values)
@@ -459,6 +469,26 @@ func (r *Runner) MissingError(req *httpfile.Request, missing []string) error {
 	return usagef("%s:%d: missing variable%s\n  %s", req.File.Path, req.Line, plural(len(missing)), strings.Join(parts, "\n  "))
 }
 
+func refKey(ref httpfile.Ref) string {
+	if ref.Force {
+		return "@forceRef"
+	}
+	return "@ref"
+}
+
+// cycleError names a `# @ref` chain that leads back to a request already
+// on it, as "a -> b -> a".
+func (r *Runner) cycleError(req *httpfile.Request, ref httpfile.Ref, chain []*httpfile.Request, target *httpfile.Request) error {
+	var ids []string
+	for _, c := range chain {
+		if c == target || len(ids) > 0 {
+			ids = append(ids, c.ID())
+		}
+	}
+	ids = append(ids, target.ID())
+	return usagef("%s:%d: %s %s is a cycle: %s", req.File.Path, ref.Line, refKey(ref), ref.ID, strings.Join(ids, " -> "))
+}
+
 func plural(n int) string {
 	if n == 1 {
 		return ""
@@ -468,15 +498,107 @@ func plural(n int) string {
 
 // Run resolves, sends and evaluates a single request. A non-nil error is a
 // usage or transport problem; assertion failures are reported in Result.OK.
+//
+// Requests the request declares with `# @forceRef` run first every time;
+// those declared with `# @ref` run first only when a variable is missing,
+// and once per Runner. Their results ride in Result.Deps. A dependency
+// that fails stops the request: the result is not OK and names it.
 func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error) {
+	return r.run(ctx, req, nil)
+}
+
+// refTarget resolves the target of a `# @ref` to exactly one request.
+func (r *Runner) refTarget(req *httpfile.Request, ref httpfile.Ref) (*httpfile.Request, error) {
+	key := "@ref"
+	if ref.Force {
+		key = "@forceRef"
+	}
+	targets, err := r.Project.Resolve(ref.ID)
+	if err != nil {
+		return nil, usagef("%s:%d: %s %s: %v", req.File.Path, ref.Line, key, ref.ID, err)
+	}
+	if len(targets) != 1 {
+		return nil, usagef("%s:%d: %s %s names %d requests; refer to one request by name or file#name", req.File.Path, ref.Line, key, ref.ID, len(targets))
+	}
+	if targets[0] == req {
+		return nil, usagef("%s:%d: %s %s refers to the request itself", req.File.Path, ref.Line, key, ref.ID)
+	}
+	return targets[0], nil
+}
+
+// run is Run with the chain of requests whose refs led here, for cycle
+// detection and the error that names the cycle.
+func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfile.Request) (*Result, error) {
+	var deps []*Result
+	// failed builds the result of a request that never went out because a
+	// dependency failed, keeping what the dependency produced.
+	failed := func(msg string) *Result {
+		return &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL},
+			Errors: []string{msg}, Deps: deps, Redact: r.Opts.Redact, req: req}
+	}
+	runDep := func(ref httpfile.Ref) (*Result, error) {
+		target, err := r.refTarget(req, ref)
+		if err != nil {
+			return failed(err.Error()), err
+		}
+		for _, c := range chain {
+			if c == target {
+				return nil, r.cycleError(req, ref, append(chain, req), target)
+			}
+		}
+		next := make([]*httpfile.Request, len(chain)+1)
+		copy(next, chain)
+		next[len(chain)] = req
+		r.refsRan[target] = true
+		dep, err := r.run(ctx, target, next)
+		if dep != nil {
+			deps = append(deps, dep)
+		}
+		if err != nil {
+			return failed(fmt.Sprintf("%s %s: %v", refKey(ref), ref.ID, err)), err
+		}
+		if !dep.OK {
+			return failed(fmt.Sprintf("%s %s failed", refKey(ref), ref.ID)), nil
+		}
+		return nil, nil
+	}
+	refs := req.Refs()
+	for _, ref := range refs {
+		if !ref.Force {
+			continue
+		}
+		if res, err := runDep(ref); res != nil || err != nil {
+			return res, err
+		}
+	}
 	resolved, err := r.Resolve(req)
 	if err != nil {
 		return nil, err
 	}
 	if len(resolved.missing) > 0 {
+		ran := false
+		for _, ref := range refs {
+			if ref.Force {
+				continue
+			}
+			if target, err := r.refTarget(req, ref); err == nil && r.refsRan[target] {
+				continue
+			}
+			if res, err := runDep(ref); res != nil || err != nil {
+				return res, err
+			}
+			ran = true
+		}
+		if ran {
+			if resolved, err = r.Resolve(req); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(resolved.missing) > 0 {
 		return nil, r.MissingError(req, resolved.missing)
 	}
-	result := &Result{Request: *resolved, OK: true, Redact: r.Opts.Redact}
+	result := &Result{Request: *resolved, OK: true, Redact: r.Opts.Redact, Deps: deps, req: req}
 	preparedAsserts := make([]struct {
 		expr     assert.Expr
 		expected string
@@ -646,9 +768,10 @@ type Description struct {
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
 	Steps       []string          `json:"steps,omitempty"`       // # @step phrases
+	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
-	Ready       bool              `json:"ready"`                 // every variable resolves
+	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
 }
 
 // Describe reports a request's variables and where each comes from.
@@ -670,6 +793,13 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 		d.Captures = append(d.Captures, c.Name+" = "+c.Selector)
 	}
 	d.Steps = req.Steps()
+	refRuns := map[string]bool{}
+	for _, ref := range req.Refs() {
+		d.Refs = append(d.Refs, ref.ID)
+		if targets, err := r.Project.Resolve(ref.ID); err == nil && len(targets) == 1 {
+			refRuns[targets[0].ID()] = true
+		}
+	}
 	if raw, src := r.AuthSource(req); raw != "" {
 		d.Auth, d.AuthSource = raw, src
 		if spec, err := auth.Parse(raw); err == nil {
@@ -698,12 +828,16 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 				continue
 			}
 			info, ok, err := r.lookup(req, e, 0)
-			if !ok || err != nil {
-				d.Ready = false
-			}
 			if err != nil {
 				info.Source = info.Source + ": " + err.Error()
 				info.Missing = true
+			}
+			if info.Missing && err == nil && refRuns[info.CapturedBy] {
+				// A `# @ref` supplies it before the request goes out, so
+				// it does not make the request unready.
+				info.RefRuns = true
+			} else if !ok || err != nil {
+				d.Ready = false
 			}
 			d.Variables = append(d.Variables, info)
 		}

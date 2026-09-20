@@ -23,6 +23,7 @@ type VarInfo struct {
 	Secret     bool   `json:"secret,omitempty"`
 	Missing    bool   `json:"missing,omitempty"`
 	CapturedBy string `json:"captured_by,omitempty"` // request that would provide it
+	RefRuns    bool   `json:"ref_runs,omitempty"`    // CapturedBy is a `# @ref` of the request, so it runs first
 }
 
 // lookup resolves a plain variable name (no `$`, no response reference) for a
