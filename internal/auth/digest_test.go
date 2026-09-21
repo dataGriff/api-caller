@@ -188,6 +188,35 @@ func TestDigestTransportHandlesStaleNonceAndAuthInt(t *testing.T) {
 	}
 }
 
+func TestDigestNeverAnswersAnotherHost(t *testing.T) {
+	// api redirects to elsewhere, which challenges: the credentials belong
+	// to api and stay there.
+	var elsewhereAuthz []string
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		elsewhereAuthz = append(elsewhereAuthz, r.Header.Get("Authorization"))
+		w.Header().Set("WWW-Authenticate", `Digest realm="other", nonce="n", algorithm=MD5, qop="auth"`)
+		http.Error(w, "challenge", http.StatusUnauthorized)
+	}))
+	t.Cleanup(elsewhere.Close)
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/x", http.StatusFound)
+	}))
+	t.Cleanup(api.Close)
+	dt := &DigestTransport{Base: http.DefaultTransport, User: "alice", Pass: "s3cret", State: NewDigestState()}
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", api.URL+"/thing", nil)
+	resp, err := (&http.Client{Transport: dt}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != 401 || len(elsewhereAuthz) != 1 || elsewhereAuthz[0] != "" || dt.Answered {
+		t.Fatalf("status=%d authz=%q answered=%v", resp.StatusCode, elsewhereAuthz, dt.Answered)
+	}
+	if dt.Host != api.URL {
+		t.Fatalf("pinned to %q, want %q", dt.Host, api.URL)
+	}
+}
+
 func TestDigestWithoutChallengePassesThrough(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, "authz="+r.Header.Get("Authorization"))
@@ -234,6 +263,17 @@ func TestAPIKeyForms(t *testing.T) {
 		if h, q := s.APIKeyPlacement(); h != c.header || q != c.query {
 			t.Errorf("%s: placement = %q %q", c.spec, h, q)
 		}
+	}
+	// The query form appends to the query as written: nothing is reordered,
+	// re-encoded or dropped, even a pair url.ParseQuery would refuse.
+	s, _ := Parse("apikey k1 query=api_key")
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://a.b/x?b=2&a=%2Fpath;v=1", nil)
+	if err := Apply(context.Background(), s, req, nil, &Env{}); err != nil || req.URL.RawQuery != "b=2&a=%2Fpath;v=1&api_key=k1" {
+		t.Fatalf("query form: %v %s", err, req.URL.RawQuery)
+	}
+	req, _ = http.NewRequestWithContext(context.Background(), "GET", "https://a.b/x", nil)
+	if err := Apply(context.Background(), s, req, nil, &Env{}); err != nil || req.URL.RawQuery != "api_key=k1" {
+		t.Fatalf("query form on a bare URL: %v %s", err, req.URL.RawQuery)
 	}
 	// A key containing '=' stays a key; header and query exclude each other.
 	s, err := Parse("apikey abc=def==")

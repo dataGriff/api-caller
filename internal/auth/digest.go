@@ -277,9 +277,14 @@ func (s *DigestState) set(key string, c digestChallenge) int {
 // challenge it sends it once more with the Authorization header computed
 // from the credentials. Rounds counts the requests it sent.
 type DigestTransport struct {
-	Base   http.RoundTripper
-	User   string
-	Pass   string
+	Base http.RoundTripper
+	User string
+	Pass string
+	// Host is the scheme://host the request addressed; a challenge from
+	// any other host (one a redirect led to) is left unanswered, since
+	// the credentials belong to the host the file names. Empty pins the
+	// transport to the first request it sends.
+	Host   string
 	State  *DigestState // may be nil: then every request is challenged
 	Rounds int
 	// Challenged is set when a 401 was answered; Answered when the
@@ -295,6 +300,13 @@ func (d *DigestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		base = http.DefaultTransport
 	}
 	key := req.URL.Scheme + "://" + req.URL.Host
+	if d.Host == "" {
+		d.Host = key
+	}
+	if key != d.Host {
+		d.Rounds++
+		return base.RoundTrip(req)
+	}
 	body, err := requestBody(req)
 	if err != nil {
 		return nil, err

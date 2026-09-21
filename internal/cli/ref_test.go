@@ -240,3 +240,20 @@ func TestHTMLReports(t *testing.T) {
 		t.Fatalf("failed run report: code=%d has-failed=%v", code, strings.Contains(string(html), "1 failed"))
 	}
 }
+
+func TestTestCommandHonoursProxyFlags(t *testing.T) {
+	dir := refProject(t)
+	if err := os.MkdirAll(filepath.Join(dir, "features"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "features", "login.feature"), []byte("Feature: Login\n  Scenario: It works\n    When I run \"login\"\n    Then the response status is 200\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// An unreachable proxy for a host the environment would not skip.
+	if code, _, stderr := execute(t, "test", "-C", dir, "--env", "dev", "--proxy", "http://127.0.0.1:1"); code != 3 {
+		t.Fatalf("test through a dead proxy: code=%d err=%s", code, stderr)
+	}
+	if code, _, stderr := execute(t, "test", "-C", dir, "--env", "dev", "--proxy", "http://127.0.0.1:1", "--no-proxy"); code != 0 {
+		t.Fatalf("test --no-proxy: code=%d err=%s", code, stderr)
+	}
+}

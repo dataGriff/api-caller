@@ -136,14 +136,23 @@ Authorization: Bearer {{token}}
 		t.Fatalf("diagnostic: %v", d)
 	}
 	must(t, os.Remove(filepath.Join(dir, "bad.http")))
+	// Masked by default, live only when asked, so the command is safe to
+	// paste into a log or a ticket as the tool hands it over.
 	curl := call("curl_request", map[string]any{"name": "me"})
-	if cmd, _ := curl["command"].(string); !strings.HasPrefix(cmd, "curl -sS") || !strings.Contains(cmd, "Authorization: Bearer t-1") || !strings.Contains(cmd, srv.URL+"/me") {
+	if cmd, _ := curl["command"].(string); !strings.HasPrefix(cmd, "curl -sS") || strings.Contains(cmd, "t-1") || !strings.Contains(cmd, "***") || !strings.Contains(cmd, srv.URL+"/me") {
 		t.Fatalf("curl_request: %v", curl)
 	}
-	curl = call("curl_request", map[string]any{"name": "me", "redact": true})
-	if cmd, _ := curl["command"].(string); strings.Contains(cmd, "t-1") || !strings.Contains(cmd, "***") {
-		t.Fatalf("curl_request redact: %v", curl)
+	curl = call("curl_request", map[string]any{"name": "me", "raw": true})
+	if cmd, _ := curl["command"].(string); !strings.Contains(cmd, "Authorization: Bearer t-1") {
+		t.Fatalf("curl_request raw: %v", curl)
 	}
+	// A missing variable is an error naming it, never a command with a
+	// placeholder left in.
+	call("clear_session", map[string]any{})
+	if e := call("curl_request", map[string]any{"name": "me"}); !strings.Contains(e["_error"].(string), "login") {
+		t.Fatalf("curl_request with a missing variable: %v", e)
+	}
+	call("run_request", map[string]any{"name": "login"})
 	if e := call("curl_request", map[string]any{"name": "nope"}); !strings.Contains(e["_error"].(string), "nope") {
 		t.Fatalf("curl_request unknown: %v", e)
 	}

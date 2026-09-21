@@ -45,12 +45,8 @@ func authorizationCode(ctx context.Context, s *Spec, env *Env) (*tokenResponse, 
 	if err != nil {
 		return nil, err
 	}
-	port := 0
-	if p := s.Options["redirectPort"]; p != "" {
-		if port, err = strconv.Atoi(p); err != nil || port < 0 || port > 65535 {
-			return nil, fmt.Errorf("oauth2: bad redirectPort %q", p)
-		}
-	}
+	// Spec.check validated redirectPort when the spec was parsed.
+	port, _ := strconv.Atoi(s.Options["redirectPort"])
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		return nil, fmt.Errorf("oauth2: listening for the redirect: %w", err)

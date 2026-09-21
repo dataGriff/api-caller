@@ -58,7 +58,7 @@ func TestHTTPTransportBehindToken(t *testing.T) {
 	if len(tools.Tools) != 9 || !names["validate_project"] || !names["curl_request"] {
 		t.Fatalf("tools over HTTP: %v", names)
 	}
-	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "curl_request", Arguments: map[string]any{"name": "ping"}})
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "curl_request", Arguments: map[string]any{"name": "ping", "raw": true}})
 	must(t, err)
 	if text := res.Content[0].(*sdk.TextContent).Text; !strings.Contains(text, "http://api.example.test/ping") {
 		t.Fatalf("curl over HTTP: %s", text)

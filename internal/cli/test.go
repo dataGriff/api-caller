@@ -65,7 +65,7 @@ phrase) · 3 a server could not be reached.`,
 			opts := bdd.Options{
 				Config: bdd.Config{Project: p, Env: a.g.env, Vars: vars, UseSession: useSession,
 					Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, Stderr: a.Stderr,
-					CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key},
+					CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy},
 				Paths: args, Format: format, Tags: tags, StopOnFailure: stopOnFailure,
 				NoColors: a.g.noColor || a.g.json || os.Getenv("NO_COLOR") != "" || output != "" || !isTerminal(a.Stdout),
 				Output:   a.Stdout,
@@ -101,12 +101,7 @@ phrase) · 3 a server could not be reached.`,
 			}
 			code, err := bdd.Run(cmd.Context(), opts)
 			if err != nil {
-				var te *runner.TransportError
-				var ue *runner.UsageError
-				if errors.As(err, &te) || errors.As(err, &ue) {
-					return err // keeps exit codes 3 and 2
-				}
-				return &runner.UsageError{Msg: err.Error()}
+				return testErr(err)
 			}
 			if code != 0 {
 				return &exitError{code: code}
@@ -131,29 +126,30 @@ func (a *App) testHTML(ctx context.Context, opts bdd.Options, output string) err
 	dest := opts.Output
 	_, raw, code, runErr := bdd.RunSummary(ctx, opts)
 	if runErr != nil && len(raw) == 0 {
-		var te *runner.TransportError
-		var ue *runner.UsageError
-		if errors.As(runErr, &te) || errors.As(runErr, &ue) {
-			return runErr
-		}
-		return &runner.UsageError{Msg: runErr.Error()}
+		return testErr(runErr)
 	}
 	meta := report.Meta{Version: Version, Env: opts.Env, Time: started, Redacted: opts.Redact, Project: opts.Project.Root}
 	if err := report.Features(dest, meta, raw); err != nil {
 		return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", output, err)}
 	}
 	if runErr != nil {
-		var te *runner.TransportError
-		var ue *runner.UsageError
-		if errors.As(runErr, &te) || errors.As(runErr, &ue) {
-			return runErr
-		}
-		return &runner.UsageError{Msg: runErr.Error()}
+		return testErr(runErr)
 	}
 	if code != 0 {
 		return &exitError{code: code}
 	}
 	return nil
+}
+
+// testErr maps a suite error onto the exit codes: transport and usage
+// errors keep their 3 and 2, anything else is a definition problem (2).
+func testErr(err error) error {
+	var te *runner.TransportError
+	var ue *runner.UsageError
+	if errors.As(err, &te) || errors.As(err, &ue) {
+		return err
+	}
+	return &runner.UsageError{Msg: err.Error()}
 }
 
 // isTerminal reports whether w is an interactive terminal; reports written

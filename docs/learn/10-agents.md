@@ -185,7 +185,7 @@ The client then sees nine tools:
 | `list_environments` | environments and the variables in effect, secrets masked |
 | `clear_session {all?}` | forget captured values and cookies |
 | `validate_project {}` | check every `.http` file, with file, line, column and code, without sending anything |
-| `curl_request {name, redact?}` | the equivalent curl command |
+| `curl_request {name, raw?}` | the equivalent curl command, masked unless `raw` |
 
 and every `.http` file as a resource it can read, so it can look at a
 request's definition before calling it, or write a new one in the same

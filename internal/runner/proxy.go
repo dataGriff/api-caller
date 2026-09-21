@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,6 +21,9 @@ type ProxyInfo struct {
 	Source string `json:"source"`
 	// Off means no proxy will be used although one is configured.
 	Off bool `json:"off,omitempty"`
+	// Error says the setting could not be used; the request is refused
+	// with it rather than sent directly.
+	Error string `json:"error,omitempty"`
 
 	raw *url.URL // the proxy as it will be dialled; nil when Off
 }
@@ -28,6 +32,9 @@ type ProxyInfo struct {
 func (p *ProxyInfo) String() string {
 	if p == nil {
 		return ""
+	}
+	if p.Error != "" {
+		return "invalid (" + p.Source + "): " + p.Error
 	}
 	if p.Off {
 		return "none (" + p.Source + ")"
@@ -83,6 +90,9 @@ func (r *Runner) proxyFunc() func(*http.Request) (*url.URL, error) {
 		if info == nil || info.Off {
 			return nil, nil
 		}
+		if info.Error != "" {
+			return nil, errors.New(info.Error)
+		}
 		return info.raw, nil
 	}
 }
@@ -127,7 +137,7 @@ func envProxy(u *url.URL) *ProxyInfo {
 		}
 		p, err := parseProxy(v, name)
 		if err != nil {
-			return nil
+			return &ProxyInfo{Source: name, Error: err.Error()}
 		}
 		// The environment's proxy never applies to the local machine,
 		// which is what every other client does with these variables.

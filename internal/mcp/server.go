@@ -61,7 +61,7 @@ func New(cfg Config) (*sdk.Server, error) {
 	sdk.AddTool(srv, &sdk.Tool{Name: "clear_session", Description: "Forget captured values for an environment (or all of them)."}, s.clearSession)
 	sdk.AddTool(srv, &sdk.Tool{Name: "run_features", Description: "Run Gherkin .feature files (default: features/ under the project) against the project's requests and return a pass/fail summary with the failing steps."}, s.runFeatures)
 	sdk.AddTool(srv, &sdk.Tool{Name: "validate_project", Description: "Parse every .http file and report problems (bad selectors, unknown directives, duplicate names, missing body files, # @ref cycles) with file, line, column and a code, without sending any request. The same shape as `apic validate --json`."}, s.validateProject)
-	sdk.AddTool(srv, &sdk.Tool{Name: "curl_request", Description: "The curl command equivalent to a request, with its variables resolved; redact replaces credentials with shell placeholders so the command can go into a log or a ticket."}, s.curlRequest)
+	sdk.AddTool(srv, &sdk.Tool{Name: "curl_request", Description: "The curl command equivalent to a request, with its variables resolved. Credentials are shell placeholders and header, body and query values are masked unless raw is set, so the command can go into a log or a ticket as it is."}, s.curlRequest)
 
 	p, err := project.Load(root)
 	if err != nil {
@@ -189,10 +189,10 @@ func (s *service) validateProject(_ context.Context, _ *sdk.CallToolRequest, _ e
 }
 
 type curlInput struct {
-	Name   string            `json:"name" jsonschema:"request id from list_requests"`
-	Env    string            `json:"env,omitempty" jsonschema:"environment name; defaults to the server's --env"`
-	Vars   map[string]string `json:"vars,omitempty" jsonschema:"variable overrides, highest precedence"`
-	Redact bool              `json:"redact,omitempty" jsonschema:"mask header values, the body and query values, and use shell placeholders for credentials"`
+	Name string            `json:"name" jsonschema:"request id from list_requests"`
+	Env  string            `json:"env,omitempty" jsonschema:"environment name; defaults to the server's --env"`
+	Vars map[string]string `json:"vars,omitempty" jsonschema:"variable overrides, highest precedence"`
+	Raw  bool              `json:"raw,omitempty" jsonschema:"include the live credentials and values, so the command runs as printed; by default they are placeholders and masks"`
 }
 
 func (s *service) curlRequest(_ context.Context, _ *sdk.CallToolRequest, in curlInput) (*sdk.CallToolResult, any, error) {
@@ -208,10 +208,19 @@ func (s *service) curlRequest(_ context.Context, _ *sdk.CallToolRequest, in curl
 	if err != nil {
 		return toolError(err)
 	}
+	if d := r.Describe(req); !d.Ready {
+		var missing []string
+		for _, v := range d.Variables {
+			if v.Missing {
+				missing = append(missing, v.Name)
+			}
+		}
+		return toolError(r.MissingError(req, missing))
+	}
 	return structured(struct {
 		ID      string `json:"id"`
 		Command string `json:"command"`
-	}{req.ID(), curlexport.Command(res, in.Redact)})
+	}{req.ID(), curlexport.Command(res, !in.Raw)})
 }
 
 type describeInput struct {

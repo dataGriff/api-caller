@@ -103,7 +103,7 @@ Tools exposed:
 | `clear_session {env?, all?}` | forget captured values and cookies |
 | `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
 | `validate_project {}` | parse every `.http` file and report problems with file, line, column and code, without sending anything; the same shape as `apic validate --json`. For an agent that just edited a file |
-| `curl_request {name, env?, vars?, redact?}` | the equivalent curl command, `{"id", "command"}`; `redact` swaps credentials for shell placeholders |
+| `curl_request {name, env?, vars?, raw?}` | the equivalent curl command, `{"id", "command"}`, with credentials as shell placeholders and values masked unless `raw` is set; a missing variable is an error naming it, as for `apic curl` |
 
 Each `.http` file is also exposed as a resource so the agent can read the
 definitions. Only the project's own `.http` and `.rest` files can be read this

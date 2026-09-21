@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -54,9 +55,14 @@ func Apply(ctx context.Context, s *Spec, req *http.Request, body []byte, env *En
 	case "apikey":
 		key := s.Options["prefix"] + s.Args[0]
 		if header, query := s.APIKeyPlacement(); query != "" {
-			q := req.URL.Query()
-			q.Set(query, key)
-			req.URL.RawQuery = q.Encode()
+			// Appended to the query as written: rebuilding it would
+			// reorder and re-encode what the file says.
+			pair := url.QueryEscape(query) + "=" + url.QueryEscape(key)
+			if req.URL.RawQuery == "" {
+				req.URL.RawQuery = pair
+			} else {
+				req.URL.RawQuery += "&" + pair
+			}
 		} else {
 			req.Header.Set(header, key)
 		}

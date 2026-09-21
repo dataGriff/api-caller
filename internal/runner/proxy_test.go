@@ -2,12 +2,17 @@ package runner
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/dataGriff/api-caller/internal/project"
 )
@@ -205,6 +210,59 @@ func TestEnvProxySkipsLoopbackAndHonoursNoProxy(t *testing.T) {
 		if got := envProxy(u).String(); got != want {
 			t.Errorf("%s: got %q, want %q", raw, got, want)
 		}
+	}
+}
+
+func TestBadProxyVariableRefusesTheRequest(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "ftp://proxy.internal:21")
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"via":"direct"}`))
+	}))
+	t.Cleanup(target.Close)
+	// Loopback would skip the proxy; a name goes through it, and the
+	// broken setting must not become a silent direct connection.
+	dir := proxyProject(t, "http://api.example.test", "")
+	r := newRunner(t, dir, Options{Env: "dev"})
+	req, _ := r.Project.Lookup("ping")
+	_, err := r.Run(context.Background(), req)
+	if err == nil || ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "HTTP_PROXY: proxy scheme \"ftp\"") {
+		t.Fatalf("err = %v", err)
+	}
+	if info := r.Describe(req).Proxy; info == nil || info.Error == "" || !strings.HasPrefix(info.String(), "invalid (HTTP_PROXY): ") {
+		t.Fatalf("describe proxy = %+v", info)
+	}
+}
+
+func TestTraceHooksAreSafeToCallConcurrently(t *testing.T) {
+	var tm traceTimes
+	tr := tm.trace()
+	tm.mu.Lock()
+	tm.start = time.Now()
+	tm.mu.Unlock()
+	var wg sync.WaitGroup
+	// Two dials racing, as for a dual-stack host, plus DNS and TLS.
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			tr.DNSStart(httptrace.DNSStartInfo{})
+			tr.DNSDone(httptrace.DNSDoneInfo{})
+			tr.ConnectStart("tcp", "h")
+			if i == 0 {
+				tr.ConnectDone("tcp", "h", nil)
+				tr.TLSHandshakeStart()
+				tr.TLSHandshakeDone(tls.ConnectionState{}, nil)
+				tr.GotConn(httptrace.GotConnInfo{})
+				tr.GotFirstResponseByte()
+			} else {
+				tr.ConnectDone("tcp", "h", errors.New("lost the race"))
+			}
+		}(i)
+	}
+	wg.Wait()
+	got := tm.timings(5 * time.Millisecond)
+	if got.Reused || got.TotalMs != 5 || got.ConnectMs < 0 || got.TTFBMs > got.TotalMs {
+		t.Fatalf("timings = %+v", got)
 	}
 }
 

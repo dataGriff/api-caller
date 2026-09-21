@@ -207,6 +207,13 @@ func TestAuthorizationCodeParse(t *testing.T) {
 	if CacheKey(s) == CacheKey(other) {
 		t.Fatal("cache key ignores authUrl")
 	}
+	// The other grants keep the key they had before authUrl existed, so a
+	// token cached by an earlier apic is still found after upgrading.
+	cc, _ := Parse("oauth2 tokenUrl=t clientId=c clientSecret=s scope=read")
+	old := "$oauth2:" + hashKey(strings.Join([]string{"t", "", "c", "s", "", "client_credentials", "read", "", "", ""}, "\x00"))
+	if CacheKey(cc) != old {
+		t.Fatalf("client_credentials cache key changed: %s vs %s", CacheKey(cc), old)
+	}
 	if _, _, err := pkce(); err != nil {
 		t.Fatal(err)
 	}

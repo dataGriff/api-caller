@@ -341,41 +341,71 @@ type Timings struct {
 	Reused    bool  `json:"reused"`
 }
 
-// traceTimes collects httptrace callbacks for one request.
+// traceTimes collects httptrace callbacks for one request. The hooks may
+// run on several goroutines at once (a dual-stack host is dialled in
+// parallel) and after the request has returned, so every field sits
+// behind the mutex and the connection time is that of the dial that won:
+// from the first ConnectStart to the first successful ConnectDone.
 type traceTimes struct {
+	mu                         sync.Mutex
 	start                      time.Time
 	dnsStart, connStart, tlsAt time.Time
 	dns, connect, tls          time.Duration
 	firstByte                  time.Time
-	reused, gotConn            bool
+	reused                     bool
 }
 
 func (t *traceTimes) trace() *httptrace.ClientTrace {
+	locked := func(f func()) func() {
+		return func() {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			f()
+		}
+	}
 	return &httptrace.ClientTrace{
-		DNSStart: func(httptrace.DNSStartInfo) { t.dnsStart = time.Now() },
+		DNSStart: func(httptrace.DNSStartInfo) { locked(func() { t.dnsStart = time.Now() })() },
 		DNSDone: func(httptrace.DNSDoneInfo) {
-			if !t.dnsStart.IsZero() {
-				t.dns += time.Since(t.dnsStart)
-			}
+			locked(func() {
+				if !t.dnsStart.IsZero() {
+					t.dns += time.Since(t.dnsStart)
+					t.dnsStart = time.Time{}
+				}
+			})()
 		},
-		ConnectStart: func(string, string) { t.connStart = time.Now() },
-		ConnectDone: func(string, string, error) {
-			if !t.connStart.IsZero() {
-				t.connect += time.Since(t.connStart)
-			}
+		ConnectStart: func(string, string) {
+			locked(func() {
+				if t.connStart.IsZero() {
+					t.connStart = time.Now()
+				}
+			})()
 		},
-		TLSHandshakeStart: func() { t.tlsAt = time.Now() },
-		TLSHandshakeDone: func(tls.ConnectionState, error) {
-			if !t.tlsAt.IsZero() {
-				t.tls += time.Since(t.tlsAt)
-			}
+		ConnectDone: func(_, _ string, err error) {
+			locked(func() {
+				if err == nil && !t.connStart.IsZero() && t.connect == 0 {
+					t.connect = time.Since(t.connStart)
+				}
+			})()
 		},
-		GotConn:              func(info httptrace.GotConnInfo) { t.reused, t.gotConn = info.Reused, true },
-		GotFirstResponseByte: func() { t.firstByte = time.Now() },
+		TLSHandshakeStart: func() { locked(func() { t.tlsAt = time.Now() })() },
+		TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
+			locked(func() {
+				if err == nil && !t.tlsAt.IsZero() {
+					t.tls += time.Since(t.tlsAt)
+					t.tlsAt = time.Time{}
+				}
+			})()
+		},
+		GotConn:              func(info httptrace.GotConnInfo) { locked(func() { t.reused = info.Reused })() },
+		GotFirstResponseByte: func() { locked(func() { t.firstByte = time.Now() })() },
 	}
 }
 
+// timings snapshots the collected times; a hook that fires later (a
+// losing dial finishing after the response) cannot change the report.
 func (t *traceTimes) timings(total time.Duration) *Timings {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	out := &Timings{DNSMs: t.dns.Milliseconds(), ConnectMs: t.connect.Milliseconds(), TLSMs: t.tls.Milliseconds(), TotalMs: total.Milliseconds(), Reused: t.reused}
 	if !t.firstByte.IsZero() {
 		out.TTFBMs = t.firstByte.Sub(t.start).Milliseconds()
@@ -924,11 +954,16 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	}
 	var digest *auth.DigestTransport
 	if s := resolved.AuthSpec; s != nil && s.Type == "digest" {
-		digest = &auth.DigestTransport{Base: client.Transport, User: s.Args[0], Pass: s.Args[1], State: r.digest}
+		digest = &auth.DigestTransport{Base: client.Transport, User: s.Args[0], Pass: s.Args[1], State: r.digest, Host: httpReq.URL.Scheme + "://" + httpReq.URL.Host}
 		client.Transport = digest
 	}
+	if info := r.proxyInfo(httpReq.URL); info != nil && info.Error != "" {
+		return nil, usagef("%s:%d: %s", req.File.Path, req.Line, info.Error)
+	}
 	start := time.Now()
+	trace.mu.Lock()
 	trace.start = start
+	trace.mu.Unlock()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, r.transportError(err)

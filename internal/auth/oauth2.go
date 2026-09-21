@@ -45,10 +45,9 @@ func DescribeCached(raw string, now time.Time) string {
 // CacheKey identifies the token cache entry for a rendered oauth2 spec.
 func CacheKey(s *Spec) string {
 	o := s.Options
-	return "$oauth2:" + hashKey(strings.Join([]string{
+	parts := []string{
 		o["tokenUrl"],
 		o["deviceUrl"],
-		o["authUrl"],
 		o["clientId"],
 		o["clientSecret"],
 		o["clientAuth"],
@@ -57,7 +56,13 @@ func CacheKey(s *Spec) string {
 		o["username"],
 		o["password"],
 		o["audience"],
-	}, "\x00"))
+	}
+	// Only the authorization code grant has an authUrl; adding it at the
+	// end, and only then, keeps every existing cache entry valid.
+	if a := o["authUrl"]; a != "" {
+		parts = append(parts, a)
+	}
+	return "$oauth2:" + hashKey(strings.Join(parts, "\x00"))
 }
 
 const skew = 60 * time.Second
