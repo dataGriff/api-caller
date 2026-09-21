@@ -45,6 +45,27 @@
       "description": "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",
       "minimum": 0
     },
+    "noProxy": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Hosts that bypass `proxy`: a host name, `host:port`, `.example.com` for a domain and everything under it, an IP or a CIDR, or `*` for everything.",
+      "examples": [
+        [
+          "localhost",
+          ".internal"
+        ]
+      ]
+    },
+    "proxy": {
+      "type": "string",
+      "description": "Send every request through this proxy: an http, https or socks5 URL, with credentials in the userinfo if the proxy needs them. Beats HTTP_PROXY and HTTPS_PROXY; `--proxy` beats it for one command and `--no-proxy` sends directly.",
+      "examples": [
+        "http://proxy.internal:3128",
+        "socks5://127.0.0.1:1080"
+      ]
+    },
     "retry": {
       "type": "string",
       "description": "Default retry policy for requests without `# @retry`: `\u003cattempts\u003e [interval]`, for example `10 2s`. A request is re-sent until its assertions pass or the attempts are spent; the interval is a Go duration and defaults to 1s. `--retry` overrides it and `--no-retry` switches retries off.",

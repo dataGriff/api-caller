@@ -38,6 +38,8 @@ type Config struct {
 	CACert     string // --cacert, --cert and --key
 	Cert       string
 	Key        string
+	Proxy      string // --proxy and --no-proxy
+	NoProxy    bool
 
 	usageErr      error           // first usage error raised by a step (unknown environment, request or variable)
 	transportErr  error           // first transport error raised by a step
@@ -253,7 +255,7 @@ func (c *Config) scenarioWith(env string, store *session.Store, jar *session.Jar
 		vars[k] = v
 	}
 	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact, Cookies: c.Cookies,
-		CACert: c.CACert, Cert: c.Cert, Key: c.Key}
+		CACert: c.CACert, Cert: c.Cert, Key: c.Key, Proxy: c.Proxy, NoProxy: c.NoProxy}
 	if store != nil {
 		opts.Session = store
 	} else if !c.UseSession {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -24,8 +25,14 @@ type Env struct {
 	Cache     Cache
 	Client    *http.Client // used for token endpoints
 	AllowExec bool
-	Stderr    io.Writer // device-code prompts
+	Stderr    io.Writer // device-code and browser sign-in prompts
 	Now       func() time.Time
+	// Interactive says a person is at a terminal, so a grant that needs a
+	// browser may start one; false under --json, in MCP and in tests.
+	Interactive bool
+	// OpenBrowser opens a URL for the person; nil means the system's
+	// opener. Tests inject one that visits the URL themselves.
+	OpenBrowser func(url string) error
 }
 
 func (e *Env) now() time.Time {
@@ -45,6 +52,25 @@ func Apply(ctx context.Context, s *Spec, req *http.Request, body []byte, env *En
 		req.Header.Set("Authorization", "Bearer "+s.Args[0])
 	case "basic":
 		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(s.Args[0]+":"+s.Args[1])))
+	case "apikey":
+		key := s.Options["prefix"] + s.Args[0]
+		if header, query := s.APIKeyPlacement(); query != "" {
+			// Appended to the query as written: rebuilding it would
+			// reorder and re-encode what the file says.
+			pair := url.QueryEscape(query) + "=" + url.QueryEscape(key)
+			if req.URL.RawQuery == "" {
+				req.URL.RawQuery = pair
+			} else {
+				req.URL.RawQuery += "&" + pair
+			}
+		} else {
+			req.Header.Set(header, key)
+		}
+	case "digest":
+		// Answered on the wire by a DigestTransport, since the server's
+		// challenge is only known once the request has been sent; the
+		// runner wraps the client's transport for a digest spec.
+		return nil
 	case "aws":
 		return applyAWS(ctx, s, req, body, env)
 	case "oauth2":

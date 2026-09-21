@@ -23,6 +23,8 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. Reported as `tls.insecure` in `--json` and by `describe`. |
 | `--cacert <pem>` | Trust the certificates in this PEM file in addition to the system roots, for an API behind a private CA. |
+| `--proxy <url>` | Send every request through this proxy: an `http`, `https`, `socks5` or `socks5h` URL, or a bare `host:port` for HTTP. Beats `proxy:` in `apic.yaml` and `HTTP_PROXY`/`HTTPS_PROXY`. Credentials go in the URL's userinfo and are shown as `***` wherever the proxy is reported. |
+| `--no-proxy` | Send every request directly, ignoring `--proxy`, `apic.yaml` and the environment. |
 | `--cert <pem>`, `--key <pem>` | Present a client certificate (mTLS); the key defaults to the `--cert` file. These override `tls:` in `apic.yaml` and the env files' `SSLConfiguration`. See [auth.md](auth.md#tls-and-client-certificates). |
 | `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
 
@@ -81,10 +83,11 @@ shows progress.
 
 | Flag | Meaning |
 |---|---|
-| `-v, --verbose` | Show request headers and body, and response headers. |
+| `-v, --verbose` | Show request headers and body, response headers, and where the time went: `dns 12 ms · connect 18 ms · tls 41 ms · ttfb 60 ms · total 87 ms · new connection`. |
 | `--body-only` | Print only the response body, pretty-printed when JSON. For piping. |
 | `--keep-going` | In a flow, continue after a failure. |
 | `--retry "<n> [interval]"` | Retry policy for requests without `# @retry`: attempts and the wait between them (default `1s`). Overrides `retry:` in `apic.yaml`. |
+| `--report <file.html>` | Also write a self-contained HTML report of the run: summary, every request with its status, timing, assertions (actual against expected), captures and the request and response headers and bodies, collapsed. Honours `--redact` like the text output and shows a "redacted" badge; sensitive headers are masked either way. Refused when the path is a project file. |
 | `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
 
 Examples:
@@ -112,7 +115,8 @@ apic run get-user --body-only | jq .email
     "status": 200, "status_text": "OK",
     "headers": {"content-type": "application/json"},
     "body": {"id": 42, "email": "alice@example.com"},
-    "duration_ms": 87, "size": 412
+    "duration_ms": 87, "size": 412,
+    "timings": {"dns_ms": 12, "connect_ms": 18, "tls_ms": 41, "ttfb_ms": 60, "total_ms": 87, "reused": false}
   },
   "captures": {"email": "alice@example.com"},
   "asserts": [
@@ -131,6 +135,13 @@ apic run get-user --body-only | jq .email
 - `errors` (omitted when empty) lists failed captures and other problems.
 - `ok` is false when any assertion or capture failed, and when a request a
   `# @ref` ran first failed; `errors` then names it (`@ref login failed`).
+- `response.timings` breaks `duration_ms` down: name resolution, the TCP
+  connection, the TLS handshake, the wait for the first byte of the
+  response, and the total including the body, with `reused` true when
+  the connection came from an earlier request of the same invocation (a
+  flow's requests share their connections). A reused connection has no
+  DNS, connect or TLS time; redirects and a digest challenge add their
+  hops together. `duration_ms` is unchanged.
 - `attempts` (omitted when no retry policy applied) is how many times the
   request was sent; the object describes the last attempt. Attempt lines
   are not printed under `--json`.
@@ -254,7 +265,14 @@ runs first.
 ```
 
 `auth` and `auth_source` are present when a `# @auth` directive or
-`auth.default` applies; see [auth.md](auth.md). `refs` lists the request's
+`auth.default` applies; see [auth.md](auth.md). `proxy` is present when a
+proxy is configured by flag, `apic.yaml` or the environment:
+`{"url": "http://***@proxy.internal:3128", "source": "apic.yaml"}`, or
+`{"off": true, "source": "noProxy"}` for a host that bypasses it (the
+source is `--no-proxy`, `--proxy`, `apic.yaml`, the environment variable's
+name, or `noProxy`). The same object appears as `request.proxy` in
+`run --json` and as `proxy` in `env --json`, and `run -v` prints it under
+the request headers. `refs` lists the request's
 `# @ref` and `# @forceRef` targets, and a missing variable has
 `"ref_runs": true` when one of them captures it, so `ready` stays true.
 
@@ -497,11 +515,11 @@ exports are refused with a message):
   one), urlencoded, form-data (as a [multipart body](format.md#multipart-uploads),
   file parts pointing at a file of the same name beside the `.http` file),
   a whole-body file, and GraphQL as a JSON `{"query", "variables"}` POST;
-- auth: bearer, basic, awsv4 and oauth2 (client credentials and password
-  grants) become `# @auth`; an API key becomes the header or query value;
-  the collection's own auth becomes `auth.default` in `apic.yaml`; a request
-  with "no auth" under it gets `# @auth none`; digest, NTLM, Hawk and the
-  browser OAuth2 flows are reported;
+- auth: bearer, basic, digest, awsv4 and oauth2 (client credentials and
+  password grants) become `# @auth`; an API key becomes the header or
+  query value; the collection's own auth becomes `auth.default` in
+  `apic.yaml`; a request with "no auth" under it gets `# @auth none`;
+  NTLM, Hawk and the browser OAuth2 flows are reported;
 - variables: the collection's become `$shared` in `http-client.env.json`,
   and each `--postman-env` file becomes an environment named after it,
   its `secret` values going to `http-client.private.env.json` (written
@@ -550,14 +568,20 @@ for a collection it adds `private_env_file` and
 ## apic mcp
 
 ```
-apic mcp [--dir <path>] [--env <name>]
+apic mcp [--dir <path>] [--env <name>] [--http <host:port> [--token <bearer>]]
 ```
 
 Serves the project over the Model Context Protocol on stdin/stdout until
 the client disconnects. Tools: `list_requests`, `describe_request`,
 `run_request`, `run_file`, `run_features`, `list_environments`,
-`clear_session`. Each `.http` file is a resource. `--env` sets the default environment for calls that do
-not pass one. See [agents.md](agents.md).
+`clear_session`, `validate_project`, `curl_request`. Each `.http` file is
+a resource. `--env` sets the default environment for calls that do not
+pass one. See [agents.md](agents.md).
+
+| Flag | Meaning |
+|---|---|
+| `--http <host:port>` | Serve the streamable HTTP transport on this address instead of stdio. |
+| `--token <bearer>` | The bearer token clients must send. Default `$APIC_MCP_TOKEN`. Required when `--http` binds anything but the loopback interface; the server refuses to start otherwise. |
 
 ```sh
 claude mcp add api -- apic mcp --dir ./api --env dev
@@ -651,6 +675,8 @@ timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
+proxy: http://proxy.internal:3128   # every request goes through it; --proxy beats it, --no-proxy skips it
+noProxy: [localhost, .internal]     # hosts that bypass proxy: name, host:port, .suffix, IP, CIDR or *
 tls:                    # a private CA and a client certificate; see auth.md
   caFile: certs/internal-ca.pem
   certFile: certs/client.pem

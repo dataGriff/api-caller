@@ -136,6 +136,22 @@ This exact file ships with `apic demo`, so
 - The exit code fails the step: 1 for a failed assertion, 3 for a network
   error.
 
+For a report a person opens rather than a log a tool parses, add
+`--report` (or `apic test --format html --output`) and upload the file as
+an artifact; it is one HTML file with no external assets, redacted the
+same way:
+
+```yaml
+- run: apic run auth.http smoke.http -C api --env staging --redact --report smoke.html
+  env:
+    APIC_VAR_password: ${{ secrets.API_PASSWORD }}
+- uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: smoke-report
+    path: smoke.html
+```
+
 `apic validate` on its own is a cheap pull-request check: it parses every
 file, reports duplicate names, bad selectors, unknown auth options and
 missing body files, and exits 2 if anything is an error. With
@@ -199,6 +215,29 @@ environment, reused until a minute before it expires and then refreshed.
 `apic session` shows what is cached and for how long. This is the same flow
 for Entra ID, Okta, Auth0, Keycloak and Cognito. See
 [authentication](auth.md#oauth2) for the other grants.
+
+## Sign in as yourself
+
+```http
+### My repositories, as me
+# @name my-repos
+# @auth oauth2 grant=authorization_code authUrl={{authUrl}} tokenUrl={{tokenUrl}} clientId={{clientId}} scope="repo read:user"
+# @assert status == 200
+GET https://api.github.com/user/repos
+```
+
+```json
+// http-client.env.json
+{ "dev": { "authUrl": "https://github.com/login/oauth/authorize", "tokenUrl": "https://github.com/login/oauth/access_token", "clientId": "Iv1..." } }
+```
+
+Run `apic run my-repos` once from a terminal: a browser opens on the
+provider's sign-in page, and the token comes back through a loopback
+redirect (register `http://127.0.0.1:<port>/callback` with the app, with
+`redirectPort=` on the directive when the provider wants the exact port).
+From then on the cached token, refreshed while its refresh token lasts,
+serves `--json`, agents and CI alike; only a fresh sign-in needs the
+terminal again.
 
 ## A token from any CLI
 

@@ -32,6 +32,12 @@ func RequestDetail(t Theme, res *runner.Result) string {
 	if res.Request.TLS != nil {
 		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("tls:"), res.Request.TLS)
 	}
+	if res.Request.Proxy != nil {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("proxy:"), res.Request.Proxy)
+	}
+	if n := res.AuthNote(); n != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("auth:"), n)
+	}
 	if body := res.Request.DisplayBody(res.Redact); body != "" {
 		fmt.Fprintf(&b, "\n%s\n", strings.TrimRight(body, "\n"))
 	}
@@ -55,6 +61,21 @@ func StatusLine(t Theme, res *runner.Result) string {
 		line += " " + t.Dim.Render(fmt.Sprintf("· %d attempts", res.Attempts))
 	}
 	return line + "\n"
+}
+
+// Timings renders where the round trip went, when the response carries a
+// breakdown: "dns 12 ms · connect 18 ms · tls 41 ms · ttfb 60 ms · total
+// 87 ms · new connection".
+func Timings(t Theme, res *runner.Result) string {
+	if res.Response == nil || res.Response.Timings == nil {
+		return ""
+	}
+	tm := res.Response.Timings
+	conn := "new connection"
+	if tm.Reused {
+		conn = "reused connection"
+	}
+	return t.Dim.Render(fmt.Sprintf("dns %d ms · connect %d ms · tls %d ms · ttfb %d ms · total %d ms · %s", tm.DNSMs, tm.ConnectMs, tm.TLSMs, tm.TTFBMs, tm.TotalMs, conn)) + "\n"
 }
 
 // Attempt renders the progress line printed after a failed attempt of a
@@ -143,6 +164,7 @@ func Result(t Theme, res *runner.Result, o Options) string {
 		return b.String()
 	}
 	if o.Verbose {
+		b.WriteString(Timings(t, res))
 		b.WriteString(ResponseHeaders(t, res))
 	}
 	if body := res.DisplayRawBody(); len(body) > 0 {
@@ -259,6 +281,10 @@ func Describe(t Theme, d *runner.Description, headers []httpfile.Header) string 
 	if d.TLS != nil {
 		b.WriteString(Section(t, "tls"))
 		b.WriteString("  " + d.TLS.String() + "\n")
+	}
+	if d.Proxy != nil {
+		b.WriteString(Section(t, "proxy"))
+		b.WriteString("  " + d.Proxy.String() + "\n")
 	}
 	b.WriteString(Section(t, "variables"))
 	if len(d.Variables) == 0 {

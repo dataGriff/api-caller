@@ -1,11 +1,13 @@
 // Package auth applies authentication to outgoing requests, driven by the
 // `# @auth <type> [args]` directive or the `auth.default` setting in
-// apic.yaml. Supported types: none, bearer, basic, aws, oauth2, exec.
+// apic.yaml. Supported types: none, bearer, basic,
+// apikey, digest, aws, oauth2, exec.
 package auth
 
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -24,8 +26,10 @@ var Types = map[string]string{
 	"none":   "send no credentials (overrides a project default)",
 	"bearer": "bearer <token>: Authorization: Bearer <token>",
 	"basic":  "basic <user> <password>: HTTP basic auth",
+	"apikey": "apikey <key> [header=X-Api-Key] [query=name] [prefix=..]: send the key as a header (default X-Api-Key, no prefix) or a query parameter",
+	"digest": "digest <user> <password>: HTTP digest auth (RFC 7616), answering the server's challenge",
 	"aws":    "aws [service=execute-api] [region=..] [profile=..]: AWS Signature V4 using the SDK credential chain",
-	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [clientAuth=body|basic]",
+	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code|authorization_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [authUrl=..] [redirectPort=..] [clientAuth=body|basic]",
 	"exec":   "exec <command> [args..] [header=Authorization] [prefix=Bearer] [ttl=10m]: use a command's stdout as the token (needs auth.allowExec in apic.yaml)",
 }
 
@@ -44,12 +48,13 @@ func Parse(raw string) (*Spec, error) {
 	if _, ok := Types[s.Type]; !ok {
 		return nil, fmt.Errorf("@auth: unknown type %q (one of %s)", fields[0], strings.Join(typeNames(), ", "))
 	}
-	// Only aws, oauth2 and exec take key=value options: a bearer token or a
-	// basic password containing '=' (base64 padding, say) is a value.
-	takesOptions := s.Type == "aws" || s.Type == "oauth2" || s.Type == "exec"
+	// Only aws, oauth2, exec and apikey take key=value options: a bearer
+	// token or a basic password containing '=' (base64 padding, say) is a
+	// value. exec and apikey keep an unknown k=v positional for the same
+	// reason: a command word or an API key may contain '='.
+	takesOptions := s.Type == "aws" || s.Type == "oauth2" || s.Type == "exec" || s.Type == "apikey"
 	for _, f := range fields[1:] {
-		// exec keeps its command words positional even when they contain '='.
-		if k, v, ok := strings.Cut(f, "="); ok && takesOptions && (s.Type != "exec" || isExecOption(k)) && isIdent(k) {
+		if k, v, ok := strings.Cut(f, "="); ok && takesOptions && (s.Type != "exec" || isExecOption(k)) && (s.Type != "apikey" || isAPIKeyOption(k)) && isIdent(k) {
 			s.Options[k] = v
 			continue
 		}
@@ -71,6 +76,17 @@ func (s *Spec) check() error {
 	case "basic":
 		if len(s.Args) != 2 {
 			return fmt.Errorf("@auth basic needs two arguments: user and password")
+		}
+	case "digest":
+		if len(s.Args) != 2 {
+			return fmt.Errorf("@auth digest needs two arguments: user and password")
+		}
+	case "apikey":
+		if len(s.Args) != 1 {
+			return fmt.Errorf("@auth apikey needs exactly one argument: the key (then header=, query= or prefix=)")
+		}
+		if s.Options["header"] != "" && s.Options["query"] != "" {
+			return fmt.Errorf("@auth apikey: header= and query= are alternatives; give one")
 		}
 	case "aws":
 		if len(s.Args) > 0 {
@@ -101,12 +117,21 @@ func (s *Spec) check() error {
 			if s.Options["deviceUrl"] == "" {
 				return fmt.Errorf("@auth oauth2 grant=device_code needs deviceUrl=")
 			}
+		case "authorization_code":
+			if s.Options["authUrl"] == "" {
+				return fmt.Errorf("@auth oauth2 grant=authorization_code needs authUrl=")
+			}
+			if p := s.Options["redirectPort"]; p != "" {
+				if n, err := strconv.Atoi(p); err != nil || n < 0 || n > 65535 {
+					return fmt.Errorf("@auth oauth2: redirectPort must be a port number, not %q", p)
+				}
+			}
 		default:
-			return fmt.Errorf("@auth oauth2: unknown grant %q (client_credentials, password or device_code)", g)
+			return fmt.Errorf("@auth oauth2: unknown grant %q (client_credentials, password, device_code or authorization_code)", g)
 		}
 		for k := range s.Options {
 			switch k {
-			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "clientAuth":
+			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "authUrl", "redirectPort", "clientAuth":
 			default:
 				return fmt.Errorf("@auth oauth2: unknown option %q", k)
 			}
@@ -131,6 +156,23 @@ func (s *Spec) grant() string {
 
 func isExecOption(k string) bool {
 	return k == "header" || k == "prefix" || k == "ttl"
+}
+
+func isAPIKeyOption(k string) bool {
+	return k == "header" || k == "query" || k == "prefix"
+}
+
+// APIKeyPlacement reports where an apikey spec puts the key: the header
+// name (default X-Api-Key) or the query parameter, for describe and the
+// curl export.
+func (s *Spec) APIKeyPlacement() (header, query string) {
+	if q := s.Options["query"]; q != "" {
+		return "", q
+	}
+	if h := s.Options["header"]; h != "" {
+		return h, ""
+	}
+	return "X-Api-Key", ""
 }
 
 func isIdent(s string) bool {

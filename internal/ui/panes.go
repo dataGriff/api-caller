@@ -124,6 +124,7 @@ func (m *Model) renderResponse(width int) string {
 	if res.Response == nil {
 		return b.String()
 	}
+	b.WriteString(output.Timings(t, res))
 	if m.showHeaders {
 		b.WriteString(output.ResponseHeaders(t, res))
 	} else {

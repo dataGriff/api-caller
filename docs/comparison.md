@@ -22,8 +22,9 @@ lands against the tools you might otherwise use.
 | Postman import | no | no | no | yes | no | yes (`apic import`, with environments and simple tests) |
 | curl export | is curl | yes | extension | GUI | no | yes |
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
-| Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code), basic, bearer, exec |
+| Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code, authorization code with PKCE), digest, API key, basic, bearer, exec |
 | Cookie jar | via curl flags | some | yes | yes | yes | yes (opt-in, per environment) |
+| Proxy | `-x` | IDE settings | yes | yes | `-x` | yes (`--proxy`, `proxy:` and `noProxy:` in apic.yaml, `HTTP(S)_PROXY`) |
 | Client certificates, private CAs | via curl flags | JetBrains | yes | yes | yes | yes (`tls:` in apic.yaml, flags, JetBrains `SSLConfiguration`) |
 | Multipart uploads with file parts | `curl -F` | yes | yes | yes | yes | yes |
 | GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
@@ -127,12 +128,14 @@ So you are not surprised later:
 - No scripting. Anything needing computed signatures, loops or conditional
   logic has nowhere to go. The escape hatch is a shell script around
   `apic run --json`.
-- No browser-based OAuth2 flows (authorization code, PKCE). Client
-  credentials, password and device code grants, AWS SigV4, basic and
-  command-provided tokens are covered in [auth.md](auth.md).
+- OAuth2 is the four common grants (client credentials, password, device
+  code, authorization code with PKCE), AWS SigV4, digest, API keys, basic
+  and command-provided tokens; see [auth.md](auth.md). Implicit and
+  hybrid flows are not there, and the browser flow is for a person at a
+  terminal, never an agent.
 - HTTP only. No GraphQL-specific tooling (a GraphQL query is just a POST),
   no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover
   that.
 - Reports are limited to what `apic test` emits (pretty, progress, cucumber
-  JSON, JUnit) and `run --json`; there is no HTML report.
+  JSON, JUnit, HTML) and `run --json` or `run --report`.

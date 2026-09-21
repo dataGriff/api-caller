@@ -15,6 +15,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptrace"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -66,6 +67,11 @@ type Options struct {
 	CACert string
 	Cert   string
 	Key    string
+	// Proxy is the --proxy flag, an http, https or socks5 URL that beats
+	// apic.yaml's proxy and the environment; NoProxy (--no-proxy) sends
+	// every request directly, whatever is configured.
+	Proxy   string
+	NoProxy bool
 }
 
 // Progress reports one failed attempt of a request that is being retried,
@@ -88,6 +94,10 @@ type Runner struct {
 	Jar    *session.Jar
 	Opts   Options
 	Stderr io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	// Interactive says a person is at the terminal: an OAuth2 grant that
+	// needs a browser may open one. The CLI sets it when stdin and stderr
+	// are terminals and --json is off; MCP and apic test leave it off.
+	Interactive bool
 	// Progress, when set, is called after each failed attempt of a request
 	// that will be retried.
 	Progress func(Progress)
@@ -96,10 +106,15 @@ type Runner struct {
 	OnResult func(*Result, error)
 
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	proxy    *proxySettings                                   // --proxy or apic.yaml's proxy; nil means the environment
+	digest   *auth.DigestState                                // Digest challenges seen this invocation, per server
 	results  map[string]*Result
 	captured map[string]string
 	tlsMu    sync.Mutex
 	tlsCache map[string]*tls.Config
+	// transports are shared across the requests of one invocation, keyed
+	// by their TLS settings, so a flow reuses its connections.
+	transports map[string]*http.Transport
 }
 
 // New builds a Runner, loading env files and the session.
@@ -141,7 +156,17 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 			}
 		}
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx, digest: auth.NewDigestState()}
+	if raw, fromFlag := opts.Proxy, opts.Proxy != ""; raw != "" || p.Config.Proxy != "" {
+		if raw == "" {
+			raw = p.Config.Proxy
+		}
+		u, err := parseProxy(raw, proxySource(fromFlag))
+		if err != nil {
+			return nil, err
+		}
+		r.proxy = &proxySettings{url: u, source: proxySource(fromFlag), noProxy: p.Config.NoProxy}
+	}
 	switch {
 	case opts.Session != nil:
 		r.Session = opts.Session
@@ -177,7 +202,10 @@ type Resolved struct {
 	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
 	// TLS is the non-default TLS setup for this request's host: a private
 	// CA, a client certificate or no verification.
-	TLS      *TLSInfo   `json:"tls,omitempty"`
+	TLS *TLSInfo `json:"tls,omitempty"`
+	// Proxy is the proxy the request goes through, when one is configured
+	// by flag, apic.yaml or the environment.
+	Proxy    *ProxyInfo `json:"proxy,omitempty"`
 	AuthSpec *auth.Spec `json:"-"` // rendered spec (contains secrets)
 	// SecretHeaders names headers whose value came from a secret source
 	// (private env file, .env, session or a capture).
@@ -296,6 +324,95 @@ type Response struct {
 	Body       any               `json:"body"` // parsed JSON when the body is JSON, else a string
 	DurationMs int64             `json:"duration_ms"`
 	Size       int               `json:"size"`
+	// Timings is where the round trip went, from net/http/httptrace.
+	Timings *Timings `json:"timings,omitempty"`
+}
+
+// Timings breaks a round trip down: name resolution, the TCP connection,
+// the TLS handshake, the wait for the first response byte, and the total
+// including the body. A reused connection has no DNS, connect or TLS
+// time. Redirects and a digest challenge add their hops' times together.
+type Timings struct {
+	DNSMs     int64 `json:"dns_ms"`
+	ConnectMs int64 `json:"connect_ms"`
+	TLSMs     int64 `json:"tls_ms"`
+	TTFBMs    int64 `json:"ttfb_ms"`
+	TotalMs   int64 `json:"total_ms"`
+	Reused    bool  `json:"reused"`
+}
+
+// traceTimes collects httptrace callbacks for one request. The hooks may
+// run on several goroutines at once (a dual-stack host is dialled in
+// parallel) and after the request has returned, so every field sits
+// behind the mutex and the connection time is that of the dial that won:
+// from the first ConnectStart to the first successful ConnectDone.
+type traceTimes struct {
+	mu                         sync.Mutex
+	start                      time.Time
+	dnsStart, connStart, tlsAt time.Time
+	dns, connect, tls          time.Duration
+	firstByte                  time.Time
+	reused                     bool
+}
+
+func (t *traceTimes) trace() *httptrace.ClientTrace {
+	locked := func(f func()) func() {
+		return func() {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			f()
+		}
+	}
+	return &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) { locked(func() { t.dnsStart = time.Now() })() },
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			locked(func() {
+				if !t.dnsStart.IsZero() {
+					t.dns += time.Since(t.dnsStart)
+					t.dnsStart = time.Time{}
+				}
+			})()
+		},
+		ConnectStart: func(string, string) {
+			locked(func() {
+				if t.connStart.IsZero() {
+					t.connStart = time.Now()
+				}
+			})()
+		},
+		ConnectDone: func(_, _ string, err error) {
+			locked(func() {
+				if err == nil && !t.connStart.IsZero() && t.connect == 0 {
+					t.connect = time.Since(t.connStart)
+				}
+			})()
+		},
+		TLSHandshakeStart: func() { locked(func() { t.tlsAt = time.Now() })() },
+		TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
+			locked(func() {
+				if err == nil && !t.tlsAt.IsZero() {
+					t.tls += time.Since(t.tlsAt)
+					t.tlsAt = time.Time{}
+				}
+			})()
+		},
+		GotConn:              func(info httptrace.GotConnInfo) { locked(func() { t.reused = info.Reused })() },
+		GotFirstResponseByte: func() { locked(func() { t.firstByte = time.Now() })() },
+	}
+}
+
+// timings snapshots the collected times; a hook that fires later (a
+// losing dial finishing after the response) cannot change the report.
+func (t *traceTimes) timings(total time.Duration) *Timings {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := &Timings{DNSMs: t.dns.Milliseconds(), ConnectMs: t.connect.Milliseconds(), TLSMs: t.tls.Milliseconds(), TotalMs: total.Milliseconds(), Reused: t.reused}
+	if !t.firstByte.IsZero() {
+		out.TTFBMs = t.firstByte.Sub(t.start).Milliseconds()
+	} else {
+		out.TTFBMs = out.TotalMs
+	}
+	return out
 }
 
 // Result is the outcome of running one request.
@@ -315,7 +432,15 @@ type Result struct {
 	Redact bool      `json:"-"` // set from Options.Redact
 	raw    *selector.Response
 	req    *httpfile.Request
+	// authNote says what the auth did on the wire beyond setting a header:
+	// for digest, whether a challenge was answered. Shown by run -v.
+	authNote string
 }
+
+// AuthNote reports what the request's auth did on the wire, for verbose
+// output: "digest: 401 challenge answered (2 requests)" and the like.
+// Empty for the header-setting types.
+func (r *Result) AuthNote() string { return r.authNote }
 
 // Req returns the request this result is for, so a caller holding results
 // of dependencies (Deps) can map them back to the requests that produced
@@ -378,6 +503,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	res.TLS = r.tlsInfoForURL(res.URL)
+	res.Proxy = r.ProxyInfo(res.URL)
 	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
@@ -492,9 +618,10 @@ func (r *Runner) authEnv() (*auth.Env, error) {
 		return nil, err
 	}
 	e := &auth.Env{
-		AllowExec: r.Project.Config.Auth.AllowExec,
-		Stderr:    r.Stderr,
-		Client:    &http.Client{Timeout: r.Opts.Timeout, Transport: tr},
+		AllowExec:   r.Project.Config.Auth.AllowExec,
+		Stderr:      r.Stderr,
+		Interactive: r.Interactive,
+		Client:      &http.Client{Timeout: r.Opts.Timeout, Transport: tr},
 	}
 	if r.Session != nil {
 		e.Cache = sessionCache{r}
@@ -746,6 +873,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			if res.OK || attempt >= policy.n {
 				result.Response, result.raw = res.Response, res.raw
 				result.Captures, result.Asserts, result.Attempts = res.Captures, res.Asserts, res.Attempts
+				result.authNote = res.authNote
 				result.Errors = append(result.Errors, res.Errors...)
 				result.OK = result.OK && res.OK
 				break
@@ -790,6 +918,8 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *Resolved, asserts []preparedAssert, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	var trace traceTimes
+	ctx = httptrace.WithClientTrace(ctx, trace.trace())
 
 	var body io.Reader
 	if b := resolved.BodyBytes(); len(b) > 0 {
@@ -822,7 +952,18 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	if err != nil {
 		return nil, err
 	}
+	var digest *auth.DigestTransport
+	if s := resolved.AuthSpec; s != nil && s.Type == "digest" {
+		digest = &auth.DigestTransport{Base: client.Transport, User: s.Args[0], Pass: s.Args[1], State: r.digest, Host: httpReq.URL.Scheme + "://" + httpReq.URL.Host}
+		client.Transport = digest
+	}
+	if info := r.proxyInfo(httpReq.URL); info != nil && info.Error != "" {
+		return nil, usagef("%s:%d: %s", req.File.Path, req.Line, info.Error)
+	}
 	start := time.Now()
+	trace.mu.Lock()
+	trace.start = start
+	trace.mu.Unlock()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, r.transportError(err)
@@ -839,7 +980,17 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 
 	raw := &selector.Response{Status: httpResp.StatusCode, StatusText: statusText(httpResp.Status), Headers: httpResp.Header, Body: data, Duration: dur}
 	result := &Result{OK: true, Redact: r.Opts.Redact, raw: raw, req: req}
-	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data)}
+	if digest != nil {
+		switch {
+		case digest.Challenged:
+			result.authNote = fmt.Sprintf("digest: 401 challenge answered (%d requests)", digest.Rounds)
+		case digest.Answered:
+			result.authNote = "digest: answered from an earlier challenge"
+		default:
+			result.authNote = "digest: the server sent no challenge"
+		}
+	}
+	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
 
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)
@@ -1020,6 +1171,7 @@ type Description struct {
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
 	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
+	Proxy       *ProxyInfo        `json:"proxy,omitempty"`       // the proxy in effect, when one is configured
 	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
 }
 
@@ -1097,6 +1249,7 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	// far as it resolves) rather than the whole request.
 	rendered, _ := template.Render(strings.TrimSpace(req.URL), func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 	d.TLS = r.tlsInfoForURL(rendered)
+	d.Proxy = r.ProxyInfo(rendered)
 	return d
 }
 

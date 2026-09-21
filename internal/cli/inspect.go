@@ -224,12 +224,13 @@ func (a *App) envCmd() *cobra.Command {
 					}
 				}
 				return a.writeJSON(struct {
-					Root         string           `json:"root"`
-					Environments []string         `json:"environments"`
-					Current      string           `json:"current,omitempty"`
-					Files        []string         `json:"files"`
-					Variables    []runner.VarInfo `json:"variables"`
-				}{r.Project.Root, r.Envs.Names(), r.Opts.Env, r.Envs.Found, vars})
+					Root         string            `json:"root"`
+					Environments []string          `json:"environments"`
+					Current      string            `json:"current,omitempty"`
+					Files        []string          `json:"files"`
+					Proxy        *runner.ProxyInfo `json:"proxy,omitempty"`
+					Variables    []runner.VarInfo  `json:"variables"`
+				}{r.Project.Root, r.Envs.Names(), r.Opts.Env, r.Envs.Found, r.ProxyInfo(""), vars})
 			}
 			names := r.Envs.Names()
 			if len(names) == 0 {
@@ -246,6 +247,9 @@ func (a *App) envCmd() *cobra.Command {
 			}
 			if len(r.Envs.Found) > 0 {
 				fmt.Fprintf(a.Stdout, "%s %s\n", theme.Dim.Render("files:"), strings.Join(r.Envs.Found, ", "))
+			}
+			if p := r.ProxyInfo(""); p != nil {
+				fmt.Fprintf(a.Stdout, "%s %s\n", theme.Dim.Render("proxy:"), p)
 			}
 			if len(vars) > 0 {
 				fmt.Fprint(a.Stdout, output.Section(theme, "variables"))

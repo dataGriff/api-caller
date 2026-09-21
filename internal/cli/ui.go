@@ -53,7 +53,16 @@ opens the UI on the example project that targets it.`,
 				defer stop()
 				a.g.dir = root
 			}
-			r, err := a.newRunner()
+			// The UI owns the screen, so a browser sign-in prompt has
+			// nowhere to go: its runners are never interactive.
+			uiRunner := func() (*runner.Runner, error) {
+				r, err := a.newRunner()
+				if err == nil {
+					r.Interactive = false
+				}
+				return r, err
+			}
+			r, err := uiRunner()
 			if err != nil {
 				return err
 			}
@@ -63,7 +72,7 @@ opens the UI on the example project that targets it.`,
 				Runner: r,
 				NewRunner: func(env string) (*runner.Runner, error) {
 					a.g.env = env
-					return a.newRunner()
+					return uiRunner()
 				},
 				Editor: editorCommand(),
 				Redact: a.g.redact,

@@ -141,3 +141,43 @@ func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
 		t.Errorf("combined file: %s", got)
 	}
 }
+
+func TestProxyFlags(t *testing.T) {
+	base := &runner.Resolved{Method: "GET", URL: "https://a.b"}
+	if got := Command(base, false); strings.Contains(got, "proxy") {
+		t.Fatalf("no proxy configured, got %q", got)
+	}
+	base.Proxy = &runner.ProxyInfo{URL: "http://***@proxy.internal:3128", Source: "apic.yaml"}
+	if got := Command(base, true); !strings.Contains(got, "--proxy 'http://***@proxy.internal:3128' \\\n  'https://a.b'") {
+		t.Fatalf("redacted proxy: %q", got)
+	}
+	base.Proxy = &runner.ProxyInfo{Source: "--no-proxy", Off: true}
+	if got := Command(base, false); !strings.Contains(got, "--noproxy '*' \\\n  'https://a.b'") {
+		t.Fatalf("off: %q", got)
+	}
+}
+
+func TestAPIKeyAndDigestFlags(t *testing.T) {
+	mk := func(spec string) *runner.Resolved {
+		s, err := auth.Parse(spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}
+	}
+	cases := map[string][2]string{
+		"apikey k1":                     {"-H 'X-Api-Key: k1'", `-H "X-Api-Key: $APIC_API_KEY"`},
+		"apikey k1 header=X-Auth-Token": {"-H 'X-Auth-Token: k1'", `-H "X-Auth-Token: $APIC_API_KEY"`},
+		`apikey k1 header=Authorization prefix="Token "`: {"-H 'Authorization: Token k1'", `-H "Authorization: Token $APIC_API_KEY"`},
+		"apikey k1 query=api_key":                        {"--url-query 'api_key=k1'", `--url-query "api_key=$APIC_API_KEY"`},
+		"digest u p":                                     {"--digest --user 'u:p'", `--digest --user "$APIC_USER:$APIC_PASSWORD"`},
+	}
+	for spec, want := range cases {
+		if got := Command(mk(spec), false); !strings.Contains(got, want[0]) {
+			t.Errorf("%s:\n%s\nmissing %s", spec, got, want[0])
+		}
+		if got := Command(mk(spec), true); !strings.Contains(got, want[1]) || strings.Contains(got, "k1") || strings.Contains(got, "'u:p'") {
+			t.Errorf("%s redacted:\n%s\nmissing %s", spec, got, want[1])
+		}
+	}
+}

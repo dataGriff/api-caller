@@ -77,3 +77,7 @@ this list and the behaviour is a bug worth reporting:
   originally addressed.
 - `apic curl --redact` emits shell placeholders rather than live credentials.
 - The MCP server serves only the project's own `.http` files.
+- Over HTTP (`apic mcp --http`) the server binds the loopback interface
+  unless a bearer token guards it; it refuses to listen on any other
+  interface without `--token` or `APIC_MCP_TOKEN`, and answers every
+  request without the token with `401`.

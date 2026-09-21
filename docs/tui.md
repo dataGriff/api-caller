@@ -66,7 +66,9 @@ headers, the body, auth, every variable with the source it resolved from,
 and the declared captures and asserts. Missing variables are called out with
 the request that would provide them.
 
-**Response** is the status line, timing and size, the body pretty-printed
+**Response** is the status line, timing and size, a line saying where the
+time went (DNS, connect, TLS, first byte, total, and whether the
+connection was reused), the body pretty-printed
 and syntax-highlighted, and the assertions and captures underneath. <kbd>H</kbd>
 adds the request and response headers; <kbd>c</kbd> swaps in the equivalent
 curl command. When a tab holds more than fits, the right of the tab strip

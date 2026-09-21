@@ -36,6 +36,8 @@ type globals struct {
 	insecure bool
 	redact   bool
 	cookies  bool
+	proxy    string
+	noProxy  bool
 	cacert   string
 	cert     string
 	key      string
@@ -86,6 +88,8 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	pf.StringVar(&a.g.cacert, "cacert", "", "PEM file with certificates to trust in addition to the system roots")
 	pf.StringVar(&a.g.cert, "cert", "", "PEM client certificate to present (mTLS)")
 	pf.StringVar(&a.g.key, "key", "", "PEM private key for --cert (default: the --cert file)")
+	pf.StringVar(&a.g.proxy, "proxy", "", "send requests through this proxy (http, https or socks5 URL); beats proxy: in apic.yaml and HTTP(S)_PROXY")
+	pf.BoolVar(&a.g.noProxy, "no-proxy", false, "send requests directly, ignoring --proxy, apic.yaml and the environment")
 	pf.BoolVar(&a.g.cookies, "cookies", false, "keep a cookie jar per environment in .apic/cookies.json (or set cookies: true in apic.yaml)")
 	pf.BoolVar(&a.g.redact, "redact", false, "mask all request headers, bodies, query values and captures in output (for CI logs)")
 	root.SetOut(a.Stdout)
@@ -151,7 +155,14 @@ func (a *App) newRunner() (*runner.Runner, error) {
 		return nil, err
 	}
 	runner.Version = Version
-	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key})
+	r, err := runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy})
+	if err != nil {
+		return nil, err
+	}
+	// A browser sign-in (oauth2 grant=authorization_code) may start only
+	// with a person present: a terminal on both sides and no --json.
+	r.Interactive = !a.g.json && isTerminal(a.Stderr) && isTerminal(os.Stdin)
+	return r, nil
 }
 
 func (a *App) versionCmd() *cobra.Command {

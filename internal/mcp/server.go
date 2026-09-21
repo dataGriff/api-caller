@@ -1,6 +1,6 @@
 // Package mcp exposes a project's requests to AI agents over the Model
-// Context Protocol (stdio), so an agent can discover and call an API without
-// shelling out.
+// Context Protocol (stdio, or streamable HTTP behind a token), so an agent
+// can discover and call an API without shelling out.
 package mcp
 
 import (
@@ -16,6 +16,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/dataGriff/api-caller/internal/bdd"
+	"github.com/dataGriff/api-caller/internal/curlexport"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/runner"
@@ -38,8 +39,10 @@ call the requests that depend on it. A request that declares "# @ref login"
 runs login by itself when the token is missing; the result then lists what
 ran first under ran_first. run_file runs every request in a file in
 order as a flow. run_features runs the project's Gherkin .feature files and
-reports which steps failed. Assertion failures come back as ok=false, not as
-errors.`
+reports which steps failed. validate_project checks every .http file without
+sending anything, with the line and column of each problem, so run it after
+editing a file. curl_request gives the equivalent curl command for a request.
+Assertion failures come back as ok=false, not as errors.`
 
 // New builds an MCP server for the project in cfg.Dir.
 func New(cfg Config) (*sdk.Server, error) {
@@ -57,6 +60,8 @@ func New(cfg Config) (*sdk.Server, error) {
 	sdk.AddTool(srv, &sdk.Tool{Name: "list_environments", Description: "List the environments in http-client.env.json and the variables in effect (secrets masked)."}, s.listEnvironments)
 	sdk.AddTool(srv, &sdk.Tool{Name: "clear_session", Description: "Forget captured values for an environment (or all of them)."}, s.clearSession)
 	sdk.AddTool(srv, &sdk.Tool{Name: "run_features", Description: "Run Gherkin .feature files (default: features/ under the project) against the project's requests and return a pass/fail summary with the failing steps."}, s.runFeatures)
+	sdk.AddTool(srv, &sdk.Tool{Name: "validate_project", Description: "Parse every .http file and report problems (bad selectors, unknown directives, duplicate names, missing body files, # @ref cycles) with file, line, column and a code, without sending any request. The same shape as `apic validate --json`."}, s.validateProject)
+	sdk.AddTool(srv, &sdk.Tool{Name: "curl_request", Description: "The curl command equivalent to a request, with its variables resolved. Credentials are shell placeholders and header, body and query values are masked unless raw is set, so the command can go into a log or a ticket as it is."}, s.curlRequest)
 
 	p, err := project.Load(root)
 	if err != nil {
@@ -128,6 +133,7 @@ type requestSummary struct {
 	Description string   `json:"description,omitempty"`
 	Captures    []string `json:"captures,omitempty"`
 	Asserts     []string `json:"asserts,omitempty"`
+	Refs        []string `json:"refs,omitempty"` // # @ref and # @forceRef targets
 }
 
 func (s *service) listRequests(_ context.Context, _ *sdk.CallToolRequest, _ emptyInput) (*sdk.CallToolResult, any, error) {
@@ -153,7 +159,68 @@ func summarize(r *httpfile.Request) requestSummary {
 	for _, a := range r.Asserts {
 		e.Asserts = append(e.Asserts, a.Expr)
 	}
+	for _, ref := range r.Refs() {
+		e.Refs = append(e.Refs, ref.ID)
+	}
 	return e
+}
+
+func (s *service) validateProject(_ context.Context, _ *sdk.CallToolRequest, _ emptyInput) (*sdk.CallToolResult, any, error) {
+	p, err := project.Load(s.root)
+	if err != nil {
+		return toolError(err)
+	}
+	diags := p.Validate()
+	if diags == nil {
+		diags = []httpfile.Diagnostic{}
+	}
+	ok := true
+	for _, d := range diags {
+		if d.Severity == "error" {
+			ok = false
+		}
+	}
+	return structured(struct {
+		OK          bool                  `json:"ok"`
+		Files       int                   `json:"files"`
+		Requests    int                   `json:"requests"`
+		Diagnostics []httpfile.Diagnostic `json:"diagnostics"`
+	}{ok, len(p.Files), len(p.Requests()), diags})
+}
+
+type curlInput struct {
+	Name string            `json:"name" jsonschema:"request id from list_requests"`
+	Env  string            `json:"env,omitempty" jsonschema:"environment name; defaults to the server's --env"`
+	Vars map[string]string `json:"vars,omitempty" jsonschema:"variable overrides, highest precedence"`
+	Raw  bool              `json:"raw,omitempty" jsonschema:"include the live credentials and values, so the command runs as printed; by default they are placeholders and masks"`
+}
+
+func (s *service) curlRequest(_ context.Context, _ *sdk.CallToolRequest, in curlInput) (*sdk.CallToolResult, any, error) {
+	r, err := s.newRunner(in.Env, in.Vars, false)
+	if err != nil {
+		return toolError(err)
+	}
+	req, err := single(r, in.Name)
+	if err != nil {
+		return toolError(err)
+	}
+	res, err := r.Resolve(req)
+	if err != nil {
+		return toolError(err)
+	}
+	if d := r.Describe(req); !d.Ready {
+		var missing []string
+		for _, v := range d.Variables {
+			if v.Missing {
+				missing = append(missing, v.Name)
+			}
+		}
+		return toolError(r.MissingError(req, missing))
+	}
+	return structured(struct {
+		ID      string `json:"id"`
+		Command string `json:"command"`
+	}{req.ID(), curlexport.Command(res, !in.Raw)})
 }
 
 type describeInput struct {

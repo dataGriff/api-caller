@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -163,5 +164,96 @@ func TestValidateReportsBadRefs(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunVerboseShowsTimings(t *testing.T) {
+	dir := refProject(t)
+	code, out, errb := execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session", "--no-color", "-v")
+	if code != 0 {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errb)
+	}
+	if !strings.Contains(out, "dns 0 ms · connect ") || !strings.Contains(out, " · new connection\n") {
+		t.Fatalf("no timings line in verbose output:\n%s", out)
+	}
+	_, out, _ = execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session")
+	if strings.Contains(out, "dns 0 ms") {
+		t.Fatalf("timings should need -v:\n%s", out)
+	}
+	_, out, _ = execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session", "--json")
+	if !strings.Contains(out, `"timings":{`) || !strings.Contains(out, `"reused":false`) {
+		t.Fatalf("json should carry timings:\n%s", out)
+	}
+}
+
+func TestHTMLReports(t *testing.T) {
+	dir := refProject(t)
+	if err := os.MkdirAll(filepath.Join(dir, "features"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "features", "login.feature"), []byte("Feature: Login\n  Scenario: It works\n    When I run \"login\"\n    Then the response status is 200\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// apic test --format html writes the report to --output and keeps the exit code.
+	out := filepath.Join(t.TempDir(), "features.html")
+	code, stdout, stderr := execute(t, "test", "-C", dir, "--env", "dev", "--format", "html", "--output", out)
+	if code != 0 || stdout != "" {
+		t.Fatalf("test html: code=%d out=%q err=%s", code, stdout, stderr)
+	}
+	html, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<!doctype html>", "all passed", "It works", `I run &#34;login&#34;`, "environment <b>dev</b>"} {
+		if !strings.Contains(string(html), want) {
+			t.Errorf("features report lacks %q", want)
+		}
+	}
+	// Without --output the report goes to stdout.
+	code, stdout, _ = execute(t, "test", "-C", dir, "--env", "dev", "--format", "html")
+	if code != 0 || !strings.HasPrefix(stdout, "<!doctype html>") {
+		t.Fatalf("test html to stdout: code=%d out=%.40q", code, stdout)
+	}
+	// apic run --report writes the report beside the usual output.
+	report := filepath.Join(t.TempDir(), "run.html")
+	code, stdout, stderr = execute(t, "run", "whoami", "-C", dir, "--env", "dev", "--no-session", "--json", "--report", report)
+	if code != 0 || !strings.Contains(stdout, `"ok":true`) {
+		t.Fatalf("run --report: code=%d out=%s err=%s", code, stdout, stderr)
+	}
+	html, err = os.ReadFile(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<!doctype html>", "ran first (# @ref)", "whoami", "all passed"} {
+		if !strings.Contains(string(html), want) {
+			t.Errorf("run report lacks %q", want)
+		}
+	}
+	// A project file is never a report path.
+	if code, _, stderr := execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session", "--report", filepath.Join(dir, "api.http")); code != 2 || !strings.Contains(stderr, "would overwrite") {
+		t.Fatalf("--report onto a request file: code=%d err=%s", code, stderr)
+	}
+	// A failed request still gets its report, and the exit code says so.
+	code, _, _ = execute(t, "run", "broken", "-C", dir, "--env", "dev", "--no-session", "--report", report)
+	html, _ = os.ReadFile(report)
+	if code != 1 || !strings.Contains(string(html), "1 failed") {
+		t.Fatalf("failed run report: code=%d has-failed=%v", code, strings.Contains(string(html), "1 failed"))
+	}
+}
+
+func TestTestCommandHonoursProxyFlags(t *testing.T) {
+	dir := refProject(t)
+	if err := os.MkdirAll(filepath.Join(dir, "features"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "features", "login.feature"), []byte("Feature: Login\n  Scenario: It works\n    When I run \"login\"\n    Then the response status is 200\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// An unreachable proxy for a host the environment would not skip.
+	if code, _, stderr := execute(t, "test", "-C", dir, "--env", "dev", "--proxy", "http://127.0.0.1:1"); code != 3 {
+		t.Fatalf("test through a dead proxy: code=%d err=%s", code, stderr)
+	}
+	if code, _, stderr := execute(t, "test", "-C", dir, "--env", "dev", "--proxy", "http://127.0.0.1:1", "--no-proxy"); code != 0 {
+		t.Fatalf("test --no-proxy: code=%d err=%s", code, stderr)
 	}
 }

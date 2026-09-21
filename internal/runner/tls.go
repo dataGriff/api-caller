@@ -151,6 +151,14 @@ func (s tlsSettings) info() *TLSInfo {
 	return &TLSInfo{CAFile: s.CAFile, CertFile: s.CertFile, KeyFile: s.KeyFile, Insecure: !s.Verify}
 }
 
+// key identifies a set of settings for the caches.
+func (s tlsSettings) key() string {
+	if s.isDefault() {
+		return "default"
+	}
+	return fmt.Sprintf("%s|%s|%s|%v|%v|%v", s.CAFile, s.CertFile, s.KeyFile, s.Verify, s.caFromFlag, s.certFromFlag)
+}
+
 // tlsConfig builds (and caches) the tls.Config for a set of settings.
 // Every problem is a usage error: it is the project's configuration, not
 // the network, that is wrong.
@@ -161,7 +169,7 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 	if s.CertFile != "" && s.Passphrase {
 		return nil, usagef("tls: the client key for %s needs a passphrase (hasCertificatePassphrase), which apic cannot supply; store a decrypted key instead", s.CertFile)
 	}
-	key := fmt.Sprintf("%s|%s|%s|%v|%v|%v", s.CAFile, s.CertFile, s.KeyFile, s.Verify, s.caFromFlag, s.certFromFlag)
+	key := s.key()
 	r.tlsMu.Lock()
 	defer r.tlsMu.Unlock()
 	if r.tlsCache == nil {
@@ -250,14 +258,29 @@ func refuseWorldReadable(path, shown string) error {
 
 // transport builds the HTTP transport for a request to host, with the TLS
 // settings that apply to it.
+//
+// One transport serves every request with the same TLS settings in an
+// invocation, so a flow's requests reuse their connections (which the
+// timings report as reused).
 func (r *Runner) transport(host string) (*http.Transport, error) {
-	tr := cloneDefaultTransport()
-	cfg, err := r.tlsConfig(r.tlsFor(host))
+	s := r.tlsFor(host)
+	cfg, err := r.tlsConfig(s)
 	if err != nil {
 		return nil, err
 	}
+	r.tlsMu.Lock()
+	defer r.tlsMu.Unlock()
+	if tr, ok := r.transports[s.key()]; ok {
+		return tr, nil
+	}
+	tr := cloneDefaultTransport()
+	tr.Proxy = r.proxyFunc()
 	if cfg != nil {
 		tr.TLSClientConfig = cfg
 	}
+	if r.transports == nil {
+		r.transports = map[string]*http.Transport{}
+	}
+	r.transports[s.key()] = tr
 	return tr, nil
 }

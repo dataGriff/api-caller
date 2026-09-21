@@ -42,6 +42,7 @@ func Command(r *runner.Resolved, redact bool) string {
 	}
 	parts = append(parts, authFlags(r.AuthSpec, redact)...)
 	parts = append(parts, tlsFlags(r.TLS)...)
+	parts = append(parts, proxyFlags(r.Proxy, redact)...)
 	parts = append(parts, quote(r.DisplayURL(redact)))
 	return strings.Join(parts, " \\\n  ")
 }
@@ -95,6 +96,22 @@ func tlsFlags(t *runner.TLSInfo) []string {
 	return out
 }
 
+// proxyFlags maps the proxy in effect onto curl: --noproxy '*' when apic
+// would send directly although one is configured, --proxy otherwise. Under
+// redact the proxy's own credentials are masked with the rest.
+func proxyFlags(p *runner.ProxyInfo, redact bool) []string {
+	switch {
+	case p == nil:
+		return nil
+	case p.Off:
+		return []string{"--noproxy '*'"}
+	case redact || p.Raw() == nil:
+		return []string{"--proxy " + quote(p.URL)}
+	default:
+		return []string{"--proxy " + quote(p.Raw().String())}
+	}
+}
+
 func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
@@ -117,6 +134,24 @@ func authFlags(s *auth.Spec, redact bool) []string {
 			return []string{`--user "$APIC_USER:$APIC_PASSWORD"`}
 		}
 		return []string{"--user " + quote(s.Args[0]+":"+s.Args[1])}
+	case "apikey":
+		header, query := s.APIKeyPlacement()
+		prefix := s.Options["prefix"]
+		if query != "" {
+			if redact {
+				return []string{`--url-query "` + escapeDouble(query) + `=` + escapeDouble(prefix) + `$APIC_API_KEY"`}
+			}
+			return []string{"--url-query " + quote(query+"="+prefix+s.Args[0])}
+		}
+		if redact {
+			return []string{`-H "` + escapeDouble(header) + `: ` + escapeDouble(prefix) + `$APIC_API_KEY"`}
+		}
+		return []string{"-H " + quote(header+": "+prefix+s.Args[0])}
+	case "digest":
+		if redact {
+			return []string{`--digest --user "$APIC_USER:$APIC_PASSWORD"`}
+		}
+		return []string{"--digest --user " + quote(s.Args[0]+":"+s.Args[1])}
 	case "aws":
 		service := s.Options["service"]
 		if service == "" {
