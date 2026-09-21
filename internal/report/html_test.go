@@ -35,6 +35,8 @@ func golden(t *testing.T, name string, got []byte) {
 	if err != nil {
 		t.Fatalf("%v (run with -update to create it)", err)
 	}
+	// A Windows checkout may carry the golden file with CRLF line endings.
+	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
 	if !bytes.Equal(want, got) {
 		diffPath := path + ".got"
 		_ = os.WriteFile(diffPath, got, 0o644) //nolint:gosec // test output
