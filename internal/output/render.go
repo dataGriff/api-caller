@@ -63,6 +63,21 @@ func StatusLine(t Theme, res *runner.Result) string {
 	return line + "\n"
 }
 
+// Timings renders where the round trip went, when the response carries a
+// breakdown: "dns 12 ms · connect 18 ms · tls 41 ms · ttfb 60 ms · total
+// 87 ms · new connection".
+func Timings(t Theme, res *runner.Result) string {
+	if res.Response == nil || res.Response.Timings == nil {
+		return ""
+	}
+	tm := res.Response.Timings
+	conn := "new connection"
+	if tm.Reused {
+		conn = "reused connection"
+	}
+	return t.Dim.Render(fmt.Sprintf("dns %d ms · connect %d ms · tls %d ms · ttfb %d ms · total %d ms · %s", tm.DNSMs, tm.ConnectMs, tm.TLSMs, tm.TTFBMs, tm.TotalMs, conn)) + "\n"
+}
+
 // Attempt renders the progress line printed after a failed attempt of a
 // request that is being retried.
 func Attempt(t Theme, p runner.Progress) string {
@@ -149,6 +164,7 @@ func Result(t Theme, res *runner.Result, o Options) string {
 		return b.String()
 	}
 	if o.Verbose {
+		b.WriteString(Timings(t, res))
 		b.WriteString(ResponseHeaders(t, res))
 	}
 	if body := res.DisplayRawBody(); len(body) > 0 {

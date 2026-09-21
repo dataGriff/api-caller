@@ -165,3 +165,22 @@ func TestValidateReportsBadRefs(t *testing.T) {
 		}
 	}
 }
+
+func TestRunVerboseShowsTimings(t *testing.T) {
+	dir := refProject(t)
+	code, out, errb := execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session", "--no-color", "-v")
+	if code != 0 {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errb)
+	}
+	if !strings.Contains(out, "dns 0 ms · connect ") || !strings.Contains(out, " · new connection\n") {
+		t.Fatalf("no timings line in verbose output:\n%s", out)
+	}
+	_, out, _ = execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session")
+	if strings.Contains(out, "dns 0 ms") {
+		t.Fatalf("timings should need -v:\n%s", out)
+	}
+	_, out, _ = execute(t, "run", "login", "-C", dir, "--env", "dev", "--no-session", "--json")
+	if !strings.Contains(out, `"timings":{`) || !strings.Contains(out, `"reused":false`) {
+		t.Fatalf("json should carry timings:\n%s", out)
+	}
+}

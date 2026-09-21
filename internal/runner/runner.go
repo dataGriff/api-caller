@@ -15,6 +15,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptrace"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -107,6 +108,9 @@ type Runner struct {
 	captured map[string]string
 	tlsMu    sync.Mutex
 	tlsCache map[string]*tls.Config
+	// transports are shared across the requests of one invocation, keyed
+	// by their TLS settings, so a flow reuses its connections.
+	transports map[string]*http.Transport
 }
 
 // New builds a Runner, loading env files and the session.
@@ -316,6 +320,65 @@ type Response struct {
 	Body       any               `json:"body"` // parsed JSON when the body is JSON, else a string
 	DurationMs int64             `json:"duration_ms"`
 	Size       int               `json:"size"`
+	// Timings is where the round trip went, from net/http/httptrace.
+	Timings *Timings `json:"timings,omitempty"`
+}
+
+// Timings breaks a round trip down: name resolution, the TCP connection,
+// the TLS handshake, the wait for the first response byte, and the total
+// including the body. A reused connection has no DNS, connect or TLS
+// time. Redirects and a digest challenge add their hops' times together.
+type Timings struct {
+	DNSMs     int64 `json:"dns_ms"`
+	ConnectMs int64 `json:"connect_ms"`
+	TLSMs     int64 `json:"tls_ms"`
+	TTFBMs    int64 `json:"ttfb_ms"`
+	TotalMs   int64 `json:"total_ms"`
+	Reused    bool  `json:"reused"`
+}
+
+// traceTimes collects httptrace callbacks for one request.
+type traceTimes struct {
+	start                      time.Time
+	dnsStart, connStart, tlsAt time.Time
+	dns, connect, tls          time.Duration
+	firstByte                  time.Time
+	reused, gotConn            bool
+}
+
+func (t *traceTimes) trace() *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) { t.dnsStart = time.Now() },
+		DNSDone: func(httptrace.DNSDoneInfo) {
+			if !t.dnsStart.IsZero() {
+				t.dns += time.Since(t.dnsStart)
+			}
+		},
+		ConnectStart: func(string, string) { t.connStart = time.Now() },
+		ConnectDone: func(string, string, error) {
+			if !t.connStart.IsZero() {
+				t.connect += time.Since(t.connStart)
+			}
+		},
+		TLSHandshakeStart: func() { t.tlsAt = time.Now() },
+		TLSHandshakeDone: func(tls.ConnectionState, error) {
+			if !t.tlsAt.IsZero() {
+				t.tls += time.Since(t.tlsAt)
+			}
+		},
+		GotConn:              func(info httptrace.GotConnInfo) { t.reused, t.gotConn = info.Reused, true },
+		GotFirstResponseByte: func() { t.firstByte = time.Now() },
+	}
+}
+
+func (t *traceTimes) timings(total time.Duration) *Timings {
+	out := &Timings{DNSMs: t.dns.Milliseconds(), ConnectMs: t.connect.Milliseconds(), TLSMs: t.tls.Milliseconds(), TotalMs: total.Milliseconds(), Reused: t.reused}
+	if !t.firstByte.IsZero() {
+		out.TTFBMs = t.firstByte.Sub(t.start).Milliseconds()
+	} else {
+		out.TTFBMs = out.TotalMs
+	}
+	return out
 }
 
 // Result is the outcome of running one request.
@@ -820,6 +883,8 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *Resolved, asserts []preparedAssert, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	var trace traceTimes
+	ctx = httptrace.WithClientTrace(ctx, trace.trace())
 
 	var body io.Reader
 	if b := resolved.BodyBytes(); len(b) > 0 {
@@ -858,6 +923,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		client.Transport = digest
 	}
 	start := time.Now()
+	trace.start = start
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, r.transportError(err)
@@ -884,7 +950,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 			result.authNote = "digest: the server sent no challenge"
 		}
 	}
-	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data)}
+	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
 
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)

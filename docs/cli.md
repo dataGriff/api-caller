@@ -83,7 +83,7 @@ shows progress.
 
 | Flag | Meaning |
 |---|---|
-| `-v, --verbose` | Show request headers and body, and response headers. |
+| `-v, --verbose` | Show request headers and body, response headers, and where the time went: `dns 12 ms · connect 18 ms · tls 41 ms · ttfb 60 ms · total 87 ms · new connection`. |
 | `--body-only` | Print only the response body, pretty-printed when JSON. For piping. |
 | `--keep-going` | In a flow, continue after a failure. |
 | `--retry "<n> [interval]"` | Retry policy for requests without `# @retry`: attempts and the wait between them (default `1s`). Overrides `retry:` in `apic.yaml`. |
@@ -114,7 +114,8 @@ apic run get-user --body-only | jq .email
     "status": 200, "status_text": "OK",
     "headers": {"content-type": "application/json"},
     "body": {"id": 42, "email": "alice@example.com"},
-    "duration_ms": 87, "size": 412
+    "duration_ms": 87, "size": 412,
+    "timings": {"dns_ms": 12, "connect_ms": 18, "tls_ms": 41, "ttfb_ms": 60, "total_ms": 87, "reused": false}
   },
   "captures": {"email": "alice@example.com"},
   "asserts": [
@@ -133,6 +134,13 @@ apic run get-user --body-only | jq .email
 - `errors` (omitted when empty) lists failed captures and other problems.
 - `ok` is false when any assertion or capture failed, and when a request a
   `# @ref` ran first failed; `errors` then names it (`@ref login failed`).
+- `response.timings` breaks `duration_ms` down: name resolution, the TCP
+  connection, the TLS handshake, the wait for the first byte of the
+  response, and the total including the body, with `reused` true when
+  the connection came from an earlier request of the same invocation (a
+  flow's requests share their connections). A reused connection has no
+  DNS, connect or TLS time; redirects and a digest challenge add their
+  hops together. `duration_ms` is unchanged.
 - `attempts` (omitted when no retry policy applied) is how many times the
   request was sent; the object describes the last attempt. Attempt lines
   are not printed under `--json`.
