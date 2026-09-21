@@ -24,10 +24,19 @@ import (
 //go:embed report.html.tmpl
 var files embed.FS
 
-var page = template.Must(template.New("report.html.tmpl").Funcs(template.FuncMap{
-	"ms":   func(d time.Duration) string { return fmt.Sprintf("%d ms", d.Milliseconds()) },
-	"json": prettyJSON,
-}).ParseFS(files, "report.html.tmpl"))
+// page is the parsed template. Its source is read with CRLF folded to LF
+// so a report is byte-identical whatever line endings the build machine
+// checked the template out with.
+var page = func() *template.Template {
+	src, err := files.ReadFile("report.html.tmpl")
+	if err != nil {
+		panic(err)
+	}
+	return template.Must(template.New("report.html.tmpl").Funcs(template.FuncMap{
+		"ms":   func(d time.Duration) string { return fmt.Sprintf("%d ms", d.Milliseconds()) },
+		"json": prettyJSON,
+	}).Parse(strings.ReplaceAll(string(src), "\r\n", "\n")))
+}()
 
 // Meta is what the report says about the run as a whole.
 type Meta struct {
