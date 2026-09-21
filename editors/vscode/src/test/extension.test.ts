@@ -188,6 +188,117 @@ suite("apic extension", () => {
     assert.deepStrictEqual(run.command?.arguments, [fixture(), "api.http#ping"]);
   });
 
+  test("completes directives after # @ and variables inside {{", async function () {
+    await api();
+    const tmp = path.join(fixture(), "complete.http");
+    fs.writeFileSync(tmp, "# @\nGET {{\n");
+    try {
+      const uri = vscode.Uri.file(tmp);
+      await vscode.workspace.openTextDocument(uri);
+      const directives = await vscode.commands.executeCommand<vscode.CompletionList>("vscode.executeCompletionItemProvider", uri, new vscode.Position(0, 3), "@");
+      const labels = directives.items.map((i) => (typeof i.label === "string" ? i.label : i.label.label));
+      assert.ok(labels.includes("@assert") && labels.includes("@capture") && labels.includes("@retry"), labels.join(","));
+      const assertItem = directives.items[labels.indexOf("@assert")];
+      assert.ok(assertItem.insertText instanceof vscode.SnippetString, "directives insert a snippet body");
+      if (!findOnPath("apic")) {
+        this.skip();
+      }
+      const vars = await vscode.commands.executeCommand<vscode.CompletionList>("vscode.executeCompletionItemProvider", uri, new vscode.Position(1, 6), "{");
+      const names = vars.items.map((i) => (typeof i.label === "string" ? i.label : i.label.label));
+      assert.ok(names.includes("baseUrl"), `expected baseUrl from the fixture env, got ${names.join(",")}`);
+      const baseUrl = vars.items[names.indexOf("baseUrl")];
+      assert.strictEqual(baseUrl.insertText, "baseUrl}}");
+      assert.ok(String(baseUrl.detail).includes("http-client.env.json"), String(baseUrl.detail));
+      assert.ok(names.includes("$uuid") && names.includes("$randomInt"), names.join(","));
+      // No named request in this file, so no response references.
+      assert.ok(!names.some((n) => n.includes(".response.")), names.join(","));
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      fs.rmSync(tmp, { force: true });
+    }
+  });
+
+  test("hovering a placeholder shows its value and source", async function () {
+    if (!findOnPath("apic")) {
+      this.skip();
+    }
+    await api();
+    const uri = vscode.Uri.file(path.join(fixture(), "api.http"));
+    await vscode.workspace.openTextDocument(uri);
+    // `GET {{baseUrl}}/health` is line 4 of the fixture; column 8 is inside the placeholder.
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>("vscode.executeHoverProvider", uri, new vscode.Position(3, 8));
+    assert.ok(hovers.length > 0, "no hover");
+    const text = hovers.map((h) => h.contents.map((c) => (typeof c === "string" ? c : c.value)).join("\n")).join("\n");
+    assert.ok(text.includes("**baseUrl**") && text.includes("http://localhost:8089") && text.includes("http-client.env.json"), text);
+    assert.strictEqual(hovers[0].range?.start.character, 4);
+    assert.strictEqual(hovers[0].range?.end.character, 15);
+  });
+
+  test("lists the fixture's feature in the Test Explorer, and counts step usages", async () => {
+    const { tests } = await api();
+    await tests.discover();
+    const features = tests.featuresIn(fixture());
+    assert.deepStrictEqual(
+      features.map((f) => [path.relative(fixture(), f.uri), f.feature.name, f.feature.scenarios.map((s) => s.name)]),
+      [["features/ping.feature".split("/").join(path.sep), "Ping", ["The API answers", "Deep"]]],
+    );
+    const root = tests.controller.items.get(fixture());
+    assert.ok(root, "a root item per project");
+    const file = root.children.get(path.join(fixture(), "features", "ping.feature"));
+    assert.ok(file);
+    assert.strictEqual(file.label, "Ping");
+    assert.strictEqual(file.children.size, 2);
+    const scenario = file.children.get(`${path.join(fixture(), "features", "ping.feature")}:5`);
+    assert.strictEqual(scenario?.label, "The API answers");
+    assert.strictEqual(scenario?.range?.start.line, 4);
+    // The step lens on nested/deep.http counts the scenario that uses its phrase.
+    const uri = vscode.Uri.file(path.join(fixture(), "nested", "deep.http"));
+    await vscode.workspace.openTextDocument(uri);
+    let lenses: vscode.CodeLens[] = [];
+    await until(async () => {
+      lenses = (await vscode.commands.executeCommand<vscode.CodeLens[]>("vscode.executeCodeLensProvider", uri)) ?? [];
+      return lenses.some((l) => l.command?.command === "apic.revealStepUsages");
+    });
+    const step = lenses.find((l) => l.command?.command === "apic.revealStepUsages")!;
+    assert.strictEqual(step.command?.title, "used by 1 scenario");
+    assert.strictEqual(step.range.start.line, 2);
+    await vscode.commands.executeCommand("apic.revealStepUsages", step.command?.arguments?.[0]);
+    assert.ok(vscode.window.activeTextEditor?.document.uri.fsPath.endsWith("ping.feature"));
+    assert.strictEqual(vscode.window.activeTextEditor?.selection.active.line, 9);
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
+  test("runs the demo project's feature through apic test and maps every scenario", async function () {
+    const bin = findOnPath("apic");
+    if (!bin) {
+      this.skip();
+    }
+    this.timeout(90000);
+    const { tests } = await api();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apic-vscode-test-"));
+    const port = await freePort();
+    const demo: ChildProcess = spawn(bin, ["demo", "--out", dir, "--port", String(port), "--force"], { stdio: "ignore" });
+    try {
+      await until(() => fs.existsSync(path.join(dir, "features", "todos.feature")));
+      await waitFor(`http://127.0.0.1:${port}/health`);
+      const res = await tests.runFiles(dir, ["features/todos.feature"]);
+      assert.strictEqual(res.code, 0, res.stderr);
+      assert.ok(res.outcomes.length >= 8, `outcomes: ${res.outcomes.map((o) => o.name).join(", ")}`);
+      assert.ok(res.outcomes.every((o) => o.status === "passed"), JSON.stringify(res.outcomes.filter((o) => o.status !== "passed").map((o) => [o.name, o.failure])));
+      assert.ok(res.outcomes.every((o) => o.steps.length > 1 && o.line > 0));
+      // A tag expression nothing carries runs nothing.
+      const none = await tests.runFiles(dir, ["features/todos.feature"], { tags: "@nothing-has-this" });
+      assert.deepStrictEqual(none.outcomes, []);
+      // A file outside the project is a usage error, reported with apic's text.
+      const bad = await tests.runFiles(dir, ["../nope.feature"]);
+      assert.strictEqual(bad.code, 2);
+      assert.ok(bad.stderr.includes("error"), bad.stderr);
+    } finally {
+      demo.kill();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("runs a request against a demo API and shows the result", async function () {
     const bin = findOnPath("apic");
     if (!bin) {

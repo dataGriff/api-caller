@@ -33,6 +33,7 @@
     "workspaceContains:**/*.http",
     "workspaceContains:**/*.rest",
     "workspaceContains:**/apic.yaml",
+    "workspaceContains:**/*.feature",
     "onLanguage:http",
     "onView:apic.requests",
     "onView:apic.session"
@@ -143,6 +144,11 @@
         "title": "Run file as flow",
         "category": "apic",
         "icon": "$(run-all)"
+      },
+      {
+        "command": "apic.revealStepUsages",
+        "title": "Open the scenarios that use this step",
+        "category": "apic"
       }
     ],
     "configuration": {
@@ -191,9 +197,20 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Offer **Format Document** for `.http` files through `apic fmt`, so `editor.formatOnSave` keeps them in canonical form."
+        },
+        "apic.test.showOutput": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Alongside every Test Explorer run, also run `apic test --format pretty` and show its output in the apic output channel. This runs the features a second time, so leave it off for APIs where a run has side effects."
         }
       }
     },
+    "snippets": [
+      {
+        "language": "http",
+        "path": "./snippets/http.json"
+      }
+    ],
     "grammars": [
       {
         "scopeName": "apic.directives.injection",
@@ -285,6 +302,10 @@
         },
         {
           "command": "apic.pickEnvironment",
+          "when": "false"
+        },
+        {
+          "command": "apic.revealStepUsages",
           "when": "false"
         }
       ],

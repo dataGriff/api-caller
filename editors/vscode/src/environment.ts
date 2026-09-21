@@ -3,7 +3,7 @@
 // project in the workspace state and shown in the status bar.
 import * as vscode from "vscode";
 import type { Apic } from "./apic";
-import type { EnvOutput } from "./types";
+import type { EnvOutput, VarInfo } from "./types";
 
 interface EnvItem extends vscode.QuickPickItem {
   /** The environment to pass as --env, or undefined for the project's default. */
@@ -15,6 +15,8 @@ export class Environments {
   private readonly changed = new vscode.EventEmitter<string>();
   /** apic.yaml's own default per project, from `apic env --json`, so the status bar can name it. */
   private readonly defaults = new Map<string, Promise<string | undefined>>();
+  /** `apic env --json` for a project and the environment in effect, for completions and hovers. */
+  private readonly variableLists = new Map<string, Promise<VarInfo[]>>();
   /** The project the status bar shows, so a slow `apic env` for another one cannot overwrite it. */
   private shownRoot: string | undefined;
   /** Fires with the project root whose environment changed. */
@@ -33,6 +35,25 @@ export class Environments {
   /** Forgets what `apic env` said about a project's default. */
   invalidate(root: string): void {
     this.defaults.delete(root);
+    for (const key of [...this.variableLists.keys()]) {
+      if (key.startsWith(`${root}\0`)) {
+        this.variableLists.delete(key);
+      }
+    }
+  }
+
+  /** The variables `apic env` reports for a project in the environment in effect, cached until `invalidate` or a pick. */
+  variables(root: string): Promise<VarInfo[]> {
+    const key = `${root}\0${this.current(root) ?? ""}`;
+    let p = this.variableLists.get(key);
+    if (!p) {
+      p = this.apic
+        .json<EnvOutput>(["env", ...this.args(root)], { project: root })
+        .then((res) => res.value?.variables ?? [])
+        .catch(() => []);
+      this.variableLists.set(key, p);
+    }
+    return p;
   }
 
   /** The environment apic would use for a project: the picked one, else apic.yaml's, else undefined. */

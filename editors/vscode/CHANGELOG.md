@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Completions: directives after `# @` with snippet bodies, variables
+  inside `{{` from `apic env` and the session with built-ins and
+  response references, selectors after `# @assert` and `# @capture x =`
+  with the keys of the last response after `body.$.`, operators, auth
+  types and request names after `# @ref`. Snippets for a request, a JSON
+  request, a login-and-capture pair and the common directives.
+- Hovers on `{{placeholder}}`: value, source, and for a missing one the
+  request that captures it, from `apic describe`.
+- Test Explorer: every `.feature` file under the project's `test.paths`
+  with scenarios and example rows, run through `apic test --json` in the
+  environment in effect, failing steps at their line, undefined steps
+  called out, a tag expression per run or for every run, and
+  `apic.test.showOutput` for apic's own pretty output. A lens above each
+  `# @step` line counts the scenarios that use the phrase and opens them.
+
 ## 0.1.0
 
 The first release. Everything runs through the apic binary's `--json`

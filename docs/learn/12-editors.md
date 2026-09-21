@@ -81,10 +81,16 @@ Away from the lenses:
   `editor.formatOnSave` the files stay in the canonical order from
   [lesson 9](09-import-export.md)'s imports.
 
-Test Explorer integration for `.feature` files, completions and hovers
-for directives and variables are tracked in the
-[VS Code epic](https://github.com/dataGriff/api-caller/issues/29). Until
-then `apic test` from the terminal is the way to run features.
+- Type `# @` above a request and every directive is offered with its
+  shape filled in; type `{{` and the variables of the environment in
+  effect appear with their source, secrets masked. Hover a
+  `{{placeholder}}` to see its value, or which request captures it.
+
+- The **Test Explorer** (the beaker in the activity bar) lists
+  `features/todos.feature` with its scenarios. Run one and apic runs it
+  the same way `apic test` does; a failing step shows its message at
+  the line. Open `todos.http` and every `# @step` line says how many
+  scenarios use it.
 
 ### 3. JetBrains IDEs
 
