@@ -78,7 +78,8 @@ step goes away: `apic run whoami --json` prints `login`'s object and then
 
 ## 2. MCP (Claude Code, Cursor, Windsurf, any MCP client)
 
-`apic mcp` serves the project over stdio. Register it once:
+`apic mcp` serves the project over stdio, or over HTTP for an agent that
+is not on the same machine. Register it once:
 
 ```sh
 # Claude Code
@@ -101,6 +102,8 @@ Tools exposed:
 | `list_environments {env?}` | environments and effective variables (secrets masked) |
 | `clear_session {env?, all?}` | forget captured values and cookies |
 | `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
+| `validate_project {}` | parse every `.http` file and report problems with file, line, column and code, without sending anything; the same shape as `apic validate --json`. For an agent that just edited a file |
+| `curl_request {name, env?, vars?, redact?}` | the equivalent curl command, `{"id", "command"}`; `redact` swaps credentials for shell placeholders |
 
 Each `.http` file is also exposed as a resource so the agent can read the
 definitions. Only the project's own `.http` and `.rest` files can be read this
@@ -110,6 +113,26 @@ the project. The readable set is checked against the project on each read, so a
 file added after the server started can be read (it is not listed until the
 server restarts). Assertion failures return `ok: false` rather than a tool error;
 transport and usage problems return an error message the agent can act on.
+
+### Over HTTP
+
+```sh
+apic mcp --http 127.0.0.1:8765
+APIC_MCP_TOKEN=$(openssl rand -hex 16) apic mcp --http 0.0.0.0:8765 --dir ./api
+```
+
+`--http` serves the MCP streamable HTTP transport instead of stdio, for a
+hosted agent, a shared development box, or a container that also runs the
+API under test. The same tools and resources are exposed. Bound to the
+loopback interface it needs nothing else; bound anywhere else it refuses
+to start without a bearer token (`--token`, or `APIC_MCP_TOKEN`), which
+every client must send as `Authorization: Bearer <token>`. The server runs
+the project's requests with the project's credentials, so that rule is
+not optional. Point the client at `http://<host>:<port>/`:
+
+```json
+{"mcpServers": {"api": {"type": "http", "url": "http://127.0.0.1:8765/", "headers": {"Authorization": "Bearer <token>"}}}}
+```
 
 ## Writing requests as an agent
 

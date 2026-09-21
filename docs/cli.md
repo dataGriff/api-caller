@@ -567,14 +567,20 @@ for a collection it adds `private_env_file` and
 ## apic mcp
 
 ```
-apic mcp [--dir <path>] [--env <name>]
+apic mcp [--dir <path>] [--env <name>] [--http <host:port> [--token <bearer>]]
 ```
 
 Serves the project over the Model Context Protocol on stdin/stdout until
 the client disconnects. Tools: `list_requests`, `describe_request`,
 `run_request`, `run_file`, `run_features`, `list_environments`,
-`clear_session`. Each `.http` file is a resource. `--env` sets the default environment for calls that do
-not pass one. See [agents.md](agents.md).
+`clear_session`, `validate_project`, `curl_request`. Each `.http` file is
+a resource. `--env` sets the default environment for calls that do not
+pass one. See [agents.md](agents.md).
+
+| Flag | Meaning |
+|---|---|
+| `--http <host:port>` | Serve the streamable HTTP transport on this address instead of stdio. |
+| `--token <bearer>` | The bearer token clients must send. Default `$APIC_MCP_TOKEN`. Required when `--http` binds anything but the loopback interface; the server refuses to start otherwise. |
 
 ```sh
 claude mcp add api -- apic mcp --dir ./api --env dev

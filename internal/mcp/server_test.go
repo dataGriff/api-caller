@@ -65,7 +65,7 @@ Authorization: Bearer {{token}}
 
 	tools, err := cs.ListTools(ctx, nil)
 	must(t, err)
-	if len(tools.Tools) != 7 {
+	if len(tools.Tools) != 9 {
 		t.Fatalf("tools: %d", len(tools.Tools))
 	}
 
@@ -114,6 +114,38 @@ Authorization: Bearer {{token}}
 	flow := call("run_file", map[string]any{"file": "api.http"})
 	if flow["ok"] != true || len(flow["results"].([]any)) != 3 {
 		t.Fatalf("flow: %v", flow)
+	}
+	// The listing carries the # @ref targets.
+	for _, e := range list["requests"].([]any) {
+		if r := e.(map[string]any); r["id"] == "me-ref" {
+			if refs, _ := r["refs"].([]any); len(refs) != 1 || refs[0] != "login" {
+				t.Fatalf("me-ref refs: %v", r)
+			}
+		}
+	}
+	valid := call("validate_project", map[string]any{})
+	if valid["ok"] != true || valid["files"] != float64(1) || valid["requests"] != float64(3) || len(valid["diagnostics"].([]any)) != 0 {
+		t.Fatalf("validate_project: %v", valid)
+	}
+	must(t, os.WriteFile(filepath.Join(dir, "bad.http"), []byte("### bad\n# @name bad\n# @assert stauts == 200\nGET {{baseUrl}}/x\n"), 0o644))
+	valid = call("validate_project", map[string]any{})
+	if valid["ok"] != false || len(valid["diagnostics"].([]any)) != 1 {
+		t.Fatalf("validate_project after a bad file: %v", valid)
+	}
+	if d := valid["diagnostics"].([]any)[0].(map[string]any); d["path"] != "bad.http" || d["line"] != float64(3) || d["column"] != float64(11) || d["code"] != "unknown-selector" {
+		t.Fatalf("diagnostic: %v", d)
+	}
+	must(t, os.Remove(filepath.Join(dir, "bad.http")))
+	curl := call("curl_request", map[string]any{"name": "me"})
+	if cmd, _ := curl["command"].(string); !strings.HasPrefix(cmd, "curl -sS") || !strings.Contains(cmd, "Authorization: Bearer t-1") || !strings.Contains(cmd, srv.URL+"/me") {
+		t.Fatalf("curl_request: %v", curl)
+	}
+	curl = call("curl_request", map[string]any{"name": "me", "redact": true})
+	if cmd, _ := curl["command"].(string); strings.Contains(cmd, "t-1") || !strings.Contains(cmd, "***") {
+		t.Fatalf("curl_request redact: %v", curl)
+	}
+	if e := call("curl_request", map[string]any{"name": "nope"}); !strings.Contains(e["_error"].(string), "nope") {
+		t.Fatalf("curl_request unknown: %v", e)
 	}
 	envs := call("list_environments", map[string]any{})
 	if envs["current"] != "dev" {

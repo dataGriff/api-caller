@@ -173,7 +173,7 @@ claude mcp add api -- apic mcp --dir ./apic-demo --env local
 {"mcpServers": {"api": {"command": "apic", "args": ["mcp", "--dir", "./apic-demo", "--env", "local"]}}}
 ```
 
-The client then sees seven tools:
+The client then sees nine tools:
 
 | Tool | What it does |
 |---|---|
@@ -184,6 +184,8 @@ The client then sees seven tools:
 | `run_features {paths?, tags?}` | run the Gherkin features; pass/fail counts and the failing steps |
 | `list_environments` | environments and the variables in effect, secrets masked |
 | `clear_session {all?}` | forget captured values and cookies |
+| `validate_project {}` | check every `.http` file, with file, line, column and code, without sending anything |
+| `curl_request {name, redact?}` | the equivalent curl command |
 
 and every `.http` file as a resource it can read, so it can look at a
 request's definition before calling it, or write a new one in the same
@@ -202,12 +204,14 @@ one call, list the tools:
 
 ```
 clear_session
+curl_request
 describe_request
 list_environments
 list_requests
 run_features
 run_file
 run_request
+validate_project
 ```
 
 ### 6. What the agent can never read
@@ -242,7 +246,8 @@ masks those too; a redacted run is for logs, not for chaining.
 ### 7. The agent as an author
 
 Because the format is plain text, an agent can add requests, and
-`validate --json` tells it where it went wrong with a line and a column:
+`validate --json` (or the `validate_project` tool) tells it where it went
+wrong with a line and a column:
 
 <!-- learn -->
 ```sh
@@ -277,7 +282,7 @@ to fix the request or the scenario.
 
 ## Checkpoint
 
-The MCP server answers a `tools/list` over stdio with the seven tools:
+The MCP server answers a `tools/list` over stdio with the nine tools:
 
 <!-- learn -->
 ```sh
@@ -289,7 +294,7 @@ The MCP server answers a `tools/list` over stdio with the seven tools:
 ```
 
 ```
-7
+9
 ```
 
 ## Exercise
@@ -339,7 +344,7 @@ briefing from step 1 and the request's name.
     3. `# @ref`: `ready: true` with `ref_runs`, two objects from one run.
     4. The recorded session with Claude Code, sped up: list, describe,
        list-todos for the id, update-todo with `--var`.
-    5. `claude mcp add`, the seven tools, a request as a resource; the
+    5. `claude mcp add`, the nine tools, a request as a resource; the
        stdio handshake from a shell.
     6. The refused read of the private env file; masking versus
        `--redact`.
