@@ -20,11 +20,14 @@ import (
 var update = flag.Bool("update", false, "rewrite the golden files")
 
 // golden compares got with testdata/name, rewriting it under -update.
-// The report embeds no host-specific value: the server's port is replaced
-// before comparing.
+// Both sides are read with CRLF folded to LF, so the comparison is the
+// same whatever line endings a checkout or a fixture carries. On a
+// mismatch the output is left beside the golden as name.got; a stale
+// .got from an earlier failure is removed when the test passes.
 func golden(t *testing.T, name string, got []byte) {
 	t.Helper()
 	path := filepath.Join("testdata", name)
+	got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
 	if *update {
 		if err := os.WriteFile(path, got, 0o644); err != nil { //nolint:gosec // test fixture
 			t.Fatal(err)
@@ -35,13 +38,17 @@ func golden(t *testing.T, name string, got []byte) {
 	if err != nil {
 		t.Fatalf("%v (run with -update to create it)", err)
 	}
-	// A Windows checkout may carry the golden file with CRLF line endings.
 	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
-	if !bytes.Equal(want, got) {
-		diffPath := path + ".got"
-		_ = os.WriteFile(diffPath, got, 0o644) //nolint:gosec // test output
-		t.Fatalf("%s differs from the golden file; the output is in %s (run with -update to accept it)", name, diffPath)
+	gotPath := path + ".got"
+	if bytes.Equal(want, got) {
+		_ = os.Remove(gotPath)
+		return
 	}
+	where := "the output is in " + gotPath
+	if err := os.WriteFile(gotPath, got, 0o644); err != nil { //nolint:gosec // test output
+		where = "the output could not be written beside it: " + err.Error()
+	}
+	t.Fatalf("%s differs from the golden file; %s (run with -update to accept it)", name, where)
 }
 
 func apiServer(t *testing.T) *httptest.Server {

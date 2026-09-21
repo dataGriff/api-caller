@@ -9,7 +9,7 @@ package report
 
 import (
 	"bytes"
-	"embed"
+	_ "embed" // for the template source
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -22,21 +22,15 @@ import (
 )
 
 //go:embed report.html.tmpl
-var files embed.FS
+var source string
 
-// page is the parsed template. Its source is read with CRLF folded to LF
-// so a report is byte-identical whatever line endings the build machine
-// checked the template out with.
-var page = func() *template.Template {
-	src, err := files.ReadFile("report.html.tmpl")
-	if err != nil {
-		panic(err)
-	}
-	return template.Must(template.New("report.html.tmpl").Funcs(template.FuncMap{
-		"ms":   func(d time.Duration) string { return fmt.Sprintf("%d ms", d.Milliseconds()) },
-		"json": prettyJSON,
-	}).Parse(strings.ReplaceAll(string(src), "\r\n", "\n")))
-}()
+// page is the parsed template. .gitattributes keeps the source LF on every
+// platform; the fold is the belt to that brace, so a report is
+// byte-identical whatever a build machine checked out.
+var page = template.Must(template.New("report").Funcs(template.FuncMap{
+	"ms":   func(d time.Duration) string { return fmt.Sprintf("%d ms", d.Milliseconds()) },
+	"json": prettyJSON,
+}).Parse(strings.ReplaceAll(source, "\r\n", "\n")))
 
 // Meta is what the report says about the run as a whole.
 type Meta struct {
