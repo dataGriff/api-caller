@@ -82,7 +82,7 @@ func TestImportCollection(t *testing.T) {
 		"# @auth aws region=eu-west-2 service=execute-api\n",
 		"# @auth oauth2 tokenUrl={{tokenUrl}} clientId={{clientId}} clientSecret={{clientSecret}} scope=\"read write\" clientAuth=basic\n",
 		"# @auth basic alice \"s3cret pass\"\n",
-		"\n### Digest\n# @name digest\nGET {{baseUrl}}/digest\n",
+		"\n### Digest\n# @name digest\n# @auth digest alice {{password}}\nGET {{baseUrl}}/digest\n",
 		"\n### Tricky ### body\n# @name tricky-body\nPOST {{baseUrl}}/notes\nContent-Type: text/plain\n\n< ./todo-api.tricky-body.body.txt\n",
 	)
 	if got := mustRead(t, filepath.Join(out, "todo-api.tricky-body.body.txt")); got != "### heading\nbody text" {
@@ -120,7 +120,6 @@ func TestImportCollection(t *testing.T) {
 	for _, key := range []string{
 		"log-in|pm.expect(jsonData.roles).to.be.an('array');",
 		"who-am-i|pre-request script",
-		"digest|auth digest",
 		"upload-attachment|file part file",
 		"raw-file-body|body file",
 	} {
@@ -128,7 +127,7 @@ func TestImportCollection(t *testing.T) {
 			t.Errorf("unsupported %q not reported; got %v", key, got)
 		}
 	}
-	if len(res.Unsupported) != 5 {
+	if len(res.Unsupported) != 4 {
 		t.Errorf("unsupported = %+v", res.Unsupported)
 	}
 

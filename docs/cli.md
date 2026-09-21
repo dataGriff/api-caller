@@ -506,11 +506,11 @@ exports are refused with a message):
   one), urlencoded, form-data (as a [multipart body](format.md#multipart-uploads),
   file parts pointing at a file of the same name beside the `.http` file),
   a whole-body file, and GraphQL as a JSON `{"query", "variables"}` POST;
-- auth: bearer, basic, awsv4 and oauth2 (client credentials and password
-  grants) become `# @auth`; an API key becomes the header or query value;
-  the collection's own auth becomes `auth.default` in `apic.yaml`; a request
-  with "no auth" under it gets `# @auth none`; digest, NTLM, Hawk and the
-  browser OAuth2 flows are reported;
+- auth: bearer, basic, digest, awsv4 and oauth2 (client credentials and
+  password grants) become `# @auth`; an API key becomes the header or
+  query value; the collection's own auth becomes `auth.default` in
+  `apic.yaml`; a request with "no auth" under it gets `# @auth none`;
+  NTLM, Hawk and the browser OAuth2 flows are reported;
 - variables: the collection's become `$shared` in `http-client.env.json`,
   and each `--postman-env` file becomes an environment named after it,
   its `secret` values going to `http-client.private.env.json` (written

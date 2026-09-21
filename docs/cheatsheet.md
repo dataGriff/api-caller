@@ -66,7 +66,7 @@ Written as comments before the request line, so editors ignore them.
 | `# @description text` | One line shown by `list` and `describe` |
 | `# @capture name = selector` | Store a value from the response for later runs |
 | `# @assert selector op value` | Check the response; failures exit 1 |
-| `# @auth type ...` | `none`, `bearer`, `basic`, `aws`, `oauth2`, `exec`; see [auth](auth.md) |
+| `# @auth type ...` | `none`, `bearer`, `basic`, `apikey`, `digest`, `aws`, `oauth2`, `exec`; see [auth](auth.md) |
 | `# @step a user named {name} exists` | Gherkin phrase that runs this request |
 | `# @ref login` | Run `login` first when a variable is missing |
 | `# @forceRef login` | Run `login` first every time |

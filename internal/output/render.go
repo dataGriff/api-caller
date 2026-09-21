@@ -35,6 +35,9 @@ func RequestDetail(t Theme, res *runner.Result) string {
 	if res.Request.Proxy != nil {
 		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("proxy:"), res.Request.Proxy)
 	}
+	if n := res.AuthNote(); n != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("auth:"), n)
+	}
 	if body := res.Request.DisplayBody(res.Redact); body != "" {
 		fmt.Fprintf(&b, "\n%s\n", strings.TrimRight(body, "\n"))
 	}

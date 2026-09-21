@@ -102,6 +102,7 @@ type Runner struct {
 
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	proxy    *proxySettings                                   // --proxy or apic.yaml's proxy; nil means the environment
+	digest   *auth.DigestState                                // Digest challenges seen this invocation, per server
 	results  map[string]*Result
 	captured map[string]string
 	tlsMu    sync.Mutex
@@ -147,7 +148,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 			}
 		}
 	}
-	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
+	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx, digest: auth.NewDigestState()}
 	if raw, fromFlag := opts.Proxy, opts.Proxy != ""; raw != "" || p.Config.Proxy != "" {
 		if raw == "" {
 			raw = p.Config.Proxy
@@ -334,7 +335,15 @@ type Result struct {
 	Redact bool      `json:"-"` // set from Options.Redact
 	raw    *selector.Response
 	req    *httpfile.Request
+	// authNote says what the auth did on the wire beyond setting a header:
+	// for digest, whether a challenge was answered. Shown by run -v.
+	authNote string
 }
+
+// AuthNote reports what the request's auth did on the wire, for verbose
+// output: "digest: 401 challenge answered (2 requests)" and the like.
+// Empty for the header-setting types.
+func (r *Result) AuthNote() string { return r.authNote }
 
 // Req returns the request this result is for, so a caller holding results
 // of dependencies (Deps) can map them back to the requests that produced
@@ -766,6 +775,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			if res.OK || attempt >= policy.n {
 				result.Response, result.raw = res.Response, res.raw
 				result.Captures, result.Asserts, result.Attempts = res.Captures, res.Asserts, res.Attempts
+				result.authNote = res.authNote
 				result.Errors = append(result.Errors, res.Errors...)
 				result.OK = result.OK && res.OK
 				break
@@ -842,6 +852,11 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	if err != nil {
 		return nil, err
 	}
+	var digest *auth.DigestTransport
+	if s := resolved.AuthSpec; s != nil && s.Type == "digest" {
+		digest = &auth.DigestTransport{Base: client.Transport, User: s.Args[0], Pass: s.Args[1], State: r.digest}
+		client.Transport = digest
+	}
 	start := time.Now()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
@@ -859,6 +874,16 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 
 	raw := &selector.Response{Status: httpResp.StatusCode, StatusText: statusText(httpResp.Status), Headers: httpResp.Header, Body: data, Duration: dur}
 	result := &Result{OK: true, Redact: r.Opts.Redact, raw: raw, req: req}
+	if digest != nil {
+		switch {
+		case digest.Challenged:
+			result.authNote = fmt.Sprintf("digest: 401 challenge answered (%d requests)", digest.Rounds)
+		case digest.Answered:
+			result.authNote = "digest: answered from an earlier challenge"
+		default:
+			result.authNote = "digest: the server sent no challenge"
+		}
+	}
 	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data)}
 
 	for _, c := range req.Captures {

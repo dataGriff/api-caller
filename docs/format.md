@@ -55,7 +55,7 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @description text` | One line shown by `list` and `describe`; defaults to the `###` title. |
 | `# @capture name = selector` | After the response arrives, store the selected value as `name`. It is available to later requests in the same run and persisted in `.apic/session.json` for later invocations. |
 | `# @assert selector op value` | Check the response. Failures set `ok: false` and exit code 1. |
-| `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
+| `# @auth type ...` | Attach credentials: `none`, `bearer`, `basic`, `apikey`, `digest`, `aws`, `oauth2` or `exec`. See [auth.md](auth.md). |
 | `# @step a user named {name} exists` | A Gherkin phrase that runs this request from a `.feature` file; `{name}` becomes a variable. Repeatable. See [testing.md](testing.md). |
 | `# @ref login` | Run `login` first when this request is missing a variable (once per invocation). Repeatable. See [Dependencies](#dependencies). |
 | `# @forceRef login` | Run `login` first every time this request runs. Repeatable. |

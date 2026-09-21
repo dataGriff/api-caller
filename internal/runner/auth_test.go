@@ -211,3 +211,110 @@ GET {{baseUrl}}/
 		t.Fatalf("unexpected failed result: %+v", res)
 	}
 }
+
+func TestDigestAuthAnswersChallengeThroughRun(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		authz := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authz, "Digest ") {
+			w.Header().Set("WWW-Authenticate", `Digest realm="apic", nonce="n1", algorithm=SHA-256, qop="auth"`)
+			http.Error(w, `{"error":"challenge"}`, http.StatusUnauthorized)
+			return
+		}
+		if !strings.Contains(authz, `username="alice"`) || !strings.Contains(authz, `uri="/secret?x=1"`) || !strings.Contains(authz, "nc=0000000") {
+			http.Error(w, `{"error":"bad"}`, http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "nc": authz[strings.Index(authz, "nc=")+3 : strings.Index(authz, "nc=")+11]})
+	}))
+	defer srv.Close()
+	dir := writeProject(t, map[string]string{
+		"http-client.env.json":         `{"dev": {"baseUrl": "` + srv.URL + `", "user": "alice"}}`,
+		"http-client.private.env.json": `{"dev": {"password": "s3cret"}}`,
+		"api.http": `
+### secret
+# @name secret
+# @auth digest {{user}} {{password}}
+# @assert status == 200
+# @assert body.$.ok == true
+GET {{baseUrl}}/secret?x=1
+
+### again
+# @name again
+# @auth digest {{user}} {{password}}
+# @assert body.$.nc == "00000002"
+GET {{baseUrl}}/secret?x=1
+`,
+	})
+	r := newRunner(t, dir, Options{Env: "dev", NoSession: true})
+	req, _ := r.Project.Lookup("secret")
+	res, err := r.Run(context.Background(), req)
+	if err != nil || !res.OK {
+		t.Fatalf("err=%v ok=%v problem=%s", err, res != nil && res.OK, res.Problem())
+	}
+	if res.Request.Auth != "digest" || res.AuthNote() != "digest: 401 challenge answered (2 requests)" {
+		t.Fatalf("auth=%q note=%q", res.Request.Auth, res.AuthNote())
+	}
+	data, _ := json.Marshal(res)
+	if !strings.Contains(string(data), `"auth":"digest"`) || strings.Contains(string(data), "s3cret") {
+		t.Fatalf("json: %s", data)
+	}
+	// The second request in the same invocation is answered first time
+	// with the next nonce count.
+	req, _ = r.Project.Lookup("again")
+	res, err = r.Run(context.Background(), req)
+	if err != nil || !res.OK || res.AuthNote() != "digest: answered from an earlier challenge" {
+		t.Fatalf("again: err=%v ok=%v note=%q problem=%s", err, res != nil && res.OK, res.AuthNote(), res.Problem())
+	}
+	if hits.Load() != 3 {
+		t.Fatalf("server hits = %d, want 3 (challenge, answer, answer)", hits.Load())
+	}
+}
+
+func TestAPIKeyAuthThroughRun(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"header": r.Header.Get("X-Api-Key"), "token": r.Header.Get("X-Auth-Token"), "query": r.URL.Query().Get("api_key")})
+	}))
+	defer srv.Close()
+	dir := writeProject(t, map[string]string{
+		"apic.yaml":                    "auth:\n  default: apikey {{apiKey}}\n",
+		"http-client.env.json":         `{"dev": {"baseUrl": "` + srv.URL + `"}}`,
+		"http-client.private.env.json": `{"dev": {"apiKey": "k-123"}}`,
+		"api.http": `
+### header
+# @name header
+# @assert body.$.header == "k-123"
+GET {{baseUrl}}/a
+
+### custom
+# @name custom
+# @auth apikey {{apiKey}} header=X-Auth-Token prefix="Token "
+# @assert body.$.token == "Token k-123"
+GET {{baseUrl}}/b
+
+### query
+# @name query
+# @auth apikey {{apiKey}} query=api_key
+# @assert body.$.query == "k-123"
+GET {{baseUrl}}/c?keep=1
+`,
+	})
+	r := newRunner(t, dir, Options{Env: "dev", NoSession: true})
+	for _, name := range []string{"header", "custom", "query"} {
+		req, _ := r.Project.Lookup(name)
+		res, err := r.Run(context.Background(), req)
+		if err != nil || !res.OK {
+			t.Fatalf("%s: err=%v problem=%s", name, err, res.Problem())
+		}
+		if res.Request.Auth != "apikey" {
+			t.Fatalf("%s: auth = %q", name, res.Request.Auth)
+		}
+		// The server echoes the key in its body; the request side never
+		// shows it, in any form.
+		if data, _ := json.Marshal(res.Request); strings.Contains(string(data), "k-123") {
+			t.Fatalf("%s: key in request output: %s", name, data)
+		}
+	}
+}

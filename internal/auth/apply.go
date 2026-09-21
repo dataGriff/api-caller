@@ -45,6 +45,20 @@ func Apply(ctx context.Context, s *Spec, req *http.Request, body []byte, env *En
 		req.Header.Set("Authorization", "Bearer "+s.Args[0])
 	case "basic":
 		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(s.Args[0]+":"+s.Args[1])))
+	case "apikey":
+		key := s.Options["prefix"] + s.Args[0]
+		if header, query := s.APIKeyPlacement(); query != "" {
+			q := req.URL.Query()
+			q.Set(query, key)
+			req.URL.RawQuery = q.Encode()
+		} else {
+			req.Header.Set(header, key)
+		}
+	case "digest":
+		// Answered on the wire by a DigestTransport, since the server's
+		// challenge is only known once the request has been sent; the
+		// runner wraps the client's transport for a digest spec.
+		return nil
 	case "aws":
 		return applyAWS(ctx, s, req, body, env)
 	case "oauth2":

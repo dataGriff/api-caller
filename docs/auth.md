@@ -63,6 +63,48 @@ exists so it can be a project default. `basic` base64-encodes
 
 See `examples/github/repo.http` for `bearer` against the real GitHub API.
 
+## apikey
+
+```http
+# @auth apikey {{key}}                                  # header X-Api-Key, no prefix
+# @auth apikey {{key}} header=X-Auth-Token
+# @auth apikey {{key}} query=api_key
+# @auth apikey {{key}} header=Authorization prefix="Token "
+```
+
+The most common credential on the internet, as a type rather than a
+header you write by hand, so it can be the project default:
+
+```yaml
+auth:
+  default: apikey {{apiKey}}
+```
+
+`header=` names the header (default `X-Api-Key`) and `prefix=` puts text
+before the key; `query=` sends it as a query parameter instead, which
+some APIs insist on. Wherever apic shows the request the key is not
+there: the header is set on the wire only, and in the query form the URL
+apic prints is the one from the file. A key that contains `=` is still
+one argument.
+
+## digest
+
+```http
+# @auth digest {{user}} {{password}}
+```
+
+HTTP Digest authentication (RFC 7616). The server answers the first
+request with a `401` and a challenge; apic computes the response from the
+credentials, the server's nonce and the request, and sends the request
+again with the `Authorization` header, so the password never travels.
+`MD5`, `MD5-sess`, `SHA-256` and `SHA-256-sess` are implemented, with
+`qop=auth` and `auth-int` (chosen for requests with a body when the
+server offers it), `opaque`, `userhash` and stale-nonce retry. The
+challenge is remembered for the rest of the invocation, so later requests
+to the same server go out authenticated on the first try with the nonce
+count going up. `run -v` says which happened (`auth: digest: 401 challenge
+answered (2 requests)`), and `--json` reports `"auth": "digest"`.
+
 ## aws
 
 ```http
@@ -220,6 +262,8 @@ host override.
 |---|---|
 | `bearer` | `-H 'Authorization: Bearer <token>'` |
 | `basic` | `--user 'user:password'` |
+| `apikey` | `-H 'X-Api-Key: key'` (or the header named), or `--url-query 'name=key'` for the query form (curl 7.87 or newer) |
+| `digest` | `--digest --user 'user:password'` |
 | `aws` | `--aws-sigv4 'aws:amz:<region>:<service>' --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"` plus the session token header |
 | `oauth2` | a placeholder `$TOKEN` header with a comment naming the token URL |
 | `exec` | `-H "Authorization: Bearer $(command)"` |

@@ -64,7 +64,7 @@ terminal and agents need:
 - **Environments** from `http-client.env.json` (the JetBrains / kulala / httpyac convention) plus `.env`, shell and `--var`.
 - **Captured variables that persist.** `# @capture token = body.$.access_token` in `login` means the next `apic run get-user`, in a new shell or a new agent call, has `{{token}}`.
 - **Assertions** with `# @assert status == 200`, and files that run as ordered flows with a pass/fail summary and exit code.
-- **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `basic`, `bearer` and `exec` (any CLI that prints a token) round it out.
+- **Auth that is otherwise impossible in a text file.** `# @auth aws` signs with SigV4 from your normal AWS credentials (environment, profiles, SSO via the AWS CLI) with no SDK in the binary; `# @auth oauth2` fetches, caches and refreshes tokens; `digest` answers the server's challenge; `apikey`, `basic`, `bearer` and `exec` (any CLI that prints a token) round it out.
 - **Gherkin without Cucumber.** `apic test` runs `.feature` files with a built-in step vocabulary; `# @step a user named {name} exists` on a request makes features read as behaviour.
 - **A terminal UI.** `apic ui` browses the project, runs requests and flows, shows each row's status and round trip as it lands, and switches environment without leaving the keyboard.
 - **Safe to log.** Sensitive headers are masked in output, on the request and the response; `--redact` masks both bodies, all header values, query values, captures and assertion values for stored CI logs, keeping status, timing and pass/fail.
@@ -198,7 +198,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Cookbook](docs/cookbook.md) | Recipes: login once, CI smoke tests, AWS, OAuth2, polling, uploads |
 | [CLI reference](docs/cli.md) | Every command, flag, JSON shape and exit code |
 | [The `.http` format](docs/format.md) | Directives, variables, selectors, assertions |
-| [Authentication](docs/auth.md) | AWS SigV4, OAuth2, basic, bearer, exec |
+| [Authentication](docs/auth.md) | AWS SigV4, OAuth2, digest, API keys, basic, bearer, exec |
 | [Testing with Gherkin](docs/testing.md) | `.feature` files, the step vocabulary, reports |
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
 | [Editors](docs/editors.md) | VS Code (REST Client plus the apic extension), JetBrains, Neovim |

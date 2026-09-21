@@ -521,6 +521,8 @@ func (g *generator) authSpec(a *Auth, req string) (line string, headers, query [
 		return "bearer " + authArg(nonEmpty(param(a.Bearer, "token"), "{{token}}")), nil, nil, true
 	case "basic":
 		return "basic " + authArg(nonEmpty(param(a.Basic, "username"), "{{user}}")) + " " + authArg(nonEmpty(param(a.Basic, "password"), "{{password}}")), nil, nil, true
+	case "digest":
+		return "digest " + authArg(nonEmpty(param(a.Digest, "username"), "{{user}}")) + " " + authArg(nonEmpty(param(a.Digest, "password"), "{{password}}")), nil, nil, true
 	case "apikey":
 		key, value := oneLine(nonEmpty(param(a.Apikey, "key"), "X-Api-Key")), oneLine(nonEmpty(param(a.Apikey, "value"), "{{apiKey}}"))
 		if param(a.Apikey, "in") == "query" {

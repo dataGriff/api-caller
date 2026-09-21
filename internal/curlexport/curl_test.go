@@ -156,3 +156,28 @@ func TestProxyFlags(t *testing.T) {
 		t.Fatalf("off: %q", got)
 	}
 }
+
+func TestAPIKeyAndDigestFlags(t *testing.T) {
+	mk := func(spec string) *runner.Resolved {
+		s, err := auth.Parse(spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}
+	}
+	cases := map[string][2]string{
+		"apikey k1":                     {"-H 'X-Api-Key: k1'", `-H "X-Api-Key: $APIC_API_KEY"`},
+		"apikey k1 header=X-Auth-Token": {"-H 'X-Auth-Token: k1'", `-H "X-Auth-Token: $APIC_API_KEY"`},
+		`apikey k1 header=Authorization prefix="Token "`: {"-H 'Authorization: Token k1'", `-H "Authorization: Token $APIC_API_KEY"`},
+		"apikey k1 query=api_key":                        {"--url-query 'api_key=k1'", `--url-query "api_key=$APIC_API_KEY"`},
+		"digest u p":                                     {"--digest --user 'u:p'", `--digest --user "$APIC_USER:$APIC_PASSWORD"`},
+	}
+	for spec, want := range cases {
+		if got := Command(mk(spec), false); !strings.Contains(got, want[0]) {
+			t.Errorf("%s:\n%s\nmissing %s", spec, got, want[0])
+		}
+		if got := Command(mk(spec), true); !strings.Contains(got, want[1]) || strings.Contains(got, "k1") || strings.Contains(got, "'u:p'") {
+			t.Errorf("%s redacted:\n%s\nmissing %s", spec, got, want[1])
+		}
+	}
+}

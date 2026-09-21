@@ -134,6 +134,24 @@ func authFlags(s *auth.Spec, redact bool) []string {
 			return []string{`--user "$APIC_USER:$APIC_PASSWORD"`}
 		}
 		return []string{"--user " + quote(s.Args[0]+":"+s.Args[1])}
+	case "apikey":
+		header, query := s.APIKeyPlacement()
+		prefix := s.Options["prefix"]
+		if query != "" {
+			if redact {
+				return []string{`--url-query "` + escapeDouble(query) + `=` + escapeDouble(prefix) + `$APIC_API_KEY"`}
+			}
+			return []string{"--url-query " + quote(query+"="+prefix+s.Args[0])}
+		}
+		if redact {
+			return []string{`-H "` + escapeDouble(header) + `: ` + escapeDouble(prefix) + `$APIC_API_KEY"`}
+		}
+		return []string{"-H " + quote(header+": "+prefix+s.Args[0])}
+	case "digest":
+		if redact {
+			return []string{`--digest --user "$APIC_USER:$APIC_PASSWORD"`}
+		}
+		return []string{"--digest --user " + quote(s.Args[0]+":"+s.Args[1])}
 	case "aws":
 		service := s.Options["service"]
 		if service == "" {
