@@ -42,6 +42,7 @@ func Command(r *runner.Resolved, redact bool) string {
 	}
 	parts = append(parts, authFlags(r.AuthSpec, redact)...)
 	parts = append(parts, tlsFlags(r.TLS)...)
+	parts = append(parts, proxyFlags(r.Proxy, redact)...)
 	parts = append(parts, quote(r.DisplayURL(redact)))
 	return strings.Join(parts, " \\\n  ")
 }
@@ -93,6 +94,22 @@ func tlsFlags(t *runner.TLSInfo) []string {
 		out = append(out, "--insecure")
 	}
 	return out
+}
+
+// proxyFlags maps the proxy in effect onto curl: --noproxy '*' when apic
+// would send directly although one is configured, --proxy otherwise. Under
+// redact the proxy's own credentials are masked with the rest.
+func proxyFlags(p *runner.ProxyInfo, redact bool) []string {
+	switch {
+	case p == nil:
+		return nil
+	case p.Off:
+		return []string{"--noproxy '*'"}
+	case redact || p.Raw() == nil:
+		return []string{"--proxy " + quote(p.URL)}
+	default:
+		return []string{"--proxy " + quote(p.Raw().String())}
+	}
 }
 
 func quote(s string) string {

@@ -66,6 +66,11 @@ type Options struct {
 	CACert string
 	Cert   string
 	Key    string
+	// Proxy is the --proxy flag, an http, https or socks5 URL that beats
+	// apic.yaml's proxy and the environment; NoProxy (--no-proxy) sends
+	// every request directly, whatever is configured.
+	Proxy   string
+	NoProxy bool
 }
 
 // Progress reports one failed attempt of a request that is being retried,
@@ -96,6 +101,7 @@ type Runner struct {
 	OnResult func(*Result, error)
 
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	proxy    *proxySettings                                   // --proxy or apic.yaml's proxy; nil means the environment
 	results  map[string]*Result
 	captured map[string]string
 	tlsMu    sync.Mutex
@@ -142,6 +148,16 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		}
 	}
 	r := &Runner{Project: p, Envs: envs, Opts: opts, Stderr: os.Stderr, results: map[string]*Result{}, captured: map[string]string{}, sleep: sleepCtx}
+	if raw, fromFlag := opts.Proxy, opts.Proxy != ""; raw != "" || p.Config.Proxy != "" {
+		if raw == "" {
+			raw = p.Config.Proxy
+		}
+		u, err := parseProxy(raw, proxySource(fromFlag))
+		if err != nil {
+			return nil, err
+		}
+		r.proxy = &proxySettings{url: u, source: proxySource(fromFlag), noProxy: p.Config.NoProxy}
+	}
 	switch {
 	case opts.Session != nil:
 		r.Session = opts.Session
@@ -177,7 +193,10 @@ type Resolved struct {
 	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
 	// TLS is the non-default TLS setup for this request's host: a private
 	// CA, a client certificate or no verification.
-	TLS      *TLSInfo   `json:"tls,omitempty"`
+	TLS *TLSInfo `json:"tls,omitempty"`
+	// Proxy is the proxy the request goes through, when one is configured
+	// by flag, apic.yaml or the environment.
+	Proxy    *ProxyInfo `json:"proxy,omitempty"`
 	AuthSpec *auth.Spec `json:"-"` // rendered spec (contains secrets)
 	// SecretHeaders names headers whose value came from a secret source
 	// (private env file, .env, session or a capture).
@@ -378,6 +397,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	res.TLS = r.tlsInfoForURL(res.URL)
+	res.Proxy = r.ProxyInfo(res.URL)
 	res.SecretHeaders = map[string]bool{}
 	for _, h := range req.Headers {
 		v, err := render(h.Value)
@@ -1020,6 +1040,7 @@ type Description struct {
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
 	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
+	Proxy       *ProxyInfo        `json:"proxy,omitempty"`       // the proxy in effect, when one is configured
 	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
 }
 
@@ -1097,6 +1118,7 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	// far as it resolves) rather than the whole request.
 	rendered, _ := template.Render(strings.TrimSpace(req.URL), func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 	d.TLS = r.tlsInfoForURL(rendered)
+	d.Proxy = r.ProxyInfo(rendered)
 	return d
 }
 

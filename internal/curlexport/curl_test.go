@@ -141,3 +141,18 @@ func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
 		t.Errorf("combined file: %s", got)
 	}
 }
+
+func TestProxyFlags(t *testing.T) {
+	base := &runner.Resolved{Method: "GET", URL: "https://a.b"}
+	if got := Command(base, false); strings.Contains(got, "proxy") {
+		t.Fatalf("no proxy configured, got %q", got)
+	}
+	base.Proxy = &runner.ProxyInfo{URL: "http://***@proxy.internal:3128", Source: "apic.yaml"}
+	if got := Command(base, true); !strings.Contains(got, "--proxy 'http://***@proxy.internal:3128' \\\n  'https://a.b'") {
+		t.Fatalf("redacted proxy: %q", got)
+	}
+	base.Proxy = &runner.ProxyInfo{Source: "--no-proxy", Off: true}
+	if got := Command(base, false); !strings.Contains(got, "--noproxy '*' \\\n  'https://a.b'") {
+		t.Fatalf("off: %q", got)
+	}
+}

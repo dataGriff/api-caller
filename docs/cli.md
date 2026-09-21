@@ -23,6 +23,8 @@ set, when `--no-color` is given, or when `--json` is used.
 | `--timeout <duration>` | Request timeout, e.g. `10s`. Default 30s or `timeout:` in `apic.yaml`. `# @timeout` on a request wins. |
 | `--insecure` | Skip TLS certificate verification. Reported as `tls.insecure` in `--json` and by `describe`. |
 | `--cacert <pem>` | Trust the certificates in this PEM file in addition to the system roots, for an API behind a private CA. |
+| `--proxy <url>` | Send every request through this proxy: an `http`, `https`, `socks5` or `socks5h` URL, or a bare `host:port` for HTTP. Beats `proxy:` in `apic.yaml` and `HTTP_PROXY`/`HTTPS_PROXY`. Credentials go in the URL's userinfo and are shown as `***` wherever the proxy is reported. |
+| `--no-proxy` | Send every request directly, ignoring `--proxy`, `apic.yaml` and the environment. |
 | `--cert <pem>`, `--key <pem>` | Present a client certificate (mTLS); the key defaults to the `--cert` file. These override `tls:` in `apic.yaml` and the env files' `SSLConfiguration`. See [auth.md](auth.md#tls-and-client-certificates). |
 | `--redact` | Mask values on both sides of the exchange in `run` output: every request header value, the request body, query-string values, captured values, the response body, every response header value, and the `actual`/`expected` of every assertion. Status, timing, size and pass/fail survive, so a stored CI log still says what failed. Sensitive request headers (`Authorization`, `Cookie`, API-key headers, and any header whose value came from a secret source) and sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked even without it. |
 
@@ -254,7 +256,14 @@ runs first.
 ```
 
 `auth` and `auth_source` are present when a `# @auth` directive or
-`auth.default` applies; see [auth.md](auth.md). `refs` lists the request's
+`auth.default` applies; see [auth.md](auth.md). `proxy` is present when a
+proxy is configured by flag, `apic.yaml` or the environment:
+`{"url": "http://***@proxy.internal:3128", "source": "apic.yaml"}`, or
+`{"off": true, "source": "noProxy"}` for a host that bypasses it (the
+source is `--no-proxy`, `--proxy`, `apic.yaml`, the environment variable's
+name, or `noProxy`). The same object appears as `request.proxy` in
+`run --json` and as `proxy` in `env --json`, and `run -v` prints it under
+the request headers. `refs` lists the request's
 `# @ref` and `# @forceRef` targets, and a missing variable has
 `"ref_runs": true` when one of them captures it, so `ready` stays true.
 
@@ -651,6 +660,8 @@ timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
+proxy: http://proxy.internal:3128   # every request goes through it; --proxy beats it, --no-proxy skips it
+noProxy: [localhost, .internal]     # hosts that bypass proxy: name, host:port, .suffix, IP, CIDR or *
 tls:                    # a private CA and a client certificate; see auth.md
   caFile: certs/internal-ca.pem
   certFile: certs/client.pem

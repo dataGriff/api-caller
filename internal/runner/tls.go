@@ -252,6 +252,7 @@ func refuseWorldReadable(path, shown string) error {
 // settings that apply to it.
 func (r *Runner) transport(host string) (*http.Transport, error) {
 	tr := cloneDefaultTransport()
+	tr.Proxy = r.proxyFunc()
 	cfg, err := r.tlsConfig(r.tlsFor(host))
 	if err != nil {
 		return nil, err

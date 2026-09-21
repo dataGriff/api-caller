@@ -61,6 +61,30 @@ expects:
 
 Details in [authentication](auth.md#aws).
 
+## How do I send requests through a proxy?
+
+`HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are honoured the way curl
+honours them. For a proxy that should beat the environment, or one that
+belongs to a project, set it explicitly:
+
+```sh
+apic run get-user --proxy http://127.0.0.1:8080     # Burp, mitmproxy, Charles
+apic run get-user --proxy socks5://127.0.0.1:1080
+apic run get-user --no-proxy                        # ignore every setting for one run
+```
+
+```yaml
+# apic.yaml
+proxy: http://proxy.internal:3128
+noProxy: [localhost, .internal]
+```
+
+`--proxy` beats `apic.yaml`, which beats the environment. Credentials go in
+the URL (`http://user:pass@proxy:3128`) and are shown as `***` wherever
+apic reports the proxy: `describe`, `env --json`, `run -v` and
+`run --json`. Debugging a TLS API through an intercepting proxy also
+needs its CA: `--cacert mitmproxy-ca.pem`, or `--insecure` for a one-off.
+
 ## Can apic do the OAuth2 authorization code flow?
 
 No. Flows that need a browser redirect back to a local port are not
