@@ -32,7 +32,7 @@ export interface Item {
 
 const comment = String.raw`^\s*(?:#|\/\/)\s*`;
 const directiveRe = new RegExp(comment + String.raw`@([\w-]*)$`);
-const selectorRe = new RegExp(comment + String.raw`@(assert|capture(?:\s+[\w.-]+\s*=))\s+(\S*)$`);
+const selectorRe = new RegExp(comment + String.raw`@(assert\s+|capture\s+[\w.-]+\s*=\s*)(\S*)$`);
 const operatorRe = new RegExp(comment + String.raw`@assert\s+\S+\s+(\S*)$`);
 const authRe = new RegExp(comment + String.raw`@auth\s+(\S*)$`);
 const refRe = new RegExp(comment + String.raw`@(?:ref|forceRef)\s+(\S*)$`);
@@ -78,7 +78,7 @@ export const OPERATORS = ["==", "!=", "<", "<=", ">", ">=", "contains", "startsW
 export const AUTH_TYPES: Record<string, string> = {
   bearer: "bearer {{${1:token}}}",
   basic: "basic {{${1:user}}} {{${2:password}}}",
-  apikey: "apikey header=${1:X-Api-Key} key={{${2:apiKey}}}",
+  apikey: "apikey {{${1:apiKey}}} header=${2:X-Api-Key}",
   digest: "digest {{${1:user}}} {{${2:password}}}",
   aws: "aws region=${1:eu-west-2}",
   oauth2: "oauth2 tokenUrl={{${1:tokenUrl}}} clientId={{${2:clientId}}} clientSecret={{${3:clientSecret}}}",
@@ -218,11 +218,15 @@ export function bodyPathItems(prefix: string, body: unknown): Item[] {
   if (body === undefined || !prefix.startsWith("body.$")) {
     return [];
   }
-  const rest = prefix.slice("body.$".length);
-  // The typed part up to the last separator is the path to descend; the
-  // remainder filters (VS Code does that with the item's label).
+  // A `[` or `[12` being typed is an index in progress: the items offered
+  // are those of the array itself, and they replace what was typed.
+  const typed = prefix.slice("body.$".length);
+  const indexing = /\[\d*$/.test(typed);
+  const rest = indexing ? typed.replace(/\[\d*$/, "") : typed;
+  // Otherwise the typed part up to the last separator is the path to
+  // descend; the remainder filters (VS Code does that with the item's label).
   const cut = Math.max(rest.lastIndexOf("."), rest.lastIndexOf("["));
-  const path = cut >= 0 ? rest.slice(0, cut + 1) : "";
+  const path = indexing ? rest : cut >= 0 ? rest.slice(0, cut + 1) : "";
   const node = descend(body, path);
   if (node === undefined) {
     return [];
@@ -280,12 +284,13 @@ function describe(v: unknown): string {
   return s.length > 40 ? `${s.slice(0, 37)}…` : s;
 }
 
-/** The parsed JSON body of the last result for a request name, when it was JSON. */
+/** The parsed JSON body of the last result for a request name, when it was JSON: the latest when it ran more than once. */
 export function lastBodyFor(results: readonly RunResult[], name: string | undefined): unknown {
   if (!name) {
     return undefined;
   }
-  for (const r of results) {
+  for (let i = results.length - 1; i >= 0; i--) {
+    const r = results[i];
     if (r.request.name === name && r.response && r.response.body !== null && typeof r.response.body === "object") {
       return r.response.body;
     }

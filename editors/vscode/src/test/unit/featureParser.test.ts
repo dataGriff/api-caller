@@ -98,12 +98,18 @@ suite("feature parser", () => {
   test("counts the scenarios that use a phrase, background and outlines included", () => {
     const features = [{ uri: "/p/features/todos.feature", feature: parseFeature(text)! }];
     const logged = stepUsages(features, "I am logged in");
-    assert.deepStrictEqual(logged, [{ uri: "/p/features/todos.feature", line: 8, label: "Todos › Background", scenarios: 3 }]);
+    assert.deepStrictEqual(logged, { count: 4, locations: [{ uri: "/p/features/todos.feature", line: 8, label: "Todos › Background" }] });
     const created = stepUsages(features, "a todo titled {title} is created");
-    assert.deepStrictEqual(created, [{ uri: "/p/features/todos.feature", line: 12, label: "Todos › Create a todo", scenarios: 1 }]);
-    // An outline step matches through its example rows: `I run "<req>"` with req = health.
+    assert.deepStrictEqual(created, { count: 1, locations: [{ uri: "/p/features/todos.feature", line: 12, label: "Todos › Create a todo" }] });
+    // An outline step matches through its example rows: `I run "<req>"` with req = health, two rows.
     const health = stepUsages(features, 'I run "{request}"');
-    assert.deepStrictEqual(health.map((u) => [u.line, u.scenarios]), [[23, 2]]);
-    assert.deepStrictEqual(stepUsages(features, "nobody says this"), []);
+    assert.deepStrictEqual(health.count, 2);
+    assert.deepStrictEqual(health.locations.map((u) => u.line), [23]);
+    assert.deepStrictEqual(stepUsages(features, "nobody says this"), { count: 0, locations: [] });
+    // A phrase in the background and again in a scenario counts that scenario once.
+    const both = parseFeature("Feature: F\n  Background:\n    Given I am logged in\n  Scenario: A\n    When x\n  Scenario: B\n    And I am logged in\n    Then y\n")!;
+    const usages = stepUsages([{ uri: "/p/f.feature", feature: both }], "I am logged in");
+    assert.strictEqual(usages.count, 2);
+    assert.deepStrictEqual(usages.locations.map((u) => u.label), ["F › Background", "F › B"]);
   });
 });

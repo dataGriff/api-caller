@@ -232,27 +232,36 @@ export interface StepUsage {
   line: number;
   /** "Feature › Scenario", or "Feature › Background" for a step every scenario runs. */
   label: string;
-  /** How many scenarios this usage runs in: 1, or the feature's count for a background step. */
-  scenarios: number;
+}
+
+/** Where a `# @step` phrase is used, and how many distinct scenarios run it. */
+export interface StepUsages {
+  /** Scenarios that run the phrase, each counted once whether through the background, their own steps or both; an outline counts per example row. */
+  count: number;
+  locations: StepUsage[];
 }
 
 /** Where the scenarios of the parsed features use a `# @step` phrase. */
-export function stepUsages(features: readonly { uri: string; feature: Feature }[], phrase: string): StepUsage[] {
+export function stepUsages(features: readonly { uri: string; feature: Feature }[], phrase: string): StepUsages {
   const re = stepRegex(phrase);
-  const out: StepUsage[] = [];
+  const out: StepUsages = { count: 0, locations: [] };
   for (const { uri, feature } of features) {
+    const rows = (sc: Scenario) => Math.max(1, sc.examples.reduce((n, e) => n + e.rows.length, 0));
+    let inBackground = false;
     for (const st of feature.background?.steps ?? []) {
       if (re.test(st.text)) {
-        out.push({ uri, line: st.line, label: `${feature.name} › Background`, scenarios: feature.scenarios.length });
+        out.locations.push({ uri, line: st.line, label: `${feature.name} › Background` });
+        inBackground = true;
+        break;
       }
     }
     for (const sc of feature.scenarios) {
-      const rows = sc.examples.reduce((n, e) => n + e.rows.length, 0);
-      for (const st of sc.steps) {
-        if (re.test(st.text) || (sc.keyword === "Scenario Outline" && outlineMatches(re, st.text, sc))) {
-          out.push({ uri, line: st.line, label: `${feature.name} › ${sc.name}`, scenarios: Math.max(1, rows) });
-          break;
-        }
+      const own = sc.steps.find((st) => re.test(st.text) || (sc.keyword === "Scenario Outline" && outlineMatches(re, st.text, sc)));
+      if (own) {
+        out.locations.push({ uri, line: own.line, label: `${feature.name} › ${sc.name}` });
+      }
+      if (own || inBackground) {
+        out.count += rows(sc);
       }
     }
   }

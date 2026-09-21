@@ -39,10 +39,9 @@ export class StepCodeLens implements vscode.CodeLensProvider, vscode.Disposable 
       if (!m) {
         continue;
       }
-      const usages = stepUsages(features, m[1]);
-      const count = usages.reduce((n, u) => n + u.scenarios, 0);
+      const { count, locations } = stepUsages(features, m[1]);
       const title = count === 0 ? "not used by any scenario" : `used by ${count} scenario${count === 1 ? "" : "s"}`;
-      lenses.push(new vscode.CodeLens(new vscode.Range(i, 0, i, 0), { title, command: "apic.revealStepUsages", arguments: [usages], tooltip: count === 0 ? "No step in the project's features matches this phrase" : "Open the feature" }));
+      lenses.push(new vscode.CodeLens(new vscode.Range(i, 0, i, 0), { title, command: "apic.revealStepUsages", arguments: [locations], tooltip: count === 0 ? "No step in the project's features matches this phrase" : "Open the feature" }));
     }
     return lenses;
   }

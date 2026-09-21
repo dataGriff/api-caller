@@ -121,12 +121,18 @@ export class TestExplorer implements vscode.Disposable {
   private async doDiscover(): Promise<void> {
     const files = await vscode.workspace.findFiles("**/*.feature", "**/node_modules/**", 2000);
     const byRoot = new Map<string, vscode.Uri[]>();
+    const testPaths = new Map<string, string[]>();
     for (const f of files) {
       const root = projectRoot(f);
       if (!root) {
         continue;
       }
-      if (!underTestPaths(root, f.fsPath)) {
+      let paths = testPaths.get(root);
+      if (!paths) {
+        paths = testPathsOf(root);
+        testPaths.set(root, paths);
+      }
+      if (!underTestPaths(paths, root, f.fsPath)) {
         continue;
       }
       const list = byRoot.get(root) ?? [];
@@ -197,18 +203,25 @@ export class TestExplorer implements vscode.Disposable {
     }
     const rootItem = this.controller.items.get(existing.root);
     const item = this.fileItem(existing.root, uri);
-    if (rootItem && item) {
-      rootItem.children.add(item); // same id: replaces
+    if (item) {
+      rootItem?.children.add(item); // same id: replaces
+    } else {
+      // No `Feature:` any more: nothing to run there until it is back.
+      this.parsed.delete(uri.fsPath);
+      rootItem?.children.delete(uri.fsPath);
     }
     this.changed.fire();
   }
 
-  /** The leaf items (scenarios, or the rows of an outline) under an item. */
-  private leaves(item: vscode.TestItem, into: vscode.TestItem[] = []): vscode.TestItem[] {
+  /** The leaf items (scenarios, or the rows of an outline) under an item, skipping excluded subtrees. */
+  private leaves(item: vscode.TestItem, excluded: ReadonlySet<vscode.TestItem>, into: vscode.TestItem[] = []): vscode.TestItem[] {
+    if (excluded.has(item)) {
+      return into;
+    }
     if (item.children.size === 0) {
       into.push(item);
     } else {
-      item.children.forEach((c) => this.leaves(c, into));
+      item.children.forEach((c) => this.leaves(c, excluded, into));
     }
     return into;
   }
@@ -228,9 +241,9 @@ export class TestExplorer implements vscode.Disposable {
         continue;
       }
       const group = byRoot.get(d.root) ?? { files: new Set<string>(), leaves: [] };
-      for (const leaf of this.leaves(item)) {
+      for (const leaf of this.leaves(item, excluded)) {
         const ld = this.data.get(leaf);
-        if (!ld?.file || excluded.has(leaf) || excluded.has(item)) {
+        if (!ld?.file) {
           continue;
         }
         group.files.add(ld.file);
@@ -249,7 +262,22 @@ export class TestExplorer implements vscode.Disposable {
         group.leaves.forEach((l) => run.enqueued(l));
         const files = [...group.files].map((f) => path.relative(root, f).split(path.sep).join("/")).sort();
         group.leaves.forEach((l) => run.started(l));
-        const res = await this.runFiles(root, files, { tags, signal: controller.signal });
+        let res: RunOutcome;
+        try {
+          res = await this.runFiles(root, files, { tags, signal: controller.signal });
+        } catch (err) {
+          // apic could not be started at all (not installed, apic.path
+          // wrong): the same message the commands show, on every item.
+          const text = err instanceof Error ? err.message : String(err);
+          group.leaves.forEach((l) => run.errored(l, new vscode.TestMessage(text)));
+          run.appendOutput(text + "\r\n");
+          void vscode.window.showErrorMessage(text, "Open settings").then((choice) => {
+            if (choice) {
+              void vscode.commands.executeCommand("workbench.action.openSettings", "apic.path");
+            }
+          });
+          break;
+        }
         if (controller.signal.aborted) {
           break;
         }
@@ -268,12 +296,16 @@ export class TestExplorer implements vscode.Disposable {
   async runFiles(root: string, files: string[], opts: { tags?: string; signal?: AbortSignal } = {}): Promise<RunOutcome> {
     const args = ["test", ...files, ...this.envs.args(root), ...(opts.tags ? ["--tags", opts.tags] : [])];
     const showOutput = vscode.workspace.getConfiguration("apic", vscode.Uri.file(root)).get<boolean>("test.showOutput", false);
-    const pretty = showOutput ? this.apic.run([...args, "--format", "pretty"], { project: root, signal: opts.signal }) : undefined;
+    // Started first so a failure to start apic is seen once, by the JSON
+    // run below, rather than as an unhandled rejection here.
+    const pretty = showOutput ? this.apic.run([...args, "--format", "pretty"], { project: root, signal: opts.signal }).catch(() => undefined) : undefined;
     const res = await this.apic.run([...args, "--json"], { project: root, signal: opts.signal });
     if (pretty) {
       const p = await pretty;
-      this.output.appendLine(p.stdout.trimEnd());
-      this.output.show(true);
+      if (p) {
+        this.output.appendLine(p.stdout.trimEnd());
+        this.output.show(true);
+      }
     }
     const features = parseCucumber(res.stdout);
     return { outcomes: features ? scenarioOutcomes(features) : [], code: res.code, stderr: res.stderr };
@@ -291,9 +323,13 @@ export class TestExplorer implements vscode.Disposable {
       });
       return;
     }
+    // apic prints the path with symlinks resolved (macOS /var is
+    // /private/var), VS Code keeps them; compare both ways.
+    const realRoot = realpath(root);
     for (const leaf of leaves) {
       const d = this.data.get(leaf)!;
-      const outcome = res.outcomes.find((o) => o.line === d.line && sameFile(o.uri, root, d.file!));
+      const realFile = realpath(d.file!);
+      const outcome = res.outcomes.find((o) => o.line === d.line && (sameFile(o.uri, root, d.file!) || sameFile(o.uri, realRoot, realFile)));
       if (!outcome) {
         run.skipped(leaf); // filtered out by the tag expression
         continue;
@@ -319,16 +355,27 @@ export class TestExplorer implements vscode.Disposable {
   }
 }
 
-/** Whether a feature file is one `apic test` would run by default: under `test.paths` of the project's apic.yaml, or `features/` without one. */
-export function underTestPaths(root: string, fsPath: string): boolean {
-  let paths: string[] | undefined;
+function realpath(p: string): string {
   try {
-    paths = testPathsFromYaml(fs.readFileSync(path.join(root, "apic.yaml"), "utf8"));
+    return fs.realpathSync.native(p);
   } catch {
-    paths = undefined;
+    return p;
   }
+}
+
+/** The feature paths of a project: `test.paths` of its apic.yaml, or `features` without one. */
+export function testPathsOf(root: string): string[] {
+  try {
+    return testPathsFromYaml(fs.readFileSync(path.join(root, "apic.yaml"), "utf8")) ?? ["features"];
+  } catch {
+    return ["features"];
+  }
+}
+
+/** Whether a feature file is one `apic test` would run by default: under one of the project's feature paths. */
+export function underTestPaths(paths: readonly string[], root: string, fsPath: string): boolean {
   const rel = path.relative(root, fsPath).split(path.sep).join("/");
-  return (paths ?? ["features"]).some((p) => {
+  return paths.some((p) => {
     const clean = p.replace(/^\.\//, "").replace(/\/+$/, "");
     return rel === clean || rel.startsWith(`${clean}/`);
   });

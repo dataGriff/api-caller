@@ -23,6 +23,8 @@ suite("completion context", () => {
     assert.deepStrictEqual(contextAt("# @assert ", 10), { kind: "selector", prefix: "", start: 10, directive: "assert" });
     assert.deepStrictEqual(contextAt("# @assert body.$.it", 19), { kind: "selector", prefix: "body.$.it", start: 10, directive: "assert" });
     assert.deepStrictEqual(contextAt("# @capture token = bo", 21), { kind: "selector", prefix: "bo", start: 19, directive: "capture" });
+    // Right after the `=`, before the space: `=` is a trigger character.
+    assert.deepStrictEqual(contextAt("# @capture token =", 18), { kind: "selector", prefix: "", start: 18, directive: "capture" });
     assert.strictEqual(contextAt("# @capture token", 16), undefined, "the name of a capture is free text, nothing to offer yet");
   });
 
@@ -101,6 +103,15 @@ suite("completion items", () => {
       bodyPathItems("body.$.items[0].", body).map((i) => i.label),
       ["body.$.items[0].name"],
     );
+    // An index being typed: the array's own items, replacing the `[`.
+    assert.deepStrictEqual(
+      bodyPathItems("body.$.items[", body).map((i) => i.label),
+      ["body.$.items.#", "body.$.items[0]"],
+    );
+    assert.deepStrictEqual(
+      bodyPathItems("body.$.items[1", body).map((i) => i.label),
+      ["body.$.items.#", "body.$.items[0]"],
+    );
     assert.deepStrictEqual(bodyPathItems("body.$.nope.", body), []);
     assert.deepStrictEqual(bodyPathItems("body.$.", undefined), []);
     // Typed halfway through a key: the same level is offered, the editor filters.
@@ -119,6 +130,9 @@ suite("completion items", () => {
       { ok: true, request: { name: "text", file: "a.http", line: 1, method: "GET", url: "u" }, response: { status: 200, status_text: "OK", headers: {}, body: "plain", duration_ms: 1, size: 1 } },
     ];
     assert.deepStrictEqual(lastBodyFor(results, "login"), { token: "t" });
+    // Ran twice in the shown run (once as a # @ref dependency): the latest body wins.
+    const again: RunResult = { ...results[0], response: { ...results[0].response!, body: { token: "t-2" } } };
+    assert.deepStrictEqual(lastBodyFor([...results, again], "login"), { token: "t-2" });
     assert.strictEqual(lastBodyFor(results, "text"), undefined);
     assert.strictEqual(lastBodyFor(results, undefined), undefined);
   });
@@ -126,6 +140,8 @@ suite("completion items", () => {
   test("operators and auth types", () => {
     assert.strictEqual(operatorItems().length, 12);
     assert.strictEqual(authItems().find((i) => i.label === "bearer")?.insert, "bearer {{${1:token}}}");
+    // The key is positional, the header an option: `apikey <key> header=…`.
+    assert.strictEqual(authItems().find((i) => i.label === "apikey")?.insert, "apikey {{${1:apiKey}}} header=${2:X-Api-Key}");
   });
 });
 
