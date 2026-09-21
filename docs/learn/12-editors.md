@@ -86,9 +86,11 @@ Away from the lenses:
   effect appear with their source, secrets masked. Hover a
   `{{placeholder}}` to see its value, or which request captures it.
 
-Test Explorer integration for `.feature` files is tracked in the
-[VS Code epic](https://github.com/dataGriff/api-caller/issues/29). Until
-then `apic test` from the terminal is the way to run features.
+- The **Test Explorer** (the beaker in the activity bar) lists
+  `features/todos.feature` with its scenarios. Run one and apic runs it
+  the same way `apic test` does; a failing step shows its message at
+  the line. Open `todos.http` and every `# @step` line says how many
+  scenarios use it.
 
 ### 3. JetBrains IDEs
 

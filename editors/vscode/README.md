@@ -67,6 +67,14 @@ commands on top.
   its source from `apic describe` of the request it is in, or for a
   missing one, the request that captures it and whether `# @ref` runs
   it first.
+- **Test Explorer** for `.feature` files: every feature under the
+  project's `test.paths` (`features/` by default) with its scenarios and
+  example rows, run through `apic test` in the environment in effect.
+  A failing step shows apic's message at its line; an undefined step
+  says so and points at `apic test --steps`. **Run with tags…** asks
+  for a tag expression for `--tags`, and the profile's gear sets one
+  for every run. Above each `# @step` line in a request file a lens
+  says how many scenarios use the phrase and opens them.
 - Highlights apic's directive lines inside the `http` language, with
   `{{variables}}`, selectors and operators picked out.
 - Finds the `apic` binary (on `PATH`, or `apic.path`), checks its version
@@ -74,9 +82,8 @@ commands on top.
   out the project root for a file.
 
 Coming next, tracked in the
-[VS Code epic](https://github.com/dataGriff/api-caller/issues/29):
-Test Explorer for `.feature` files, and a language server for
-diagnostics as you type.
+[VS Code epic](https://github.com/dataGriff/api-caller/issues/29): a
+language server for diagnostics as you type.
 
 ## Install
 
@@ -104,6 +111,7 @@ Spans in the Problems panel, `# @ref`, the Session view's cookies and
 | `apic.validate.auto` | Validate on activation and whenever a request file, `apic.yaml` or an env file changes on disk. Off, only **apic: Validate the project** runs it. Default on. |
 | `apic.validate.debounceMs` | Wait this long after a change before validating, so a burst becomes one run. Default 300. |
 | `apic.format.enable` | Offer **Format Document** through `apic fmt`. Default on. |
+| `apic.test.showOutput` | Alongside every Test Explorer run, also run `apic test --format pretty` and show its output in the apic channel. Runs the features a second time. Default off. |
 
 apic validates from disk, so an unsaved buffer keeps the findings of its
 last save; validating as you type needs a language server, which is

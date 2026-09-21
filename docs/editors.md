@@ -37,8 +37,13 @@ Two extensions, and they cooperate:
   `# @assert` and `# @capture x =` offer the selectors and, after
   `body.$.`, the keys of that request's last response; hovering a
   `{{placeholder}}` shows its value and source, or which request
-  captures it. Test Explorer for `.feature` files and a language server
-  follow, tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
+  captures it. The **Test Explorer** lists every `.feature` file under
+  the project's test paths with its scenarios and example rows, runs
+  them through `apic test` in the environment in effect (a tag
+  expression on request), and shows a failing step's message at its
+  line; a `# @step` line in a request file says how many scenarios use
+  its phrase and opens them. A language server for diagnostics as you
+  type follows, tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
 
 Install it from the Marketplace or Open VSX (search for **apic**), or
 from the `.vsix` attached to a `vscode-v*` entry on the

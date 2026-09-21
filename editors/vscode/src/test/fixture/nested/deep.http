@@ -1,3 +1,4 @@
 ### A request in a subdirectory of the project
 # @name deep
+# @step the deep request runs
 GET {{baseUrl}}/todos
