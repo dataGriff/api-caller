@@ -81,8 +81,12 @@ Away from the lenses:
   `editor.formatOnSave` the files stay in the canonical order from
   [lesson 9](09-import-export.md)'s imports.
 
-Test Explorer integration for `.feature` files, completions and hovers
-for directives and variables are tracked in the
+- Type `# @` above a request and every directive is offered with its
+  shape filled in; type `{{` and the variables of the environment in
+  effect appear with their source, secrets masked. Hover a
+  `{{placeholder}}` to see its value, or which request captures it.
+
+Test Explorer integration for `.feature` files is tracked in the
 [VS Code epic](https://github.com/dataGriff/api-caller/issues/29). Until
 then `apic test` from the terminal is the way to run features.
 

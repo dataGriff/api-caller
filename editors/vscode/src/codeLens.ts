@@ -82,12 +82,17 @@ export class ApicCodeLens implements vscode.CodeLensProvider, vscode.Disposable 
   }
 
   /** The request whose block holds the cursor. */
-  async requestUnderCursor(editor: vscode.TextEditor): Promise<{ root: string; file: string; position: RequestPosition } | undefined> {
-    const found = await this.positions(editor.document);
+  requestUnderCursor(editor: vscode.TextEditor): Promise<{ root: string; file: string; position: RequestPosition } | undefined> {
+    return this.requestAtPosition(editor.document, editor.selection.active);
+  }
+
+  /** The request whose block holds a position of a document. */
+  async requestAtPosition(document: vscode.TextDocument, at: vscode.Position): Promise<{ root: string; file: string; position: RequestPosition } | undefined> {
+    const found = await this.positions(document);
     if (!found) {
       return undefined;
     }
-    const position = requestAt(found.positions, editor.selection.active.line + 1, editor.document.getText());
+    const position = requestAt(found.positions, at.line + 1, document.getText());
     return position ? { root: found.root, file: found.file, position } : undefined;
   }
 

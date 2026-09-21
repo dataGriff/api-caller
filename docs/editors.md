@@ -30,9 +30,15 @@ Two extensions, and they cooperate:
   cookies) for the environment in effect, which the status bar names and
   **apic: Select environment** changes. **Format Document** goes through
   `apic fmt`, and the bundled schemas validate `apic.yaml` (with the YAML
-  extension), the env files and the session file. Completions and hovers,
-  Test Explorer for `.feature` files and a language server follow,
-  tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
+  extension), the env files and the session file. Typing `# @` offers
+  every directive with its shape filled in, `{{` offers the variables of
+  the environment in effect (source alongside, secrets masked), the
+  session's captures, the built-ins and `<name>.response.…` references,
+  `# @assert` and `# @capture x =` offer the selectors and, after
+  `body.$.`, the keys of that request's last response; hovering a
+  `{{placeholder}}` shows its value and source, or which request
+  captures it. Test Explorer for `.feature` files and a language server
+  follow, tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
 
 Install it from the Marketplace or Open VSX (search for **apic**), or
 from the `.vsix` attached to a `vscode-v*` entry on the

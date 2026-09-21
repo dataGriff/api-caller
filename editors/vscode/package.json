@@ -194,6 +194,12 @@
         }
       }
     },
+    "snippets": [
+      {
+        "language": "http",
+        "path": "./snippets/http.json"
+      }
+    ],
     "grammars": [
       {
         "scopeName": "apic.directives.injection",

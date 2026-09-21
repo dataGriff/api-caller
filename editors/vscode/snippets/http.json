@@ -1,0 +1,42 @@
+{
+  "Request": {
+    "prefix": ["###", "request"],
+    "body": ["### ${1:Title}", "# @name ${2:name}", "# @assert status == ${3:200}", "${4|GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS|} {{baseUrl}}/${5:path}", "$0"],
+    "description": "A named request with a status assertion"
+  },
+  "JSON request": {
+    "prefix": ["post", "json-request"],
+    "body": ["### ${1:Title}", "# @name ${2:name}", "# @assert status == ${3:201}", "${4|POST,PUT,PATCH|} {{baseUrl}}/${5:path}", "Content-Type: application/json", "", "{", "  \"${6:key}\": \"${7:value}\"", "}", "$0"],
+    "description": "A request with a JSON body"
+  },
+  "Login and capture": {
+    "prefix": ["login", "capture-flow"],
+    "body": ["### Log in", "# @name login", "# @assert status == 200", "# @capture token = body.$.${1:token}", "POST {{baseUrl}}/${2:auth/login}", "Content-Type: application/json", "", "{\"user\": \"{{${3:user}}}\", \"password\": \"{{${4:password}}}\"}", "", "### ${5:Who am I}", "# @name ${6:whoami}", "# @ref login", "# @assert status == 200", "GET {{baseUrl}}/${7:me}", "Authorization: Bearer {{token}}", "$0"],
+    "description": "Log in, capture the token, use it in the next request"
+  },
+  "Assert": {
+    "prefix": "assert",
+    "body": "# @assert ${1:status} ${2|==,!=,<,<=,>,>=,contains,startsWith,endsWith,matches,exists,not exists|} ${3:200}",
+    "description": "# @assert selector op value"
+  },
+  "Capture": {
+    "prefix": "capture",
+    "body": "# @capture ${1:name} = ${2:body.$.}",
+    "description": "# @capture name = selector"
+  },
+  "Step phrase": {
+    "prefix": "step",
+    "body": "# @step ${1:phrase}",
+    "description": "# @step: a Gherkin phrase for .feature files"
+  },
+  "Retry": {
+    "prefix": "retry",
+    "body": "# @retry ${1:5} ${2:1s}",
+    "description": "# @retry: re-send until the assertions pass"
+  },
+  "Variable": {
+    "prefix": "@var",
+    "body": "@${1:name} = ${2:value}",
+    "description": "A file-level variable"
+  }
+}

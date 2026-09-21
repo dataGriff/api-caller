@@ -52,6 +52,21 @@ commands on top.
   [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)),
   `http-client.env.json`, the private file and `.apic/session.json`, so
   the config files get completion and validation, offline.
+- **Completions**: `# @` offers every directive with its shape as a
+  snippet (`# @assert status == 200` with the operator as a choice,
+  `# @capture name = body.$.`, `# @auth` with the type's options);
+  `{{` offers the variables of the environment in effect with their
+  source (secrets masked), the session's captures, the built-ins
+  (`$uuid`, `$timestamp`, …) and `<name>.response.body.$` references for
+  the named requests of the file; after `# @assert` and `# @capture x =`
+  the selectors, and after `body.$.` the keys of that request's last
+  response from the panel; `# @ref` offers the project's request names.
+  Snippets for a whole request, a JSON request and a login-and-capture
+  pair.
+- **Hovers** on `{{placeholder}}`: the value (masked when secret) and
+  its source from `apic describe` of the request it is in, or for a
+  missing one, the request that captures it and whether `# @ref` runs
+  it first.
 - Highlights apic's directive lines inside the `http` language, with
   `{{variables}}`, selectors and operators picked out.
 - Finds the `apic` binary (on `PATH`, or `apic.path`), checks its version
@@ -60,8 +75,8 @@ commands on top.
 
 Coming next, tracked in the
 [VS Code epic](https://github.com/dataGriff/api-caller/issues/29):
-completions and hovers, Test Explorer for `.feature` files, and a
-language server for diagnostics as you type.
+Test Explorer for `.feature` files, and a language server for
+diagnostics as you type.
 
 ## Install
 

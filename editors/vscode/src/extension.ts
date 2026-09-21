@@ -1,17 +1,19 @@
 // The apic extension: a thin client over the apic binary's --json contract.
 // Binary discovery and a version check, diagnostics from `apic validate`,
 // CodeLens to run, describe and copy a request, a response panel, and an
-// environment picker. Views and completions land on top of this.
+// environment picker. Views, completions and hovers sit on top of this.
 import * as vscode from "vscode";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } from "./apic";
 import { ApicCodeActions } from "./codeActions";
 import { ApicCodeLens } from "./codeLens";
+import { ApicCompletions } from "./completion";
 import { Decorations } from "./decorations";
 import { Diagnostics, triggersValidation, WATCH_GLOB } from "./diagnostics";
 import { Environments } from "./environment";
 import { Formatter } from "./formatter";
+import { ApicHover } from "./hover";
 import { projectRoot } from "./project";
 import { RequestsView } from "./requestsView";
 import { ResponsePanel } from "./responsePanel";
@@ -51,6 +53,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   const lens = new ApicCodeLens(apic);
   const requestsView = new RequestsView(apic, envs);
   const sessionView = new SessionView(apic, envs);
+  const hover = new ApicHover(apic, envs, lens);
   context.subscriptions.push(output, diagnostics, panel, decorations, lens, requestsView, sessionView);
 
   let known: string[] | undefined;
@@ -64,6 +67,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     }
     return known;
   };
+  const completions = new ApicCompletions(apic, envs, lens, knownDirectives, () => panel.last());
 
   // Request and config files changing on disk, whether saved here or
   // written by git, apic import or anything else: the request list and
@@ -78,6 +82,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
         envs.invalidate(root);
         requestsView.refresh(root);
         sessionView.refresh();
+        completions.invalidate(root);
+        hover.invalidate(root);
       }
     }
   };
@@ -90,15 +96,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     vscode.languages.registerCodeLensProvider(requestFiles, lens),
     vscode.languages.registerDocumentFormattingEditProvider(requestFiles, new Formatter(apic)),
     vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives, (doc) => lens.names(doc)), ApicCodeActions.metadata),
+    vscode.languages.registerCompletionItemProvider(requestFiles, completions, ...ApicCompletions.triggers),
+    vscode.languages.registerHoverProvider(requestFiles, hover),
     envs.onDidChange((root) => {
       lens.invalidate(root);
       requestsView.refresh(root);
       sessionView.refresh();
+      completions.invalidate(root);
+      hover.invalidate(root);
       if (diagnostics.auto()) {
         diagnostics.schedule(root);
       }
     }),
-    runner.onDidRun(() => sessionView.refresh()),
+    runner.onDidRun((root) => {
+      sessionView.refresh();
+      // Captures changed the session, and `describe` reports them.
+      completions.invalidate(root);
+      hover.invalidate(root);
+    }),
     vscode.window.registerTreeDataProvider("apic.requests", requestsView),
     vscode.window.registerTreeDataProvider("apic.session", sessionView),
     vscode.window.onDidChangeActiveTextEditor((editor) => envs.refreshStatus(editor ? projectRoot(editor.document.uri) : undefined)),

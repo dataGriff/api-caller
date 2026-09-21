@@ -188,6 +188,50 @@ suite("apic extension", () => {
     assert.deepStrictEqual(run.command?.arguments, [fixture(), "api.http#ping"]);
   });
 
+  test("completes directives after # @ and variables inside {{", async function () {
+    await api();
+    const tmp = path.join(fixture(), "complete.http");
+    fs.writeFileSync(tmp, "# @\nGET {{\n");
+    try {
+      const uri = vscode.Uri.file(tmp);
+      await vscode.workspace.openTextDocument(uri);
+      const directives = await vscode.commands.executeCommand<vscode.CompletionList>("vscode.executeCompletionItemProvider", uri, new vscode.Position(0, 3), "@");
+      const labels = directives.items.map((i) => (typeof i.label === "string" ? i.label : i.label.label));
+      assert.ok(labels.includes("@assert") && labels.includes("@capture") && labels.includes("@retry"), labels.join(","));
+      const assertItem = directives.items[labels.indexOf("@assert")];
+      assert.ok(assertItem.insertText instanceof vscode.SnippetString, "directives insert a snippet body");
+      if (!findOnPath("apic")) {
+        this.skip();
+      }
+      const vars = await vscode.commands.executeCommand<vscode.CompletionList>("vscode.executeCompletionItemProvider", uri, new vscode.Position(1, 6), "{");
+      const names = vars.items.map((i) => (typeof i.label === "string" ? i.label : i.label.label));
+      assert.ok(names.includes("baseUrl"), `expected baseUrl from the fixture env, got ${names.join(",")}`);
+      const baseUrl = vars.items[names.indexOf("baseUrl")];
+      assert.strictEqual(baseUrl.insertText, "baseUrl}}");
+      assert.ok(String(baseUrl.detail).includes("http-client.env.json"), String(baseUrl.detail));
+      assert.ok(names.includes("$uuid") && names.includes("ping.response.body.$"), names.join(","));
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      fs.rmSync(tmp, { force: true });
+    }
+  });
+
+  test("hovering a placeholder shows its value and source", async function () {
+    if (!findOnPath("apic")) {
+      this.skip();
+    }
+    await api();
+    const uri = vscode.Uri.file(path.join(fixture(), "api.http"));
+    await vscode.workspace.openTextDocument(uri);
+    // `GET {{baseUrl}}/health` is line 4 of the fixture; column 8 is inside the placeholder.
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>("vscode.executeHoverProvider", uri, new vscode.Position(3, 8));
+    assert.ok(hovers.length > 0, "no hover");
+    const text = hovers.map((h) => h.contents.map((c) => (typeof c === "string" ? c : c.value)).join("\n")).join("\n");
+    assert.ok(text.includes("**baseUrl**") && text.includes("http://localhost:8089") && text.includes("http-client.env.json"), text);
+    assert.strictEqual(hovers[0].range?.start.character, 4);
+    assert.strictEqual(hovers[0].range?.end.character, 15);
+  });
+
   test("runs a request against a demo API and shows the result", async function () {
     const bin = findOnPath("apic");
     if (!bin) {
