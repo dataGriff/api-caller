@@ -18,7 +18,7 @@ GET {{baseUrl}}/orders
 | `bearer` | `# @auth bearer {{token}}` | `Authorization: Bearer <token>` |
 | `basic` | `# @auth basic {{user}} {{password}}` | HTTP basic auth (base64 done for you) |
 | `aws` | `# @auth aws [service=execute-api] [region=..] [profile=..]` | AWS Signature V4 using the standard credential chain |
-| `oauth2` | `# @auth oauth2 tokenUrl=.. clientId=.. ...` | Client credentials, password or device code grant; token cached and refreshed |
+| `oauth2` | `# @auth oauth2 tokenUrl=.. clientId=.. ...` | Client credentials, password, device code or authorization code (PKCE) grant; token cached and refreshed |
 | `exec` | `# @auth exec <command> [args]` | Run a command and use its output as the token |
 
 Values in a spec may contain `{{placeholders}}`; they resolve like any other
@@ -151,11 +151,13 @@ login") is passed through.
 | `tokenUrl=` | Token endpoint. Required. |
 | `clientId=` | Client id. Required. |
 | `clientSecret=` | Client secret, if the client is confidential. |
-| `grant=` | `client_credentials` (default), `password` or `device_code`. |
+| `grant=` | `client_credentials` (default), `password`, `device_code` or `authorization_code`. |
 | `scope=` | Space-separated scopes; quote them. |
 | `audience=` | Sent as `audience` (Auth0, some others). |
 | `username=`, `password=` | For `grant=password`. |
 | `deviceUrl=` | Device authorization endpoint, for `grant=device_code`. |
+| `authUrl=` | Authorization endpoint, for `grant=authorization_code`. |
+| `redirectPort=` | Loopback port for the redirect, for `grant=authorization_code`. Default: a free one. |
 | `clientAuth=` | `body` (default: `client_id`/`client_secret` in the form) or `basic` (HTTP basic auth on the token request). |
 
 The access token is cached in the session (`.apic/session.json`) for the
@@ -184,8 +186,38 @@ code on stderr, waits while you approve in a browser, then continues.
 The token is cached like any other, so you sign in once per expiry. Do not
 use this from an unattended agent; it will wait until the code expires.
 
-Authorization code and PKCE flows, which need a browser redirect back to a
-local port, are not supported.
+### Authorization code with PKCE
+
+```http
+# @auth oauth2 grant=authorization_code authUrl={{authUrl}} tokenUrl={{tokenUrl}} clientId={{clientId}} scope="openid profile" redirectPort=8976
+```
+
+The flow behind "sign in as yourself" for most user-facing APIs (Google,
+GitHub Apps, Entra ID delegated scopes), for providers that do not offer
+device code. apic listens on a loopback port, opens the provider's
+sign-in page in your browser (and prints the URL on stderr in case it
+cannot), receives the code on the redirect, and exchanges it for a token:
+
+```
+To sign in, open https://login.example.com/authorize?client_id=...
+(the redirect URI is http://127.0.0.1:8976/callback; register it with the provider if it asks)
+Waiting for the browser...
+```
+
+PKCE (`S256`) is always on, so a public client needs no `clientSecret=`;
+give one for a confidential client. `redirectPort=` fixes the port when
+the provider wants the exact redirect URI registered
+(`http://127.0.0.1:<port>/callback`); without it apic picks a free one.
+The `state` of the redirect is checked, and the wait gives up after five
+minutes.
+
+The token is cached and refreshed exactly like the other grants, so the
+browser is needed once per refresh-token lifetime. And it is a human
+flow: under `--json`, from the MCP server, from `apic test`, or when
+stdin or stderr is not a terminal, apic never starts a browser. With no
+cached token the request then fails with exit 2 and a message saying to
+run it once interactively; after that the cached token serves every
+unattended run until the refresh token expires.
 
 ## exec
 

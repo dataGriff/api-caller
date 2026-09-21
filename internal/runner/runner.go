@@ -94,6 +94,10 @@ type Runner struct {
 	Jar    *session.Jar
 	Opts   Options
 	Stderr io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	// Interactive says a person is at the terminal: an OAuth2 grant that
+	// needs a browser may open one. The CLI sets it when stdin and stderr
+	// are terminals and --json is off; MCP and apic test leave it off.
+	Interactive bool
 	// Progress, when set, is called after each failed attempt of a request
 	// that will be retried.
 	Progress func(Progress)
@@ -584,9 +588,10 @@ func (r *Runner) authEnv() (*auth.Env, error) {
 		return nil, err
 	}
 	e := &auth.Env{
-		AllowExec: r.Project.Config.Auth.AllowExec,
-		Stderr:    r.Stderr,
-		Client:    &http.Client{Timeout: r.Opts.Timeout, Transport: tr},
+		AllowExec:   r.Project.Config.Auth.AllowExec,
+		Stderr:      r.Stderr,
+		Interactive: r.Interactive,
+		Client:      &http.Client{Timeout: r.Opts.Timeout, Transport: tr},
 	}
 	if r.Session != nil {
 		e.Cache = sessionCache{r}

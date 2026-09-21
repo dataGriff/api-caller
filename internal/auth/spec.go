@@ -7,6 +7,7 @@ package auth
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ var Types = map[string]string{
 	"apikey": "apikey <key> [header=X-Api-Key] [query=name] [prefix=..]: send the key as a header (default X-Api-Key, no prefix) or a query parameter",
 	"digest": "digest <user> <password>: HTTP digest auth (RFC 7616), answering the server's challenge",
 	"aws":    "aws [service=execute-api] [region=..] [profile=..]: AWS Signature V4 using the SDK credential chain",
-	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [clientAuth=body|basic]",
+	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code|authorization_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [authUrl=..] [redirectPort=..] [clientAuth=body|basic]",
 	"exec":   "exec <command> [args..] [header=Authorization] [prefix=Bearer] [ttl=10m]: use a command's stdout as the token (needs auth.allowExec in apic.yaml)",
 }
 
@@ -116,12 +117,21 @@ func (s *Spec) check() error {
 			if s.Options["deviceUrl"] == "" {
 				return fmt.Errorf("@auth oauth2 grant=device_code needs deviceUrl=")
 			}
+		case "authorization_code":
+			if s.Options["authUrl"] == "" {
+				return fmt.Errorf("@auth oauth2 grant=authorization_code needs authUrl=")
+			}
+			if p := s.Options["redirectPort"]; p != "" {
+				if n, err := strconv.Atoi(p); err != nil || n < 0 || n > 65535 {
+					return fmt.Errorf("@auth oauth2: redirectPort must be a port number, not %q", p)
+				}
+			}
 		default:
-			return fmt.Errorf("@auth oauth2: unknown grant %q (client_credentials, password or device_code)", g)
+			return fmt.Errorf("@auth oauth2: unknown grant %q (client_credentials, password, device_code or authorization_code)", g)
 		}
 		for k := range s.Options {
 			switch k {
-			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "clientAuth":
+			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "authUrl", "redirectPort", "clientAuth":
 			default:
 				return fmt.Errorf("@auth oauth2: unknown option %q", k)
 			}

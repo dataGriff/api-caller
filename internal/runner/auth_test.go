@@ -318,3 +318,21 @@ GET {{baseUrl}}/c?keep=1
 		}
 	}
 }
+
+func TestAuthorizationCodeNeedsATerminal(t *testing.T) {
+	dir := writeProject(t, map[string]string{
+		"http-client.env.json": `{"dev": {"baseUrl": "http://api.example.test"}}`,
+		"api.http": `
+### me
+# @name me
+# @auth oauth2 grant=authorization_code authUrl=http://idp.example.test/authorize tokenUrl=http://idp.example.test/token clientId=cid
+GET {{baseUrl}}/me
+`,
+	})
+	r := newRunner(t, dir, Options{Env: "dev", NoSession: true})
+	req, _ := r.Project.Lookup("me")
+	_, err := r.Run(context.Background(), req)
+	if err == nil || ExitCode(err) != ExitUsage || !strings.Contains(err.Error(), "run the request once interactively") {
+		t.Fatalf("err = %v (exit %d)", err, ExitCode(err))
+	}
+}

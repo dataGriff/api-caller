@@ -216,6 +216,29 @@ environment, reused until a minute before it expires and then refreshed.
 for Entra ID, Okta, Auth0, Keycloak and Cognito. See
 [authentication](auth.md#oauth2) for the other grants.
 
+## Sign in as yourself
+
+```http
+### My repositories, as me
+# @name my-repos
+# @auth oauth2 grant=authorization_code authUrl={{authUrl}} tokenUrl={{tokenUrl}} clientId={{clientId}} scope="repo read:user"
+# @assert status == 200
+GET https://api.github.com/user/repos
+```
+
+```json
+// http-client.env.json
+{ "dev": { "authUrl": "https://github.com/login/oauth/authorize", "tokenUrl": "https://github.com/login/oauth/access_token", "clientId": "Iv1..." } }
+```
+
+Run `apic run my-repos` once from a terminal: a browser opens on the
+provider's sign-in page, and the token comes back through a loopback
+redirect (register `http://127.0.0.1:<port>/callback` with the app, with
+`redirectPort=` on the directive when the provider wants the exact port).
+From then on the cached token, refreshed while its refresh token lasts,
+serves `--json`, agents and CI alike; only a fresh sign-in needs the
+terminal again.
+
 ## A token from any CLI
 
 When the credential comes from a tool rather than a flow:

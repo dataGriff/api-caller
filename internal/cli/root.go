@@ -155,7 +155,14 @@ func (a *App) newRunner() (*runner.Runner, error) {
 		return nil, err
 	}
 	runner.Version = Version
-	return runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy})
+	r, err := runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy})
+	if err != nil {
+		return nil, err
+	}
+	// A browser sign-in (oauth2 grant=authorization_code) may start only
+	// with a person present: a terminal on both sides and no --json.
+	r.Interactive = !a.g.json && isTerminal(a.Stderr) && isTerminal(os.Stdin)
+	return r, nil
 }
 
 func (a *App) versionCmd() *cobra.Command {

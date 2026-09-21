@@ -48,6 +48,7 @@ func CacheKey(s *Spec) string {
 	return "$oauth2:" + hashKey(strings.Join([]string{
 		o["tokenUrl"],
 		o["deviceUrl"],
+		o["authUrl"],
 		o["clientId"],
 		o["clientSecret"],
 		o["clientAuth"],
@@ -92,6 +93,8 @@ func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
 			tok, err = tokenRequest(ctx, s, env, form)
 		case "device_code":
 			tok, err = deviceCode(ctx, s, env)
+		case "authorization_code":
+			tok, err = authorizationCode(ctx, s, env)
 		}
 		if err != nil {
 			return "", err

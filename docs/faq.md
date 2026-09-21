@@ -87,10 +87,16 @@ needs its CA: `--cacert mitmproxy-ca.pem`, or `--insecure` for a one-off.
 
 ## Can apic do the OAuth2 authorization code flow?
 
-No. Flows that need a browser redirect back to a local port are not
-supported. Client credentials, password and device code are, and the token
-is cached and refreshed for you. For a human signing in at a terminal, use
-`grant=device_code`. See [authentication](auth.md#oauth2).
+Yes, with PKCE: `# @auth oauth2 grant=authorization_code authUrl=...
+tokenUrl=... clientId=...`. apic listens on a loopback port, opens the
+sign-in page in your browser, and exchanges the code it gets back; the
+token is then cached and refreshed like every other grant, so the browser
+is needed once per refresh-token lifetime. It is a human flow: under
+`--json`, over MCP or without a terminal apic never opens a browser, and
+with no cached token the request fails with exit 2 asking you to run it
+once interactively. Providers that offer it may prefer
+`grant=device_code`, which needs no redirect. See
+[authentication](auth.md#authorization-code-with-pkce).
 
 ## A Gherkin step comes out undefined
 

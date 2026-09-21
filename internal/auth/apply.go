@@ -24,8 +24,14 @@ type Env struct {
 	Cache     Cache
 	Client    *http.Client // used for token endpoints
 	AllowExec bool
-	Stderr    io.Writer // device-code prompts
+	Stderr    io.Writer // device-code and browser sign-in prompts
 	Now       func() time.Time
+	// Interactive says a person is at a terminal, so a grant that needs a
+	// browser may start one; false under --json, in MCP and in tests.
+	Interactive bool
+	// OpenBrowser opens a URL for the person; nil means the system's
+	// opener. Tests inject one that visits the URL themselves.
+	OpenBrowser func(url string) error
 }
 
 func (e *Env) now() time.Time {
