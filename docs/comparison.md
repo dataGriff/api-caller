@@ -136,4 +136,4 @@ So you are not surprised later:
 - No GUI and no response viewer beyond the terminal; the editors cover
   that.
 - Reports are limited to what `apic test` emits (pretty, progress, cucumber
-  JSON, JUnit) and `run --json`; there is no HTML report.
+  JSON, JUnit, HTML) and `run --json` or `run --report`.

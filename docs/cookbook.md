@@ -136,6 +136,22 @@ This exact file ships with `apic demo`, so
 - The exit code fails the step: 1 for a failed assertion, 3 for a network
   error.
 
+For a report a person opens rather than a log a tool parses, add
+`--report` (or `apic test --format html --output`) and upload the file as
+an artifact; it is one HTML file with no external assets, redacted the
+same way:
+
+```yaml
+- run: apic run auth.http smoke.http -C api --env staging --redact --report smoke.html
+  env:
+    APIC_VAR_password: ${{ secrets.API_PASSWORD }}
+- uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: smoke-report
+    path: smoke.html
+```
+
 `apic validate` on its own is a cheap pull-request check: it parses every
 file, reports duplicate names, bad selectors, unknown auth options and
 missing body files, and exits 2 if anything is an error. With

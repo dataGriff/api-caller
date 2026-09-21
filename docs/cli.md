@@ -87,6 +87,7 @@ shows progress.
 | `--body-only` | Print only the response body, pretty-printed when JSON. For piping. |
 | `--keep-going` | In a flow, continue after a failure. |
 | `--retry "<n> [interval]"` | Retry policy for requests without `# @retry`: attempts and the wait between them (default `1s`). Overrides `retry:` in `apic.yaml`. |
+| `--report <file.html>` | Also write a self-contained HTML report of the run: summary, every request with its status, timing, assertions (actual against expected), captures and the request and response headers and bodies, collapsed. Honours `--redact` like the text output and shows a "redacted" badge; sensitive headers are masked either way. Refused when the path is a project file. |
 | `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
 
 Examples:

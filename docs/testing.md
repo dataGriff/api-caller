@@ -161,6 +161,7 @@ OAuth2 tokens obtained through `# @auth` are cached within a scenario.
 | `--format pretty` (default) | Coloured, readable; colour off when not a terminal or `NO_COLOR` is set. |
 | `--format progress` | One character per step. |
 | `--format junit --output report.xml` | JUnit XML for CI dashboards. |
+| `--format html --output report.html` | One self-contained HTML file: summary, every feature, scenario and step with its error, light and dark, no external assets. The thing to attach to a CI run or send to someone who does not read JUnit. |
 | `--format cucumber` or `--json` | Cucumber JSON, the format most reporting tools accept. |
 
 Exit codes follow the rest of apic: `0` every scenario passed · `1` at

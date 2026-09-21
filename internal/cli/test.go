@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -15,6 +17,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/bdd"
 	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/project"
+	"github.com/dataGriff/api-caller/internal/report"
 	"github.com/dataGriff/api-caller/internal/runner"
 	"github.com/dataGriff/api-caller/internal/session"
 )
@@ -40,6 +43,7 @@ phrase) · 3 a server could not be reached.`,
 		Example: `  apic test
   apic test features/users.feature --env staging --tags @smoke
   apic test --format junit --output report.xml
+  apic test --format html --output report.html
   apic test --json | jq '.[].elements[].steps[].result.status'
   apic test --steps`,
 		RunE: func(cmd *cobra.Command, args []string) (retErr error) {
@@ -92,6 +96,9 @@ phrase) · 3 a server could not be reached.`,
 				}()
 				opts.Output = lf
 			}
+			if format == "html" && !a.g.json {
+				return a.testHTML(cmd.Context(), opts, output)
+			}
 			code, err := bdd.Run(cmd.Context(), opts)
 			if err != nil {
 				var te *runner.TransportError
@@ -107,13 +114,46 @@ phrase) · 3 a server could not be reached.`,
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&format, "format", "f", "pretty", "report format: "+strings.Join(bdd.Formats, ", "))
+	cmd.Flags().StringVarP(&format, "format", "f", "pretty", "report format: "+strings.Join(bdd.Formats, ", ")+", html")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "write the report to a file instead of stdout")
 	cmd.Flags().StringVarP(&tags, "tags", "t", "", `tag expression, e.g. "@smoke && ~@slow"`)
 	cmd.Flags().BoolVar(&stopOnFailure, "stop-on-failure", false, "stop after the first failed scenario")
 	cmd.Flags().BoolVar(&useSession, "use-session", false, "read and write .apic/session.json instead of an isolated session per scenario")
 	cmd.Flags().BoolVar(&listSteps, "steps", false, "print the built-in step vocabulary and declared phrases, then exit")
 	return cmd
+}
+
+// testHTML runs the features with the cucumber formatter into memory and
+// renders the self-contained HTML report from it, to --output or stdout.
+// The cucumber report is already masked under --redact.
+func (a *App) testHTML(ctx context.Context, opts bdd.Options, output string) error {
+	started := time.Now()
+	dest := opts.Output
+	_, raw, code, runErr := bdd.RunSummary(ctx, opts)
+	if runErr != nil && len(raw) == 0 {
+		var te *runner.TransportError
+		var ue *runner.UsageError
+		if errors.As(runErr, &te) || errors.As(runErr, &ue) {
+			return runErr
+		}
+		return &runner.UsageError{Msg: runErr.Error()}
+	}
+	meta := report.Meta{Version: Version, Env: opts.Env, Time: started, Redacted: opts.Redact, Project: opts.Project.Root}
+	if err := report.Features(dest, meta, raw); err != nil {
+		return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", output, err)}
+	}
+	if runErr != nil {
+		var te *runner.TransportError
+		var ue *runner.UsageError
+		if errors.As(runErr, &te) || errors.As(runErr, &ue) {
+			return runErr
+		}
+		return &runner.UsageError{Msg: runErr.Error()}
+	}
+	if code != 0 {
+		return &exitError{code: code}
+	}
+	return nil
 }
 
 // isTerminal reports whether w is an interactive terminal; reports written

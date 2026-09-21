@@ -1,18 +1,22 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/output"
+	"github.com/dataGriff/api-caller/internal/report"
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 func (a *App) runCmd() *cobra.Command {
 	var verbose, bodyOnly, keepGoing, noRetry bool
-	var retry string
+	var retry, reportPath string
 	cmd := &cobra.Command{
 		Use:   "run <request|file.http|file.http#name>...",
 		Short: "Send one request, or every request in a file as a flow",
@@ -33,7 +37,8 @@ seconds apart; each failed attempt prints a line as it happens.`,
 		Example: `  apic run login
   apic run get-user --env staging --var userId=42
   apic run smoke.http --json | jq .response.status
-  apic run get-user --body-only | jq .email`,
+  apic run get-user --body-only | jq .email
+  apic run smoke.http --keep-going --report report.html`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := a.newRunner()
@@ -54,6 +59,12 @@ seconds apart; each failed attempt prints a line as it happens.`,
 				reqs = append(reqs, rs...)
 			}
 			flow := len(reqs) > 1
+			if reportPath != "" {
+				if err := outputOverlapsSources(reportPath, r.Project, nil); err != nil {
+					return err
+				}
+			}
+			started := time.Now()
 			// Each result is printed as it lands, so a flow shows progress
 			// (and the attempt lines of a retried request sit under the
 			// right request) instead of everything at the end.
@@ -95,6 +106,16 @@ seconds apart; each failed attempt prints a line as it happens.`,
 			if flow && !a.g.json && !bodyOnly {
 				output.Summary(a.Stdout, results)
 			}
+			if reportPath != "" {
+				var buf bytes.Buffer
+				meta := report.Meta{Version: Version, Env: r.Opts.Env, Time: started, Redacted: a.g.redact, Project: r.Project.Root}
+				if err := report.Run(&buf, meta, results); err != nil {
+					return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", reportPath, err)}
+				}
+				if err := os.WriteFile(reportPath, buf.Bytes(), 0o644); err != nil { //nolint:gosec // a report the user asked for, at the path they named
+					return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v (run result: %v)", reportPath, err, describeOutcome(runErr))}
+				}
+			}
 			if runErr != nil {
 				return runErr
 			}
@@ -110,5 +131,6 @@ seconds apart; each failed attempt prints a line as it happens.`,
 	cmd.Flags().BoolVar(&keepGoing, "keep-going", false, "in a flow, continue after a failure")
 	cmd.Flags().StringVar(&retry, "retry", "", "re-send until the assertions pass: \"<attempts> [interval]\", e.g. \"10 2s\" (requests with # @retry keep their own)")
 	cmd.Flags().BoolVar(&noRetry, "no-retry", false, "send every request once, ignoring # @retry, --retry and apic.yaml")
+	cmd.Flags().StringVar(&reportPath, "report", "", "also write a self-contained HTML report of the run to this file")
 	return cmd
 }
