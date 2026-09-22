@@ -118,6 +118,12 @@ func view(res *runner.Result) requestView {
 		v.Status, v.StatusText, v.Duration, v.Size, v.Timings = r.Status, r.StatusText, time.Duration(r.DurationMs)*time.Millisecond, r.Size, r.Timings
 		v.ResponseHeaders = sortedKV(r.Headers)
 		v.ResponseBody = string(res.DisplayRawBody())
+		if runner.IsBinary(res.DisplayRawBody()) {
+			v.ResponseBody = fmt.Sprintf("(binary body, %d bytes)", r.Size)
+		}
+	}
+	if res.SavedTo != "" {
+		v.Captures = append(v.Captures, kv{"saved to", res.SavedTo})
 	}
 	for _, a := range res.DisplayAsserts() {
 		v.Asserts = append(v.Asserts, assertView{Expr: a.Expr, Actual: a.Actual, Expected: a.Expected, Error: a.Error, Pass: a.Pass})

@@ -382,6 +382,18 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
 		}
+		if sv := r.SaveTo; sv != nil {
+			target := filepath.Clean(filepath.Join(filepath.Dir(r.File.Path), sv.Path))
+			if filepath.IsAbs(sv.Path) {
+				if rel, err := filepath.Rel(p.Root, sv.Path); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+					target = ".."
+				}
+			}
+			if target == ".." || strings.HasPrefix(target, ".."+string(filepath.Separator)) {
+				diags = append(diags, diag(r.File.Path, "error", "bad-save-path", sv.Line, sv.Column, sv.Column+len(sv.Path),
+					fmt.Sprintf(">> %s resolves outside the project root; the response body is only written inside it", sv.Path)))
+			}
+		}
 		if r.IsGraphQL() {
 			if _, _, err := r.GraphQL(); err != nil {
 				line := r.BodyLine

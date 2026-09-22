@@ -319,10 +319,17 @@ POST https://example.com
 
 func TestJSONOrStringAcceptsScalarJSON(t *testing.T) {
 	for _, in := range []string{"true", "7", "null", `"x"`} {
-		got := jsonOrString([]byte(in))
+		got, _ := jsonOrString([]byte(in))
 		if reflect.TypeOf(got) != reflect.TypeOf(json.RawMessage{}) {
 			t.Fatalf("want RawMessage for %q, got %T", in, got)
 		}
+	}
+	// Text stays text; bytes that are not UTF-8 become base64, and say so.
+	if got, enc := jsonOrString([]byte("plain text")); got != "plain text" || enc != "" {
+		t.Fatalf("text: %v %q", got, enc)
+	}
+	if got, enc := jsonOrString([]byte{0xff, 0xfe, 0x00}); got != "//4A" || enc != "base64" {
+		t.Fatalf("binary: %v %q", got, enc)
 	}
 }
 

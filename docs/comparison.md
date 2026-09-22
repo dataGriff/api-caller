@@ -54,7 +54,9 @@ What the editors have that apic does not: JetBrains' JavaScript response
 handlers, and the in-editor response viewer. apic reads the common subset
 and ignores what it does not know, so a file with editor-only features still
 parses: a `> {% … %}` response handler or a `< {% … %}` pre-request script is
-skipped rather than sent, and `apic validate` lists what was skipped.
+skipped rather than sent, and `apic validate` lists what was skipped. A
+`>> ./file` line, which both editors use to save the response, works the
+same under apic.
 
 ## Against httpyac
 

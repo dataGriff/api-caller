@@ -58,7 +58,7 @@ narrow this with `dir: api`.
 ## apic run
 
 ```
-apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry]
+apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry] [--output <file>] [--report <file.html>]
 ```
 
 Sends requests and reports status, timing, body, captures and assertions.
@@ -89,6 +89,7 @@ shows progress.
 | `--retry "<n> [interval]"` | Retry policy for requests without `# @retry`: attempts and the wait between them (default `1s`). Overrides `retry:` in `apic.yaml`. |
 | `--report <file.html>` | Also write a self-contained HTML report of the run: summary, every request with its status, timing, assertions (actual against expected), captures and the request and response headers and bodies, collapsed. Honours `--redact` like the text output and shows a "redacted" badge; sensitive headers are masked either way. Refused when the path is a project file. |
 | `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
+| `--output <file>` | Save the response body to this file, relative to the working directory, overwriting: what a `>>! file` line in the request does (see [format.md](format.md#saving-a-response)). One request only; a flow is refused, and so is a project input as the target. The text output says `↳ saved to <file>` and `--json` carries `saved_to`. |
 
 Examples:
 
@@ -129,7 +130,8 @@ apic run get-user --body-only | jq .email
 - `request.auth` names the auth type applied, when any; credentials apic adds are never included.
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
 - `request.body` of a [multipart upload](format.md#multipart-uploads) is the summary `<multipart: 2 parts, 1 file>` rather than the assembled bytes.
-- `response.body` is parsed JSON when the body is JSON, otherwise a string. Under `--redact` it is the string `"***"`.
+- `response.body` is parsed JSON when the body is JSON, otherwise a string. A body that is not text (not valid UTF-8) is its base64 with `"body_encoding": "base64"` beside it, so a download survives `--json` intact. Under `--redact` it is the string `"***"`.
+- `saved_to` (omitted otherwise) is where a `>> file` line or `--output` wrote the body, relative to the project root when inside it.
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
 - `errors` (omitted when empty) lists failed captures and other problems.
@@ -464,6 +466,7 @@ Codes:
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
 | `bad-graphql` | A GraphQL request (`GRAPHQL` method or `X-REQUEST-TYPE: GraphQL`) without a query, or whose variables block is not a JSON object. |
+| `bad-save-path` | A `>> file` line with no path, a path outside the project, or a second one on the same request. |
 
 In a GitHub Actions workflow:
 
@@ -720,3 +723,4 @@ and the URL above.
 | `.env` | `KEY=value` lines; lowest precedence after file `@vars`. |
 | `.apic/session.json` | Captured values per environment. Written by `run`, cleared by `session clear`. `.apic/.gitignore` is created alongside so it is never committed. |
 | `.apic/cookies.json` | The cookie jar per environment, when cookies are on. Written `0600` by `run`, cleared by `session clear`, listed by `session cookies`. |
+| `>> file` targets | Response bodies a request saves (`>> ./out.json`, `>>! ./out.json`) or `run --output` writes. Inside the project for `>>`; `0600` when a secret went into the request. |

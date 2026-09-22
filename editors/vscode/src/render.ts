@@ -140,7 +140,10 @@ export function renderResult(r: RunResult, index: number, collapsible: boolean):
   if (r.response) {
     const count = Object.keys(r.response.headers ?? {}).length;
     body.push(`<details class="headers"><summary>Response headers (${count})</summary><pre>${headerLines(r.response.headers)}</pre></details>`);
-    const { text, json } = bodyText(r.response.body);
+    const { text, json } = r.response.body_encoding === "base64" ? { text: "", json: false } : bodyText(r.response.body);
+    if (r.response.body_encoding === "base64") {
+      body.push(`<p class="dim">binary body · ${size(r.response.size)}${r.saved_to ? "" : " · save it with a <code>&gt;&gt; file</code> line"}</p>`);
+    }
     if (text) {
       const truncated = text.length > BODY_LIMIT;
       const shown = truncated ? text.slice(0, BODY_PREVIEW) : text;
@@ -167,6 +170,9 @@ export function renderResult(r: RunResult, index: number, collapsible: boolean):
       })
       .join("");
     body.push(`<ul class="checks">${items}</ul>`);
+  }
+  if (r.saved_to) {
+    body.push(`<p><span class="capture">↳ saved to</span> <code>${escapeHtml(r.saved_to)}</code></p>`);
   }
   if (r.captures && Object.keys(r.captures).length > 0) {
     const items = Object.keys(r.captures)

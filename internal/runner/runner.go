@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/auth"
@@ -47,6 +49,11 @@ type Options struct {
 	Insecure  bool              // skip TLS verification
 	KeepGoing bool              // in a flow, continue after a failure
 	Redact    bool              // mask every request value and capture in output (for CI logs)
+	// Output saves the response body of the request Run is called for to
+	// this path (relative to the working directory, overwriting), as a
+	// `>>! file` in the request would; `apic run --output`. Dependencies
+	// the request pulls in through `# @ref` keep their own `>>` lines.
+	Output string
 	// MaxBodyBytes caps the response body read into memory; zero means
 	// apic.yaml's maxBodyBytes, then DefaultMaxBodyBytes.
 	MaxBodyBytes int64
@@ -105,12 +112,12 @@ type Runner struct {
 	// with its result (never nil) and the error, if any, that stopped it.
 	OnResult func(*Result, error)
 
-	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	sleep func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
 	// Now is the clock the time built-ins read; nil means time.Now.
 	// Tests set it to pin `$timestamp` and friends.
-	Now func() time.Time
-	proxy    *proxySettings                                   // --proxy or apic.yaml's proxy; nil means the environment
-	digest   *auth.DigestState                                // Digest challenges seen this invocation, per server
+	Now      func() time.Time
+	proxy    *proxySettings    // --proxy or apic.yaml's proxy; nil means the environment
+	digest   *auth.DigestState // Digest challenges seen this invocation, per server
 	results  map[string]*Result
 	captured map[string]string
 	tlsMu    sync.Mutex
@@ -218,6 +225,10 @@ type Resolved struct {
 	Parts   []FormPart `json:"-"`
 	rawBody []byte     // the assembled multipart body, sent as is
 	missing []string
+	// secret says a value from a secret source (private env file, .env,
+	// the session, a capture, --var) or a credential went into the
+	// request, so a file its response is saved to is created 0600.
+	secret bool
 }
 
 // FormPart is one part of a resolved multipart/form-data body. Value is
@@ -325,8 +336,12 @@ type Response struct {
 	StatusText string            `json:"status_text"`
 	Headers    map[string]string `json:"headers"`
 	Body       any               `json:"body"` // parsed JSON when the body is JSON, else a string
-	DurationMs int64             `json:"duration_ms"`
-	Size       int               `json:"size"`
+	// BodyEncoding is "base64" when the body is not text (not valid
+	// UTF-8), in which case Body is the base64 of the bytes; empty
+	// otherwise.
+	BodyEncoding string `json:"body_encoding,omitempty"`
+	DurationMs   int64  `json:"duration_ms"`
+	Size         int    `json:"size"`
 	// Timings is where the round trip went, from net/http/httptrace.
 	Timings *Timings `json:"timings,omitempty"`
 }
@@ -429,6 +444,10 @@ type Result struct {
 	// Attempts is how many times the request was sent under a `# @retry`
 	// policy (or --retry, or retry in apic.yaml); zero when none applied.
 	Attempts int `json:"attempts,omitempty"`
+	// SavedTo is where the response body was written, for a request with a
+	// `>> file` line or a run with --output: relative to the project root
+	// when inside it, else as given.
+	SavedTo string `json:"saved_to,omitempty"`
 	// Deps are the results of the requests `# @ref` and `# @forceRef` ran
 	// first, in run order; a dependency's own dependencies nest under it.
 	Deps   []*Result `json:"ran_first,omitempty"`
@@ -508,6 +527,15 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res.TLS = r.tlsInfoForURL(res.URL)
 	res.Proxy = r.ProxyInfo(res.URL)
 	res.SecretHeaders = map[string]bool{}
+	usesSecret := func(text string) bool {
+		for _, e := range template.Exprs(text) {
+			if _, _, secret, _ := r.resolveExprMeta(req, e, 0); secret {
+				return true
+			}
+		}
+		return false
+	}
+	res.secret = usesSecret(req.URL)
 	graphql := req.IsGraphQL()
 	for _, h := range req.Headers {
 		if graphql && strings.EqualFold(h.Name, httpfile.GraphQLHeader) {
@@ -518,10 +546,9 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 			return nil, usagef("%s:%d: header %s: %v", req.File.Path, req.Line, h.Name, err)
 		}
 		res.Headers = append(res.Headers, httpfile.Header{Name: h.Name, Value: v})
-		for _, e := range template.Exprs(h.Value) {
-			if _, _, secret, _ := r.resolveExprMeta(req, e, 0); secret {
-				res.SecretHeaders[h.Name] = true
-			}
+		if usesSecret(h.Value) {
+			res.SecretHeaders[h.Name] = true
+			res.secret = true
 		}
 	}
 	body := req.Body
@@ -570,6 +597,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 			return nil, usagef("%s:%d: @auth: %v", req.File.Path, req.Line, err)
 		}
 		res.Auth, res.AuthSpec = spec.Type, rendered
+		res.secret = true
 	}
 	res.missing = dedupe(missing)
 	return res, nil
@@ -774,7 +802,72 @@ func plural(n int) string {
 // and once per Runner. Their results ride in Result.Deps. A dependency
 // that fails stops the request: the result is not OK and names it.
 func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error) {
-	return r.run(ctx, req, nil, map[*httpfile.Request]bool{})
+	res, err := r.run(ctx, req, nil, map[*httpfile.Request]bool{})
+	if err == nil && r.Opts.Output != "" && res != nil && res.raw != nil {
+		// --output names a path from the working directory, not the file.
+		if serr := r.saveBody(req, r.Opts.Output, true, true, &res.Request, res); serr != nil {
+			res.Errors = append(res.Errors, serr.Error())
+			res.OK = false
+		}
+	}
+	return res, err
+}
+
+// saveBody writes the response body of result to path: a `>> file` path
+// relative to the request's file and confined to the project, or an
+// --output path relative to the working directory. The file is created
+// 0600 when a secret went into the request (its response may carry one
+// back), else 0644; without overwrite an existing file is refused.
+func (r *Runner) saveBody(req *httpfile.Request, path string, overwrite, fromCwd bool, resolved *Resolved, result *Result) error {
+	var target string
+	if fromCwd {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("save to %s: %w", path, err)
+		}
+		target = abs
+	} else {
+		real, err := r.filePath(req, path, ">> file")
+		if err != nil {
+			return err
+		}
+		target = real
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil { //nolint:gosec // directories the user asked for, under the project
+		return fmt.Errorf("save to %s: %w", path, err)
+	}
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if overwrite {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	mode := os.FileMode(0o644)
+	if resolved.secret {
+		mode = 0o600
+	}
+	f, err := os.OpenFile(target, flags, mode) //nolint:gosec // the path the request named, confined to the project
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("save to %s: the file exists; use >>! to overwrite it", path)
+		}
+		return fmt.Errorf("save to %s: %w", path, err)
+	}
+	_, werr := f.Write(result.raw.Body)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return fmt.Errorf("save to %s: %w", path, werr)
+	}
+	if resolved.secret {
+		// An overwritten file keeps the mode it had; a response to a
+		// request that carried a secret is tightened whatever it was.
+		_ = os.Chmod(target, mode)
+	}
+	result.SavedTo = target
+	if rel, err := filepath.Rel(r.Project.Root, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		result.SavedTo = filepath.ToSlash(rel)
+	}
+	return nil
 }
 
 // refTarget resolves the target of a `# @ref` to exactly one request.
@@ -928,6 +1021,14 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		}
 	}
 
+	// The attempt that counts is the one whose body is saved.
+	if req.SaveTo != nil && result.raw != nil {
+		if err := r.saveBody(req, req.SaveTo.Path, req.SaveTo.Overwrite, false, resolved, result); err != nil {
+			result.Errors = append(result.Errors, err.Error())
+			result.OK = false
+		}
+	}
+
 	// Only the attempt that counts commits its captures, for this run and
 	// for later ones.
 	for k, v := range result.Captures {
@@ -1033,7 +1134,8 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 			result.authNote = "digest: the server sent no challenge"
 		}
 	}
-	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: jsonOrString(data), DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
+	view, encoding := jsonOrString(data)
+	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: view, BodyEncoding: encoding, DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
 
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)
@@ -1206,6 +1308,7 @@ type Description struct {
 	Headers     map[string]string `json:"headers"`
 	Body        string            `json:"body,omitempty"`
 	BodyFile    string            `json:"body_file,omitempty"`
+	SaveTo      string            `json:"save_to,omitempty"` // `>> file` after the body, relative to the .http file
 	Variables   []VarInfo         `json:"variables"`
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
@@ -1222,6 +1325,12 @@ type Description struct {
 func (r *Runner) Describe(req *httpfile.Request) *Description {
 	d := &Description{Name: req.Name, ID: req.ID(), File: req.File.Path, Line: req.Line, Description: req.Description,
 		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true}
+	if req.SaveTo != nil {
+		d.SaveTo = req.SaveTo.Path
+		if req.SaveTo.Overwrite {
+			d.SaveTo += " (overwrite)"
+		}
+	}
 	if req.IsGraphQL() {
 		// What goes on the wire: a POST with the JSON envelope, the
 		// placeholders still to be filled in.
@@ -1421,12 +1530,24 @@ func flatHeaders(h http.Header) map[string]string {
 	return m
 }
 
-func jsonOrString(data []byte) any {
+// jsonOrString is the JSON view of a response body: the JSON itself when
+// it is JSON, the text when it is text, and base64 (with the encoding
+// named) when it is neither, so a binary body survives `--json` intact.
+func jsonOrString(data []byte) (any, string) {
 	t := bytes.TrimSpace(data)
 	if len(t) > 0 && json.Valid(t) {
-		return json.RawMessage(t)
+		return json.RawMessage(t), ""
 	}
-	return string(data)
+	if !utf8.Valid(data) {
+		return base64.StdEncoding.EncodeToString(data), "base64"
+	}
+	return string(data), ""
+}
+
+// IsBinary reports whether a response body is not text, so renderers show
+// its size and type instead of the bytes.
+func IsBinary(body []byte) bool {
+	return !utf8.Valid(body)
 }
 
 // readBodyFile reads a `< file` the request refers to (the whole body, or

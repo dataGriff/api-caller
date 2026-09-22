@@ -43,6 +43,7 @@ Accept: application/json
 | Body | everything after the blank line until the next `###` |
 | Body from file | `< ./payload.json` (raw) or `<@ ./payload.json` (with `{{vars}}` substituted), relative to the `.http` file |
 | Multipart body | `Content-Type: multipart/form-data; boundary=X` with the parts written between `--X` lines; a part whose content is `< ./file` sends that file's bytes. See [Multipart uploads](#multipart-uploads) |
+| Save the response | `>> ./out.json` after the body writes the response body there (fails if the file exists); `>>! ./out.json` overwrites. Relative to the `.http` file, inside the project. See [Saving a response](#saving-a-response) |
 | Editor script blocks | `> {% … %}`, `< {% … %}` and `> ./handler.js` are skipped with a warning, not sent — apic has no scripting. `apic validate` lists them |
 
 Files are found by walking the project root for `*.http` and `*.rest`,
@@ -137,6 +138,31 @@ X-Request-Id: {{login.response.headers.x-request-id}}
 ```
 
 `@capture` is the same idea with a short name that also persists between runs.
+
+## Saving a response
+
+A `>>` line after the body, as REST Client and JetBrains write it, saves
+the response body to a file:
+
+```
+### Export
+# @name export-csv
+GET {{baseUrl}}/reports/daily.csv
+
+>>! ./fixtures/daily.csv
+```
+
+`>> path` creates the file and fails (the request is not OK) when it
+already exists; `>>! path` overwrites. The path is relative to the
+`.http` file and must stay inside the project (`apic validate` reports
+`bad-save-path` otherwise); directories are created. The bytes are
+written as they came, so a binary download stays intact, and the file
+is created `0600` when a secret went into the request (a private
+variable, a capture, a credential), `0644` otherwise. The run's output
+says `↳ saved to fixtures/daily.csv`, `--json` carries `saved_to`, and
+a body that is not text is summarised (`binary body · 12 KB ·
+image/png`) rather than printed. `apic run --output <file>` does the
+same for one request without editing the file.
 
 ## GraphQL
 

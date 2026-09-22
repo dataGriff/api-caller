@@ -131,7 +131,7 @@ func (m *Model) renderResponse(width int) string {
 		b.WriteString(t.Dim.Render("H shows headers") + "\n")
 	}
 	if body := res.DisplayRawBody(); len(body) > 0 {
-		b.WriteString("\n" + output.RenderBody(t, body) + "\n")
+		b.WriteString("\n" + output.BodyOrSummary(t, res, body) + "\n")
 	}
 	if summary := output.Checks(t, res, width-4, false); summary != "" {
 		b.WriteString("\n" + summary)

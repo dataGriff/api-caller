@@ -354,3 +354,37 @@ func TestGraphQL(t *testing.T) {
 		t.Error("a plain POST is not GraphQL")
 	}
 }
+
+func TestSaveTo(t *testing.T) {
+	src := "### a\n# @name a\nGET http://x\n\n>> ./out/a.json\n\n### b\n# @name b\nPOST http://x\n\n{\"k\": 1}\n\n>>! ../b.bin\n\n### c\nGET http://x\n\n>>\n\n### d\nGET http://x\n\n>> one.txt\n>>! two.txt\n"
+	f, diags := Parse("s.http", src)
+	if len(f.Requests) != 4 {
+		t.Fatalf("%d requests", len(f.Requests))
+	}
+	a, b, c, d := f.Requests[0], f.Requests[1], f.Requests[2], f.Requests[3]
+	if a.SaveTo == nil || *a.SaveTo != (SaveTo{Path: "./out/a.json", Line: 5, Column: 4}) || a.Body != "" {
+		t.Errorf("a = %+v body %q", a.SaveTo, a.Body)
+	}
+	if b.SaveTo == nil || *b.SaveTo != (SaveTo{Path: "../b.bin", Overwrite: true, Line: 13, Column: 5}) || b.Body != `{"k": 1}` {
+		t.Errorf("b = %+v body %q", b.SaveTo, b.Body)
+	}
+	if c.SaveTo != nil || d.SaveTo == nil || d.SaveTo.Path != "one.txt" {
+		t.Errorf("c = %+v d = %+v", c.SaveTo, d.SaveTo)
+	}
+	var codes []string
+	for _, dg := range diags {
+		codes = append(codes, dg.Code)
+		if dg.Code == "bad-save-path" && dg.Line == 23 && (dg.Column != 5 || dg.EndColumn != 12) {
+			t.Errorf("second >> span: %+v", dg)
+		}
+	}
+	if strings.Join(codes, ",") != "bad-save-path,bad-save-path" {
+		t.Errorf("codes = %v (%+v)", codes, diags)
+	}
+	// Not an editor script any more: no warning for a redirect line.
+	for _, dg := range diags {
+		if dg.Code == "editor-script" {
+			t.Errorf("redirect reported as a script: %+v", dg)
+		}
+	}
+}

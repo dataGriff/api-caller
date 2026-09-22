@@ -26,12 +26,13 @@ Content-Type: application/json
 | From a file | `< ./payload.json` as it is, `<@ ./payload.json` with `{{vars}}` substituted |
 | Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
 | GraphQL | `GRAPHQL {{baseUrl}}/graphql` (or `X-REQUEST-TYPE: GraphQL`), the query as the body, variables as a JSON object after a blank line; sent as a JSON POST; see [format](format.md#graphql) |
+| Save the response | `>> ./out.json` (create) or `>>! ./out.json` (overwrite) after the body; `apic run --output file` for one run; see [format](format.md#saving-a-response) |
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `apic run <target>...` | Send requests; several targets run in order as a flow |
+| `apic run <target>...` | Send requests; several targets run in order as a flow; `--output file` saves one response body |
 | `apic ui` | [Terminal UI](tui.md); `--demo` needs no project |
 | `apic test [paths]` | Run [Gherkin features](testing.md) |
 | `apic list [pattern]` | Every request, filtered by id, URL, file or description |

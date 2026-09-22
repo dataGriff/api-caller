@@ -134,6 +134,9 @@ func Checks(t Theme, res *runner.Result, width int, expected bool) string {
 			}
 		}
 	}
+	if res.SavedTo != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Capture.Render("↳"), t.Dim.Render("saved to ")+res.SavedTo)
+	}
 	captures := res.DisplayCaptures()
 	names := make([]string, 0, len(captures))
 	for n := range captures {
@@ -168,12 +171,29 @@ func Result(t Theme, res *runner.Result, o Options) string {
 		b.WriteString(ResponseHeaders(t, res))
 	}
 	if body := res.DisplayRawBody(); len(body) > 0 {
-		b.WriteString("\n" + RenderBody(t, body) + "\n")
+		b.WriteString("\n" + BodyOrSummary(t, res, body) + "\n")
 	}
 	if checks := Checks(t, res, o.Width, false); checks != "" {
 		b.WriteString("\n" + checks)
 	}
 	return b.String()
+}
+
+// BodyOrSummary renders a body, or for one that is not text, a line with
+// its size and content type instead of the bytes.
+func BodyOrSummary(t Theme, res *runner.Result, body []byte) string {
+	if !runner.IsBinary(body) {
+		return RenderBody(t, body)
+	}
+	ct := "unknown content type"
+	if res.Response != nil {
+		for k, v := range res.Response.Headers {
+			if strings.EqualFold(k, "content-type") {
+				ct = v
+			}
+		}
+	}
+	return t.Dim.Render(fmt.Sprintf("(binary body · %s · %s; save it with >> file or --output)", Size(len(body)), ct))
 }
 
 // SummaryTable renders one row per request followed by the totals line, for
@@ -277,6 +297,10 @@ func Describe(t Theme, d *runner.Description, headers []httpfile.Header) string 
 	if d.BodyFile != "" {
 		b.WriteString(Section(t, "body file"))
 		b.WriteString("  " + d.BodyFile + "\n")
+	}
+	if d.SaveTo != "" {
+		b.WriteString(Section(t, "saves the response to"))
+		b.WriteString("  " + d.SaveTo + "\n")
 	}
 	if d.TLS != nil {
 		b.WriteString(Section(t, "tls"))
