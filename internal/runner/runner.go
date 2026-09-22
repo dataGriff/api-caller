@@ -106,6 +106,9 @@ type Runner struct {
 	OnResult func(*Result, error)
 
 	sleep    func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	// Now is the clock the time built-ins read; nil means time.Now.
+	// Tests set it to pin `$timestamp` and friends.
+	Now func() time.Time
 	proxy    *proxySettings                                   // --proxy or apic.yaml's proxy; nil means the environment
 	digest   *auth.DigestState                                // Digest challenges seen this invocation, per server
 	results  map[string]*Result

@@ -107,12 +107,24 @@ a variable: it configures a client certificate, see
 | Placeholder | Value |
 |---|---|
 | `{{$uuid}}` / `{{$guid}}` | random UUID v4 |
-| `{{$timestamp}}` | Unix seconds |
+| `{{$timestamp}}` / `{{$timestamp -1 d}}` | Unix seconds, with an optional offset |
 | `{{$isoTimestamp}}` | RFC 3339 UTC |
-| `{{$datetime rfc1123}}` / `{{$datetime iso8601}}` / `{{$datetime "2006-01-02"}}` | formatted time (Go layout for custom formats) |
+| `{{$datetime rfc1123}}` / `{{$datetime iso8601}}` / `{{$datetime "2006-01-02"}}` / `{{$datetime iso8601 1 h}}` | formatted UTC time (Go layout for custom formats), with an optional offset |
+| `{{$localDatetime}}` / `{{$localDatetime rfc1123 -1 d}}` | the same in the machine's own zone; the format is optional |
 | `{{$randomInt 1 100}}` | random integer in [min, max) |
+| `{{$random.integer(1, 100)}}` / `{{$random.float(0, 1)}}` | JetBrains' random numbers: an integer in [min, max), a float with three decimals; `(0, 1000)` without arguments |
+| `{{$random.alphabetic(10)}}` / `{{$random.alphanumeric(10)}}` / `{{$random.hexadecimal(10)}}` | random text of that length (10 without arguments) |
+| `{{$random.email}}` / `{{$random.uuid}}` | `<8 letters>@example.com`, a UUID v4 |
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
+| `{{$projectRoot}}` | the project root, absolute, for `< {{$projectRoot}}/fixtures/x.json` |
+
+An offset is `<n> <unit>`, as REST Client writes it: `-1 d`, `2 h`,
+`30 m`, `-10 s`, `500 ms`, `1 w`, `1 M` (months), `1 Q` (quarters),
+`1 y`. Months, quarters and years move by the calendar, so the 31st plus
+a month rolls forward the way Go's `AddDate` does. The random values are
+sample data for payloads, not credentials; `$exampleServer` is a JetBrains
+concept apic does not add.
 
 ### Response references
 

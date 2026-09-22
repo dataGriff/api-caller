@@ -101,12 +101,15 @@ First match wins:
 | Placeholder | Value |
 |---|---|
 | `{{$uuid}}` / `{{$guid}}` | random UUID v4 |
-| `{{$timestamp}}` | Unix seconds |
+| `{{$timestamp}}` / `{{$timestamp -1 d}}` | Unix seconds, optional offset (`s m h d w M Q y ms`) |
 | `{{$isoTimestamp}}` | RFC 3339 UTC |
-| `{{$datetime rfc1123\|iso8601\|"2006-01-02"}}` | formatted time |
-| `{{$randomInt 1 100}}` | random integer in [min, max) |
+| `{{$datetime rfc1123\|iso8601\|"2006-01-02" [1 h]}}` | formatted UTC time, optional offset |
+| `{{$localDatetime [format] [offset]}}` | the same in the local zone |
+| `{{$randomInt 1 100}}` / `{{$random.integer(1, 100)}}` | random integer in [min, max) |
+| `{{$random.float(0, 1)}}`, `$random.alphabetic(n)`, `alphanumeric(n)`, `hexadecimal(n)`, `email`, `uuid` | JetBrains' random family |
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
+| `{{$projectRoot}}` | absolute project root |
 | `{{login.response.body.$.token}}` | an earlier response in the same flow |
 
 ## Selectors
