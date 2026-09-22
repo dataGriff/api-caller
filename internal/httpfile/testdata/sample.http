@@ -56,3 +56,20 @@ Content-Type: application/pdf
 
 < ./report.pdf
 --WebAppBoundary--
+
+### Todos by state, the JetBrains way
+# @name todos-by-state
+GRAPHQL {{baseUrl}}/graphql
+
+query Todos($done: Boolean) {
+  todos(done: $done) { id title }
+}
+
+{"done": {{done}}}
+
+### The same, the REST Client way
+# @name todos-rest-client
+POST {{baseUrl}}/graphql
+X-REQUEST-TYPE: GraphQL
+
+{ todos { id } }

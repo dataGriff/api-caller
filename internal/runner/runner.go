@@ -505,7 +505,11 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res.TLS = r.tlsInfoForURL(res.URL)
 	res.Proxy = r.ProxyInfo(res.URL)
 	res.SecretHeaders = map[string]bool{}
+	graphql := req.IsGraphQL()
 	for _, h := range req.Headers {
+		if graphql && strings.EqualFold(h.Name, httpfile.GraphQLHeader) {
+			continue // an editor marker, never sent
+		}
 		v, err := render(h.Value)
 		if err != nil {
 			return nil, usagef("%s:%d: header %s: %v", req.File.Path, req.Line, h.Name, err)
@@ -518,16 +522,28 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		}
 	}
 	body := req.Body
+	templated := true
 	if req.BodyFile != "" {
 		data, err := r.readBodyFile(req, req.BodyFile, "body file")
 		if err != nil {
 			return nil, err
 		}
-		body = string(data)
-		if !req.BodyFileTemplated {
-			res.Body = body
-			body = ""
+		body, templated = string(data), req.BodyFileTemplated
+	}
+	if graphql {
+		// The query and the variables become the JSON envelope a GraphQL
+		// server reads, sent as a POST whatever the request line said.
+		if res.Body, err = r.graphqlBody(req, body, templated, render); err != nil {
+			return nil, err
 		}
+		res.Method = "POST"
+		if _, has := req.Header("Content-Type"); !has {
+			res.Headers = append(res.Headers, httpfile.Header{Name: "Content-Type", Value: "application/json"})
+		}
+		body = ""
+	} else if req.BodyFile != "" && !templated {
+		res.Body = body
+		body = ""
 	}
 	if m, err := req.Multipart(); err != nil {
 		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
@@ -554,6 +570,30 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	res.missing = dedupe(missing)
 	return res, nil
+}
+
+// graphqlBody builds the `{"query", "variables"}` body of a GraphQL
+// request from the text of its body (inline or from a file), rendering
+// the placeholders in both halves when templated.
+func (r *Runner) graphqlBody(req *httpfile.Request, body string, templated bool, render func(string) (string, error)) (string, error) {
+	query, variables := httpfile.SplitGraphQL(body)
+	if query == "" {
+		return "", usagef("%s:%d: a GraphQL request needs a query in its body", req.File.Path, req.Line)
+	}
+	if templated {
+		var err error
+		if query, err = render(query); err != nil {
+			return "", usagef("%s:%d: body: %v", req.File.Path, req.Line, err)
+		}
+		if variables, err = render(variables); err != nil {
+			return "", usagef("%s:%d: variables: %v", req.File.Path, req.Line, err)
+		}
+	}
+	out, err := httpfile.GraphQLEnvelope(query, variables)
+	if err != nil {
+		return "", usagef("%s:%d: %v", req.File.Path, req.Line, err)
+	}
+	return out, nil
 }
 
 // authSpec returns the parsed auth spec for a request: its own `# @auth`
@@ -1179,6 +1219,25 @@ type Description struct {
 func (r *Runner) Describe(req *httpfile.Request) *Description {
 	d := &Description{Name: req.Name, ID: req.ID(), File: req.File.Path, Line: req.Line, Description: req.Description,
 		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true}
+	if req.IsGraphQL() {
+		// What goes on the wire: a POST with the JSON envelope, the
+		// placeholders still to be filled in.
+		d.Method = "POST"
+		delete(d.Headers, httpfile.GraphQLHeader)
+		if _, has := req.Header("Content-Type"); !has {
+			d.Headers["Content-Type"] = "application/json"
+		}
+		if req.BodyFile == "" {
+			if q, v, err := req.GraphQL(); err == nil {
+				quoted, _ := json.Marshal(q)
+				d.Body = `{"query": ` + string(quoted)
+				if v != "" {
+					d.Body += `, "variables": ` + v
+				}
+				d.Body += "}"
+			}
+		}
+	}
 	seen := map[string]bool{}
 	var texts []string
 	texts = append(texts, req.URL)

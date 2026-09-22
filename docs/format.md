@@ -35,6 +35,7 @@ Accept: application/json
 | Request separator | `###` optionally followed by a title, used as the description |
 | File variable | `@name = value` anywhere outside a body; last declaration wins; values may use `{{vars}}` |
 | Comment | `# text` or `// text` |
+| GraphQL request | `GRAPHQL {{baseUrl}}/graphql` (or a `X-REQUEST-TYPE: GraphQL` header): the body is the query, a JSON object after a blank line is the variables; see [GraphQL](#graphql) |
 | Directive | `# @key value` before the request line |
 | Request line | `METHOD url [HTTP/1.1]`; a bare URL means `GET` |
 | Query continuation | indented lines starting with `?` or `&` are appended to the URL |
@@ -124,6 +125,38 @@ X-Request-Id: {{login.response.headers.x-request-id}}
 ```
 
 `@capture` is the same idea with a short name that also persists between runs.
+
+## GraphQL
+
+Both editors have a GraphQL shape, and apic runs both. JetBrains writes
+the method as `GRAPHQL`; REST Client marks a `POST` with an
+`X-REQUEST-TYPE: GraphQL` header. Either way the body is the query, and
+a JSON object after a blank line is the variables:
+
+```
+### Todos by state
+# @name todos-by-state
+# @assert body.$.data.todos.# >= 1
+GRAPHQL {{baseUrl}}/graphql
+Authorization: Bearer {{token}}
+
+query Todos($done: Boolean) {
+  todos(done: $done) { id title }
+}
+
+{"done": {{done}}}
+```
+
+apic sends it as a `POST` with `Content-Type: application/json` (unless
+the request sets its own) and the body `{"query": "...", "variables":
+{...}}`, which is what a GraphQL server reads. Placeholders resolve in
+both halves, the `X-REQUEST-TYPE` header never goes on the wire, and the
+variables are optional. `apic list` shows the method as written;
+`describe`, `curl` and `--json` show the POST and the JSON body actually
+sent. Selectors are the plain ones: `body.$.data.todos.#`. A query can
+come from a file too (`<@ ./todos.graphql`); a request without a query,
+or whose variables are not a JSON object, is a `bad-graphql` error in
+`apic validate`.
 
 ## Selectors
 

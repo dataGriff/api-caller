@@ -463,6 +463,7 @@ Codes:
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
+| `bad-graphql` | A GraphQL request (`GRAPHQL` method or `X-REQUEST-TYPE: GraphQL`) without a query, or whose variables block is not a JSON object. |
 
 In a GitHub Actions workflow:
 

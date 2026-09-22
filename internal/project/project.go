@@ -382,6 +382,15 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
 		}
+		if r.IsGraphQL() {
+			if _, _, err := r.GraphQL(); err != nil {
+				line := r.BodyLine
+				if line == 0 {
+					line = r.Line
+				}
+				diags = append(diags, diag(r.File.Path, "error", "bad-graphql", line, 0, 0, err.Error()))
+			}
+		}
 		for _, ref := range r.BodyFiles() {
 			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), ref.Path)); errors.Is(err, fs.ErrNotExist) {
 				line := ref.Line

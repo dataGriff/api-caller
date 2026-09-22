@@ -13,8 +13,8 @@ func TestParseSample(t *testing.T) {
 	if len(f.Vars) != 2 || f.Vars[0].Name != "baseUrl" || f.Vars[0].Value != "https://api.example.com" {
 		t.Fatalf("vars = %+v", f.Vars)
 	}
-	if len(f.Requests) != 6 {
-		t.Fatalf("want 6 requests, got %d", len(f.Requests))
+	if len(f.Requests) != 8 {
+		t.Fatalf("want 8 requests, got %d", len(f.Requests))
 	}
 
 	login := f.Requests[0]
@@ -71,6 +71,21 @@ func TestParseSample(t *testing.T) {
 	}
 	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
 		t.Errorf("retry directive = %q, %v", v, ok)
+	}
+
+	gql := f.Requests[6]
+	if gql.Method != "GRAPHQL" || !gql.IsGraphQL() || gql.Name != "todos-by-state" {
+		t.Errorf("graphql = %+v", gql)
+	}
+	if q, v, err := gql.GraphQL(); err != nil || q != "query Todos($done: Boolean) {\n  todos(done: $done) { id title }\n}" || v != `{"done": {{done}}}` {
+		t.Errorf("graphql split = %q %q %v", q, v, err)
+	}
+	rc := f.Requests[7]
+	if rc.Method != "POST" || !rc.IsGraphQL() {
+		t.Errorf("rest client graphql = %+v", rc)
+	}
+	if q, v, err := rc.GraphQL(); err != nil || q != "{ todos { id } }" || v != "" {
+		t.Errorf("rest client split = %q %q %v", q, v, err)
 	}
 
 	var warnings, errors int
@@ -300,5 +315,42 @@ func TestPreRequestScriptIsNotABodyFile(t *testing.T) {
 	}
 	if got := f2.Requests[0].BodyFile; got != "./body.json" {
 		t.Errorf("BodyFile = %q, want ./body.json", got)
+	}
+}
+
+func TestGraphQL(t *testing.T) {
+	// The variables are the object after the last blank line; a blank line
+	// inside the query is not a split point unless an object follows it.
+	q, v := SplitGraphQL("query {\n  a\n}\n\n{\"x\": 1}")
+	if q != "query {\n  a\n}" || v != `{"x": 1}` {
+		t.Fatalf("%q %q", q, v)
+	}
+	q, v = SplitGraphQL("query {\n  a\n}\n\nfragment F on T { b }")
+	if q != "query {\n  a\n}\n\nfragment F on T { b }" || v != "" {
+		t.Fatalf("%q %q", q, v)
+	}
+	env, err := GraphQLEnvelope("{ a }", `{"x": 1}`)
+	if err != nil || env != `{"query":"{ a }","variables":{"x":1}}` {
+		t.Fatalf("%q %v", env, err)
+	}
+	if env, err := GraphQLEnvelope("{ a }", ""); err != nil || env != `{"query":"{ a }"}` {
+		t.Fatalf("%q %v", env, err)
+	}
+	if _, err := GraphQLEnvelope("{ a }", `[1]`); err == nil {
+		t.Fatal("an array is not a variables object")
+	}
+	for _, bad := range []string{"GRAPHQL http://x\n", "GRAPHQL http://x\n\n{ a }\n\n{nope}\n"} {
+		f, _ := Parse("g.http", bad)
+		if _, _, err := f.Requests[0].GraphQL(); err == nil {
+			t.Errorf("%q should not be a valid GraphQL request", bad)
+		}
+	}
+	f, _ := Parse("g.http", "POST http://x\nx-request-type: graphql\n\n{ a }\n")
+	if !f.Requests[0].IsGraphQL() {
+		t.Error("the header is case-insensitive")
+	}
+	f, _ = Parse("g.http", "POST http://x\n\n{ a }\n")
+	if f.Requests[0].IsGraphQL() {
+		t.Error("a plain POST is not GraphQL")
 	}
 }

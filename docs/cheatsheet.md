@@ -25,6 +25,7 @@ Content-Type: application/json
 | Inline | Everything after the blank line, `{{vars}}` substituted |
 | From a file | `< ./payload.json` as it is, `<@ ./payload.json` with `{{vars}}` substituted |
 | Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
+| GraphQL | `GRAPHQL {{baseUrl}}/graphql` (or `X-REQUEST-TYPE: GraphQL`), the query as the body, variables as a JSON object after a blank line; sent as a JSON POST; see [format](format.md#graphql) |
 
 ## Commands
 
