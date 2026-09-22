@@ -213,8 +213,8 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 	rootReal := realPath(p.Root)
 	// underRoot reports whether path (existing or not) lies in the project.
 	underRoot := func(path string) bool {
-		rel, err := filepath.Rel(rootReal, realPath(path))
-		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+		_, ok := project.Within(rootReal, realPath(path))
+		return ok
 	}
 	// isInput recognises project inputs by name only inside the project;
 	// files elsewhere are matched by identity below.

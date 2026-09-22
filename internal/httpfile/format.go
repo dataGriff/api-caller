@@ -216,12 +216,41 @@ func formatBlock(title string, lines []string, implicit bool) []string {
 	if len(body) == 0 {
 		return trimTrailingBlank(out)
 	}
-	out = append(out, "")
-	joined := strings.Join(body, "\n")
-	if pretty, ok := prettyJSON(joined, headers); ok {
-		return append(out, strings.Split(pretty, "\n")...)
+	// `>> file` lines at the end say where the response goes; they are
+	// not body text, so the JSON before them is still pretty-printed and
+	// they follow it after one blank line.
+	var saves []string
+	for len(body) > 0 {
+		t := strings.TrimSpace(body[len(body)-1])
+		if t == "" {
+			body = body[:len(body)-1]
+			continue
+		}
+		if !isSaveLine(t) {
+			break
+		}
+		saves = append([]string{t}, saves...)
+		body = body[:len(body)-1]
 	}
-	return append(out, body...)
+	if len(body) > 0 {
+		out = append(out, "")
+		joined := strings.Join(body, "\n")
+		if pretty, ok := prettyJSON(joined, headers); ok {
+			out = append(out, strings.Split(pretty, "\n")...)
+		} else {
+			out = append(out, body...)
+		}
+	}
+	if len(saves) > 0 {
+		out = append(out, "")
+		out = append(out, saves...)
+	}
+	return out
+}
+
+// isSaveLine reports a `>> file` or `>>! file` line, as the parser reads it.
+func isSaveLine(t string) bool {
+	return t == ">>" || t == ">>!" || strings.HasPrefix(t, ">> ") || strings.HasPrefix(t, ">>! ")
 }
 
 // prettyJSON re-indents a body that is one JSON document without

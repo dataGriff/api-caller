@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
 	"regexp"
@@ -150,10 +151,7 @@ func (r *Runner) builtin(expr string) (string, bool, bool, error) {
 	case "$isoTimestamp":
 		return now.UTC().Format(time.RFC3339), true, false, nil
 	case "$datetime", "$localDatetime":
-		layout, offset, err := datetimeArgs(name, strings.TrimSpace(strings.TrimPrefix(expr, name)))
-		if err != nil {
-			return "", false, false, err
-		}
+		layout, offset := datetimeArgs(strings.TrimSpace(strings.TrimPrefix(expr, name)))
 		t, err := offsetTime(name, now, offset)
 		if err != nil {
 			return "", false, false, err
@@ -253,17 +251,17 @@ func offsetTime(name string, t time.Time, args []string) (time.Time, error) {
 	return t, fmt.Errorf("%s: unknown offset unit %q; use one of %s", name, args[1], offsetUnits)
 }
 
-var reDatetimeArgs = regexp.MustCompile(`^(?:("[^"]*"|'[^']*'|\S+)(?:\s+|$))?(?:(-?\d+)\s+(\S+))?$`)
-
 // datetimeArgs reads what follows `$datetime` or `$localDatetime`: an
-// optional format (`rfc1123`, `iso8601` or a quoted Go layout) and an
-// optional offset. No format means RFC 3339.
-func datetimeArgs(name, rest string) (layout string, offset []string, err error) {
-	m := reDatetimeArgs.FindStringSubmatch(rest)
-	if m == nil {
-		return "", nil, fmt.Errorf("%s: expected `[format] [<n> <unit>]`, got %q", name, rest)
+// optional format (`rfc1123`, `iso8601` or a Go layout, quoted or not,
+// spaces included) and an optional trailing `<n> <unit>` offset. No format
+// means RFC 3339.
+func datetimeArgs(rest string) (layout string, offset []string) {
+	fields := strings.Fields(rest)
+	if n := len(fields); n >= 2 && isOffsetUnit(fields[n-1]) {
+		offset = fields[n-2:] // offsetTime checks the number
+		fields = fields[:n-2]
 	}
-	switch f := strings.Trim(m[1], `"'`); f {
+	switch f := strings.Trim(strings.Join(fields, " "), `"'`); f {
 	case "", "iso8601":
 		layout = time.RFC3339
 	case "rfc1123":
@@ -271,10 +269,15 @@ func datetimeArgs(name, rest string) (layout string, offset []string, err error)
 	default:
 		layout = f
 	}
-	if m[2] != "" {
-		offset = []string{m[2], m[3]}
+	return layout, offset
+}
+
+func isOffsetUnit(s string) bool {
+	switch s {
+	case "ms", "s", "m", "h", "d", "w", "M", "Q", "y":
+		return true
 	}
-	return layout, offset, nil
+	return false
 }
 
 var reRandom = regexp.MustCompile(`^\$random\.([a-z]+)(?:\((.*)\))?$`)
@@ -313,21 +316,36 @@ func randomBuiltin(expr string) (string, error) {
 	}
 	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	switch kind {
-	case "integer", "float":
+	case "integer":
+		lo, hi := int64(0), int64(1000)
+		if len(args) != 0 {
+			var err1, err2 error
+			if len(args) != 2 {
+				return "", fmt.Errorf("$random.integer takes (min, max), got (%s)", m[2])
+			}
+			lo, err1 = strconv.ParseInt(args[0], 10, 64)
+			hi, err2 = strconv.ParseInt(args[1], 10, 64)
+			if err1 != nil || err2 != nil || hi <= lo {
+				return "", fmt.Errorf("$random.integer needs two integers with max greater than min, got (%s)", m[2])
+			}
+		}
+		span := hi - lo
+		if span <= 0 { // overflowed
+			return "", fmt.Errorf("$random.integer: the range (%s) is too wide", m[2])
+		}
+		return strconv.FormatInt(lo+rand.Int64N(span), 10), nil //nolint:gosec // sample data, not a secret
+	case "float":
 		lo, hi := 0.0, 1000.0
 		if len(args) != 0 {
 			var err1, err2 error
 			if len(args) != 2 {
-				return "", fmt.Errorf("$random.%s takes (min, max), got (%s)", kind, m[2])
+				return "", fmt.Errorf("$random.float takes (min, max), got (%s)", m[2])
 			}
 			lo, err1 = strconv.ParseFloat(args[0], 64)
 			hi, err2 = strconv.ParseFloat(args[1], 64)
-			if err1 != nil || err2 != nil || hi <= lo {
-				return "", fmt.Errorf("$random.%s needs two numbers with max greater than min, got (%s)", kind, m[2])
+			if err1 != nil || err2 != nil || math.IsNaN(lo) || math.IsNaN(hi) || math.IsInf(lo, 0) || math.IsInf(hi, 0) || hi <= lo {
+				return "", fmt.Errorf("$random.float needs two finite numbers with max greater than min, got (%s)", m[2])
 			}
-		}
-		if kind == "integer" {
-			return strconv.Itoa(int(lo) + rand.IntN(int(hi)-int(lo))), nil //nolint:gosec // sample data, not a secret
 		}
 		return strconv.FormatFloat(lo+rand.Float64()*(hi-lo), 'f', 3, 64), nil //nolint:gosec // sample data, not a secret
 	case "alphabetic":

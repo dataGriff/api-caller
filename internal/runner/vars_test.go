@@ -53,6 +53,9 @@ func TestBuiltins(t *testing.T) {
 		"$localDatetime rfc1123":            "Tue, 31 Mar 2026 10:30:00 test",
 		`$localDatetime "15:04" 2 h`:        "12:30",
 		"$projectRoot":                      p.Root,
+		// An unquoted layout with spaces, as files on main wrote it.
+		"$datetime 2006-01-02 15:04":     "2026-03-31 08:30",
+		"$datetime 2006-01-02 15:04 1 h": "2026-03-31 09:30",
 	}
 	for expr, want := range exact {
 		got, ok, _, err := r.builtin(expr)
@@ -82,16 +85,20 @@ func TestBuiltins(t *testing.T) {
 		}
 	}
 	bad := map[string]string{
-		"$timestamp -1":          "offset",
-		"$timestamp 1 fortnight": "unknown offset unit",
-		"$timestamp x d":         "not an integer",
-		"$datetime rfc1123 1":    "expected",
-		"$random.integer(3, 1)":  "max greater than min",
-		"$random.integer(1)":     "takes (min, max)",
-		"$random.alphabetic(x)":  "one length",
-		"$random.email(1)":       "no arguments",
-		"$random.nope":           "unknown built-in $random.nope",
-		"$nope":                  "unknown built-in $nope",
+		"$timestamp -1":           "offset",
+		"$timestamp 1 fortnight":  "unknown offset unit",
+		"$timestamp x d":          "not an integer",
+		"$datetime rfc1123 x d":   "not an integer",
+		"$random.integer(3, 1)":   "max greater than min",
+		"$random.integer(1)":      "takes (min, max)",
+		"$random.integer(0, 0.5)": "two integers",
+		"$random.integer(-9223372036854775808, 9223372036854775807)": "too wide",
+		"$random.float(0, inf)":   "finite",
+		"$random.float(1.8, 1.2)": "max greater than min",
+		"$random.alphabetic(x)":   "one length",
+		"$random.email(1)":        "no arguments",
+		"$random.nope":            "unknown built-in $random.nope",
+		"$nope":                   "unknown built-in $nope",
 	}
 	for expr, want := range bad {
 		_, _, _, err := r.builtin(expr)

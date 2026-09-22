@@ -264,6 +264,18 @@ func diag(path, severity, code string, line, col, end int, msg string) httpfile.
 }
 
 // Validate returns parse diagnostics plus project-level checks.
+// Within reports whether path (existing or not) lies under root, lexically:
+// both are cleaned and the relative path must not start with `..`. It
+// returns that relative path. Callers that must see through symlinks
+// resolve both sides first.
+func Within(root, path string) (string, bool) {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
+}
+
 func (p *Project) Validate() []httpfile.Diagnostic {
 	diags := append([]httpfile.Diagnostic(nil), p.Diagnostics...)
 	for name, rs := range p.byName {
@@ -383,13 +395,11 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
 		}
 		if sv := r.SaveTo; sv != nil {
-			target := filepath.Clean(filepath.Join(filepath.Dir(r.File.Path), sv.Path))
-			if filepath.IsAbs(sv.Path) {
-				if rel, err := filepath.Rel(p.Root, sv.Path); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-					target = ".."
-				}
+			target := sv.Path
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(p.Root, filepath.Dir(r.File.Path), target)
 			}
-			if target == ".." || strings.HasPrefix(target, ".."+string(filepath.Separator)) {
+			if _, ok := Within(p.Root, target); !ok {
 				diags = append(diags, diag(r.File.Path, "error", "bad-save-path", sv.Line, sv.Column, sv.Column+len(sv.Path),
 					fmt.Sprintf(">> %s resolves outside the project root; the response body is only written inside it", sv.Path)))
 			}

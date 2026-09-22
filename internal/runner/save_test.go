@@ -56,6 +56,15 @@ X-Api-Key: {{apiKey}}
 
 >>! ../out/data.json
 
+### A secret in the body only
+# @name bodysecret
+POST ` + srv.URL + `/data
+Content-Type: application/json
+
+{"key": "{{apiKey}}"}
+
+>>! ../out/body.json
+
 ### Escapes the project
 # @name escape
 GET ` + srv.URL + `/data
@@ -108,9 +117,15 @@ GET ` + srv.URL + `/data
 	if err := json.Unmarshal(out, &obj); err != nil || obj.Response.BodyEncoding != "base64" || obj.Response.Body != base64.StdEncoding.EncodeToString(pngish) || obj.SavedTo != "out/logo.png" {
 		t.Fatalf("json: %v %s", err, out)
 	}
-	if !IsBinary(res.DisplayRawBody()) {
+	if res.Response.BodyEncoding != Base64 {
 		t.Fatal("a PNG is binary")
 	}
+	// Under --redact the body is the mask, which is text, so no encoding.
+	res.Redact = true
+	if d := res.DisplayResponse(); d.Body != Masked || d.BodyEncoding != "" {
+		t.Fatalf("redacted: %v %q", d.Body, d.BodyEncoding)
+	}
+	res.Redact = false
 	if runtime.GOOS != "windows" {
 		if st, _ := os.Stat(filepath.Join(dir, "out", "logo.png")); st.Mode().Perm() != 0o644 {
 			t.Errorf("no secret went in: mode %o", st.Mode().Perm())
@@ -138,6 +153,16 @@ GET ` + srv.URL + `/data
 			t.Errorf("a secret went in: mode %o", st.Mode().Perm())
 		}
 	}
+	// A secret placeholder in the body tightens the file too.
+	res, err = run("bodysecret")
+	if err != nil || !res.OK || res.SavedTo != "out/body.json" {
+		t.Fatalf("bodysecret: %v %+v", err, res)
+	}
+	if runtime.GOOS != "windows" {
+		if st, _ := os.Stat(filepath.Join(dir, "out", "body.json")); st.Mode().Perm() != 0o600 {
+			t.Errorf("a secret went into the body: mode %o", st.Mode().Perm())
+		}
+	}
 	// A path outside the project is refused before anything is written.
 	res, err = run("escape")
 	if err != nil || res.OK || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "outside project root") {
@@ -146,7 +171,7 @@ GET ` + srv.URL + `/data
 	if _, err := os.Stat(filepath.Join(dir, "..", "escape.json")); err == nil {
 		t.Fatal("escaped the project")
 	}
-	if diags := p.Validate(); len(diags) != 1 || diags[0].Code != "bad-save-path" || diags[0].Line != 25 || diags[0].Column != 4 {
+	if diags := p.Validate(); len(diags) != 1 || diags[0].Code != "bad-save-path" || diags[0].Line != 34 || diags[0].Column != 4 {
 		t.Fatalf("validate: %+v", diags)
 	}
 	d := r.Describe(p.Requests()[2])
@@ -154,15 +179,21 @@ GET ` + srv.URL + `/data
 		t.Fatalf("describe: %q", d.SaveTo)
 	}
 
-	// --output: a path from the working directory, overwriting.
+	// --output: a path from the working directory, overwriting, and in
+	// place of the request's own `>>` line, so "again" (whose target
+	// exists) succeeds and writes only there.
 	target := filepath.Join(t.TempDir(), "deep", "logo.png")
 	r.Opts.Output = target
-	res, err = run("secret")
-	if err != nil || !res.OK || res.SavedTo != target {
+	before, _ := os.Stat(filepath.Join(dir, "out", "logo.png"))
+	res, err = run("again")
+	if err != nil || !res.OK || res.SavedTo != target || len(res.Errors) != 0 {
 		t.Fatalf("--output: %v %+v", err, res)
 	}
-	if got, _ := os.ReadFile(target); string(got) != `{"ok": true}` {
-		t.Fatalf("--output wrote %q", got)
+	if got, _ := os.ReadFile(target); !bytes.Equal(got, pngish) {
+		t.Fatalf("--output wrote %d bytes", len(got))
+	}
+	if after, _ := os.Stat(filepath.Join(dir, "out", "logo.png")); after.ModTime() != before.ModTime() {
+		t.Fatal("the request's own >> target was touched")
 	}
 }
 

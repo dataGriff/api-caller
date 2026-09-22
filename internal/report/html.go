@@ -118,7 +118,7 @@ func view(res *runner.Result) requestView {
 		v.Status, v.StatusText, v.Duration, v.Size, v.Timings = r.Status, r.StatusText, time.Duration(r.DurationMs)*time.Millisecond, r.Size, r.Timings
 		v.ResponseHeaders = sortedKV(r.Headers)
 		v.ResponseBody = string(res.DisplayRawBody())
-		if runner.IsBinary(res.DisplayRawBody()) {
+		if r.BodyEncoding == runner.Base64 {
 			v.ResponseBody = fmt.Sprintf("(binary body, %d bytes)", r.Size)
 		}
 	}

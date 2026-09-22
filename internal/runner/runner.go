@@ -330,15 +330,18 @@ func headerMap(hs []httpfile.Header) map[string]string {
 	return m
 }
 
+// Base64 is Response.BodyEncoding for a body that is not text.
+const Base64 = "base64"
+
 // Response is the JSON-friendly view of a response.
 type Response struct {
 	Status     int               `json:"status"`
 	StatusText string            `json:"status_text"`
 	Headers    map[string]string `json:"headers"`
 	Body       any               `json:"body"` // parsed JSON when the body is JSON, else a string
-	// BodyEncoding is "base64" when the body is not text (not valid
-	// UTF-8), in which case Body is the base64 of the bytes; empty
-	// otherwise.
+	// BodyEncoding is Base64 when the body is not text (not valid UTF-8),
+	// in which case Body is the base64 of the bytes; empty otherwise.
+	// Renderers read it to show a size instead of the bytes.
 	BodyEncoding string `json:"body_encoding,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
 	Size         int    `json:"size"`
@@ -559,6 +562,9 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 			return nil, err
 		}
 		body, templated = string(data), req.BodyFileTemplated
+	}
+	if templated && usesSecret(body) {
+		res.secret = true // a password in a login body, a token in a multipart part
 	}
 	if graphql {
 		// The query and the variables become the JSON envelope a GraphQL
@@ -867,7 +873,7 @@ func (r *Runner) saveBody(req *httpfile.Request, path string, overwrite, fromCwd
 	// reached through a symlink while target is the real path.
 	result.SavedTo = target
 	for _, root := range []string{r.Project.Root, realPrefix(r.Project.Root)} {
-		if rel, err := filepath.Rel(root, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		if rel, ok := project.Within(root, target); ok {
 			result.SavedTo = filepath.ToSlash(rel)
 			break
 		}
@@ -1026,8 +1032,11 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 		}
 	}
 
-	// The attempt that counts is the one whose body is saved.
-	if req.SaveTo != nil && result.raw != nil {
+	// The attempt that counts is the one whose body is saved. --output
+	// replaces the request's own `>>` line for the request it was given
+	// (the top of the chain), as `>>!` would.
+	replaced := r.Opts.Output != "" && len(chain) == 0
+	if req.SaveTo != nil && result.raw != nil && !replaced {
 		if err := r.saveBody(req, req.SaveTo.Path, req.SaveTo.Overwrite, false, resolved, result); err != nil {
 			result.Errors = append(result.Errors, err.Error())
 			result.OK = false
@@ -1340,7 +1349,11 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 		// What goes on the wire: a POST with the JSON envelope, the
 		// placeholders still to be filled in.
 		d.Method = "POST"
-		delete(d.Headers, httpfile.GraphQLHeader)
+		for k := range d.Headers {
+			if strings.EqualFold(k, httpfile.GraphQLHeader) {
+				delete(d.Headers, k)
+			}
+		}
 		if _, has := req.Header("Content-Type"); !has {
 			d.Headers["Content-Type"] = "application/json"
 		}
@@ -1544,15 +1557,9 @@ func jsonOrString(data []byte) (any, string) {
 		return json.RawMessage(t), ""
 	}
 	if !utf8.Valid(data) {
-		return base64.StdEncoding.EncodeToString(data), "base64"
+		return base64.StdEncoding.EncodeToString(data), Base64
 	}
 	return string(data), ""
-}
-
-// IsBinary reports whether a response body is not text, so renderers show
-// its size and type instead of the bytes.
-func IsBinary(body []byte) bool {
-	return !utf8.Valid(body)
 }
 
 // readBodyFile reads a `< file` the request refers to (the whole body, or
@@ -1673,8 +1680,7 @@ func confine(root, dir, rel string) (string, error) {
 		}
 		real = realPrefix(abs)
 	}
-	inside, err := filepath.Rel(rootReal, real)
-	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
+	if _, ok := project.Within(rootReal, real); !ok {
 		return "", errOutsideRoot
 	}
 	return real, nil

@@ -182,15 +182,13 @@ func Result(t Theme, res *runner.Result, o Options) string {
 // BodyOrSummary renders a body, or for one that is not text, a line with
 // its size and content type instead of the bytes.
 func BodyOrSummary(t Theme, res *runner.Result, body []byte) string {
-	if !runner.IsBinary(body) {
+	if res.Response == nil || res.Response.BodyEncoding != runner.Base64 {
 		return RenderBody(t, body)
 	}
 	ct := "unknown content type"
-	if res.Response != nil {
-		for k, v := range res.Response.Headers {
-			if strings.EqualFold(k, "content-type") {
-				ct = v
-			}
+	for k, v := range res.Response.Headers {
+		if strings.EqualFold(k, "content-type") {
+			ct = v
 		}
 	}
 	return t.Dim.Render(fmt.Sprintf("(binary body · %s · %s; save it with >> file or --output)", Size(len(body)), ct))

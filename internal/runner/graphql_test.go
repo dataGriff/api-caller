@@ -62,6 +62,13 @@ GRAPHQL ` + srv.URL + `/graphql
 
 <@ ./query.graphql
 
+### Lower-case marker
+# @name lower
+POST ` + srv.URL + `/graphql
+x-request-type: graphql
+
+{ todos { id } }
+
 ### Broken variables
 # @name broken
 GRAPHQL ` + srv.URL + `/graphql
@@ -132,6 +139,10 @@ GRAPHQL ` + srv.URL + `/graphql
 	if jet.Method != "GRAPHQL" {
 		t.Errorf("the source method is %s", jet.Method)
 	}
+	lower, _ := p.Lookup("lower")
+	if d := r.Describe(lower); len(d.Headers) != 1 || d.Headers["Content-Type"] != "application/json" {
+		t.Errorf("describe drops the marker whatever its case: %v", d.Headers)
+	}
 	// Variables that are not JSON once rendered are a usage error before
 	// anything is sent.
 	broken, _ := p.Lookup("broken")
@@ -143,7 +154,7 @@ GRAPHQL ` + srv.URL + `/graphql
 	}
 	// validate cannot judge variables with placeholders in them, so only
 	// the static one is reported, at its body line.
-	if diags := p.Validate(); len(diags) != 1 || diags[0].Code != "bad-graphql" || diags[0].Line != 42 {
+	if diags := p.Validate(); len(diags) != 1 || diags[0].Code != "bad-graphql" || diags[0].Line != 49 {
 		t.Errorf("validate: %+v", diags)
 	}
 }
