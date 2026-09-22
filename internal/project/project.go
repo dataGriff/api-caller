@@ -264,6 +264,18 @@ func diag(path, severity, code string, line, col, end int, msg string) httpfile.
 }
 
 // Validate returns parse diagnostics plus project-level checks.
+// Within reports whether path (existing or not) lies under root, lexically:
+// both are cleaned and the relative path must not start with `..`. It
+// returns that relative path. Callers that must see through symlinks
+// resolve both sides first.
+func Within(root, path string) (string, bool) {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
+}
+
 func (p *Project) Validate() []httpfile.Diagnostic {
 	diags := append([]httpfile.Diagnostic(nil), p.Diagnostics...)
 	for name, rs := range p.byName {
@@ -381,6 +393,25 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				line = r.Line
 			}
 			diags = append(diags, diag(r.File.Path, "error", "bad-multipart", line, 0, 0, err.Error()))
+		}
+		if sv := r.SaveTo; sv != nil {
+			target := sv.Path
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(p.Root, filepath.Dir(r.File.Path), target)
+			}
+			if _, ok := Within(p.Root, target); !ok {
+				diags = append(diags, diag(r.File.Path, "error", "bad-save-path", sv.Line, sv.Column, sv.Column+len(sv.Path),
+					fmt.Sprintf(">> %s resolves outside the project root; the response body is only written inside it", sv.Path)))
+			}
+		}
+		if r.IsGraphQL() {
+			if _, _, err := r.GraphQL(); err != nil {
+				line := r.BodyLine
+				if line == 0 {
+					line = r.Line
+				}
+				diags = append(diags, diag(r.File.Path, "error", "bad-graphql", line, 0, 0, err.Error()))
+			}
 		}
 		for _, ref := range r.BodyFiles() {
 			if _, err := os.Stat(filepath.Join(p.Root, filepath.Dir(r.File.Path), ref.Path)); errors.Is(err, fs.ErrNotExist) {

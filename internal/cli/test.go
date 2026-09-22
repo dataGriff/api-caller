@@ -199,7 +199,7 @@ func describeOutcome(err error) string {
 // session. features are the resolved feature files selected for this run.
 func outputOverlapsSources(output string, p *project.Project, features []string) error {
 	refuse := func() error {
-		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write the report elsewhere", output)}
+		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write it elsewhere", output)}
 	}
 	bodyFiles := map[string]bool{}
 	for _, req := range p.Requests() {
@@ -213,8 +213,8 @@ func outputOverlapsSources(output string, p *project.Project, features []string)
 	rootReal := realPath(p.Root)
 	// underRoot reports whether path (existing or not) lies in the project.
 	underRoot := func(path string) bool {
-		rel, err := filepath.Rel(rootReal, realPath(path))
-		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+		_, ok := project.Within(rootReal, realPath(path))
+		return ok
 	}
 	// isInput recognises project inputs by name only inside the project;
 	// files elsewhere are matched by identity below.

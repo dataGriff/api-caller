@@ -1,0 +1,15 @@
+### Export
+# @name export
+POST {{baseUrl}}/export
+Content-Type: application/json
+
+{
+  "from": "2026-01-01",
+  "to": "2026-01-31"
+}
+
+>>! ./fixtures/export.json
+
+### Raw
+GET {{baseUrl}}/logo
+>> ./logo.png

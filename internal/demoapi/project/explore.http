@@ -21,14 +21,17 @@ GET {{baseUrl}}/slow?ms=300
 # @assert body startsWith date,total,done,open
 GET {{baseUrl}}/reports/daily.csv
 
-### GraphQL is just a JSON POST
+### GraphQL, written as a query: sent as a JSON POST
 # @name graphql
 # @step I ask GraphQL for the done todos
 # @assert status == 200
 # @assert body.$.data.todos.# >= 1
 # @assert body.$.data.todos[0].done == true
-POST {{baseUrl}}/graphql
+GRAPHQL {{baseUrl}}/graphql
 Authorization: Bearer {{token}}
-Content-Type: application/json
 
-{"query": "query Todos($done: Boolean) { todos(done: $done) { id title done } }", "variables": {"done": true}}
+query Todos($done: Boolean) {
+  todos(done: $done) { id title done }
+}
+
+{"done": true}

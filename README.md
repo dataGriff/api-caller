@@ -212,7 +212,9 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 Shell: `apic list --json`, `apic describe <id> --json`, `apic run <id> --json`.
 MCP: `claude mcp add api -- apic mcp --dir ./api --env dev`.
 See [docs/agents.md](docs/agents.md) for the JSON contract and a snippet to
-paste into your project's `AGENTS.md`.
+paste into your project's `AGENTS.md`. The contract only grows: a body
+that is not text now comes as base64 with `body_encoding` beside it, and
+`saved_to` names the file a `>> file` line wrote.
 
 ## The format
 

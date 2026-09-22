@@ -2,8 +2,10 @@ package runner
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -127,29 +129,41 @@ func (r *Runner) resolveExprMeta(req *httpfile.Request, expr string, depth int) 
 	return info.Value, ok, info.Secret, err
 }
 
+// builtin resolves a `$name ...` placeholder: apic's own built-ins, REST
+// Client's (with its offset grammar) and JetBrains' `$random.*` family.
 func (r *Runner) builtin(expr string) (string, bool, bool, error) {
+	if strings.HasPrefix(expr, "$random.") {
+		v, err := randomBuiltin(expr)
+		return v, err == nil, false, err
+	}
 	fields := strings.Fields(expr)
 	name, args := fields[0], fields[1:]
+	now := r.clock()
 	switch name {
 	case "$uuid", "$guid":
 		return uuid.NewString(), true, false, nil
 	case "$timestamp":
-		return strconv.FormatInt(time.Now().Unix(), 10), true, false, nil
-	case "$isoTimestamp":
-		return time.Now().UTC().Format(time.RFC3339), true, false, nil
-	case "$datetime":
-		layout := time.RFC3339
-		if len(args) > 0 {
-			switch strings.Trim(args[0], `"'`) {
-			case "rfc1123":
-				layout = time.RFC1123
-			case "iso8601":
-				layout = time.RFC3339
-			default:
-				layout = strings.Trim(strings.Join(args, " "), `"'`)
-			}
+		t, err := offsetTime(name, now, args)
+		if err != nil {
+			return "", false, false, err
 		}
-		return time.Now().UTC().Format(layout), true, false, nil
+		return strconv.FormatInt(t.Unix(), 10), true, false, nil
+	case "$isoTimestamp":
+		return now.UTC().Format(time.RFC3339), true, false, nil
+	case "$datetime", "$localDatetime":
+		layout, offset := datetimeArgs(strings.TrimSpace(strings.TrimPrefix(expr, name)))
+		t, err := offsetTime(name, now, offset)
+		if err != nil {
+			return "", false, false, err
+		}
+		// $localDatetime keeps the clock's own zone (the machine's, or the
+		// test's); $datetime is always UTC.
+		if name == "$datetime" {
+			t = t.UTC()
+		}
+		return t.Format(layout), true, false, nil
+	case "$projectRoot":
+		return r.Project.Root, true, false, nil
 	case "$randomInt":
 		lo, hi := 0, 1000
 		var err error
@@ -188,6 +202,182 @@ func (r *Runner) builtin(expr string) (string, bool, bool, error) {
 		return v, ok, false, nil
 	}
 	return "", false, false, fmt.Errorf("unknown built-in %s", name)
+}
+
+// clock is the time the built-ins read.
+func (r *Runner) clock() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
+// offsetUnits are REST Client's offset units: `{{$timestamp -1 d}}`.
+var offsetUnits = "ms, s, m, h, d, w, M, Q or y"
+
+// offsetTime applies an optional `<n> <unit>` offset to t. Months, quarters
+// and years move by calendar, the rest by duration.
+func offsetTime(name string, t time.Time, args []string) (time.Time, error) {
+	if len(args) == 0 {
+		return t, nil
+	}
+	if len(args) != 2 {
+		return t, fmt.Errorf("%s: an offset is `<n> <unit>` with the unit one of %s, got %q", name, offsetUnits, strings.Join(args, " "))
+	}
+	n, err := strconv.Atoi(args[0])
+	if err != nil {
+		return t, fmt.Errorf("%s: the offset %q is not an integer", name, args[0])
+	}
+	switch args[1] {
+	case "ms":
+		return t.Add(time.Duration(n) * time.Millisecond), nil
+	case "s":
+		return t.Add(time.Duration(n) * time.Second), nil
+	case "m":
+		return t.Add(time.Duration(n) * time.Minute), nil
+	case "h":
+		return t.Add(time.Duration(n) * time.Hour), nil
+	case "d":
+		return t.AddDate(0, 0, n), nil
+	case "w":
+		return t.AddDate(0, 0, 7*n), nil
+	case "M":
+		return t.AddDate(0, n, 0), nil
+	case "Q":
+		return t.AddDate(0, 3*n, 0), nil
+	case "y":
+		return t.AddDate(n, 0, 0), nil
+	}
+	return t, fmt.Errorf("%s: unknown offset unit %q; use one of %s", name, args[1], offsetUnits)
+}
+
+// datetimeArgs reads what follows `$datetime` or `$localDatetime`: an
+// optional format (`rfc1123`, `iso8601` or a Go layout, quoted or not,
+// spaces included) and an optional trailing `<n> <unit>` offset. No format
+// means RFC 3339.
+func datetimeArgs(rest string) (layout string, offset []string) {
+	fields := strings.Fields(rest)
+	if n := len(fields); n >= 2 && isOffsetUnit(fields[n-1]) {
+		offset = fields[n-2:] // offsetTime checks the number
+		fields = fields[:n-2]
+	}
+	switch f := strings.Trim(strings.Join(fields, " "), `"'`); f {
+	case "", "iso8601":
+		layout = time.RFC3339
+	case "rfc1123":
+		layout = time.RFC1123
+	default:
+		layout = f
+	}
+	return layout, offset
+}
+
+func isOffsetUnit(s string) bool {
+	switch s {
+	case "ms", "s", "m", "h", "d", "w", "M", "Q", "y":
+		return true
+	}
+	return false
+}
+
+var reRandom = regexp.MustCompile(`^\$random\.([a-z]+)(?:\((.*)\))?$`)
+
+// randomBuiltin resolves JetBrains' `$random.<kind>(args)`. The values are
+// sample data for payloads, never credentials, so math/rand is the right
+// source and the length defaults are small.
+func randomBuiltin(expr string) (string, error) {
+	m := reRandom.FindStringSubmatch(strings.TrimSpace(expr))
+	if m == nil {
+		return "", fmt.Errorf("%s: expected `$random.<kind>(args)`", expr)
+	}
+	kind := m[1]
+	var args []string
+	if strings.TrimSpace(m[2]) != "" {
+		for _, a := range strings.Split(m[2], ",") {
+			args = append(args, strings.TrimSpace(a))
+		}
+	}
+	length := func(def int) (int, error) {
+		if len(args) == 0 {
+			return def, nil
+		}
+		n, err := strconv.Atoi(args[0])
+		if err != nil || n < 0 || len(args) > 1 {
+			return 0, fmt.Errorf("$random.%s takes one length, got (%s)", kind, m[2])
+		}
+		return n, nil
+	}
+	pick := func(alphabet string, n int) string {
+		b := make([]byte, n)
+		for i := range b {
+			b[i] = alphabet[rand.IntN(len(alphabet))] //nolint:gosec // sample data, not a secret
+		}
+		return string(b)
+	}
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	switch kind {
+	case "integer":
+		lo, hi := int64(0), int64(1000)
+		if len(args) != 0 {
+			var err1, err2 error
+			if len(args) != 2 {
+				return "", fmt.Errorf("$random.integer takes (min, max), got (%s)", m[2])
+			}
+			lo, err1 = strconv.ParseInt(args[0], 10, 64)
+			hi, err2 = strconv.ParseInt(args[1], 10, 64)
+			if err1 != nil || err2 != nil || hi <= lo {
+				return "", fmt.Errorf("$random.integer needs two integers with max greater than min, got (%s)", m[2])
+			}
+		}
+		span := hi - lo
+		if span <= 0 { // overflowed
+			return "", fmt.Errorf("$random.integer: the range (%s) is too wide", m[2])
+		}
+		return strconv.FormatInt(lo+rand.Int64N(span), 10), nil //nolint:gosec // sample data, not a secret
+	case "float":
+		lo, hi := 0.0, 1000.0
+		if len(args) != 0 {
+			var err1, err2 error
+			if len(args) != 2 {
+				return "", fmt.Errorf("$random.float takes (min, max), got (%s)", m[2])
+			}
+			lo, err1 = strconv.ParseFloat(args[0], 64)
+			hi, err2 = strconv.ParseFloat(args[1], 64)
+			if err1 != nil || err2 != nil || math.IsNaN(lo) || math.IsNaN(hi) || math.IsInf(lo, 0) || math.IsInf(hi, 0) || hi <= lo {
+				return "", fmt.Errorf("$random.float needs two finite numbers with max greater than min, got (%s)", m[2])
+			}
+		}
+		return strconv.FormatFloat(lo+rand.Float64()*(hi-lo), 'f', 3, 64), nil //nolint:gosec // sample data, not a secret
+	case "alphabetic":
+		n, err := length(10)
+		if err != nil {
+			return "", err
+		}
+		return pick(letters, n), nil
+	case "alphanumeric":
+		n, err := length(10)
+		if err != nil {
+			return "", err
+		}
+		return pick(letters+"0123456789", n), nil
+	case "hexadecimal":
+		n, err := length(10)
+		if err != nil {
+			return "", err
+		}
+		return pick("0123456789abcdef", n), nil
+	case "email":
+		if len(args) != 0 {
+			return "", fmt.Errorf("$random.email takes no arguments")
+		}
+		return strings.ToLower(pick(letters, 8)) + "@example.com", nil
+	case "uuid":
+		if len(args) != 0 {
+			return "", fmt.Errorf("$random.uuid takes no arguments")
+		}
+		return uuid.NewString(), nil
+	}
+	return "", fmt.Errorf("unknown built-in $random.%s; the kinds are integer, float, alphabetic, alphanumeric, hexadecimal, email and uuid", kind)
 }
 
 // responseRef resolves `<name>.response.<selector>` against a request already

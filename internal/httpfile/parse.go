@@ -55,6 +55,8 @@ var Codes = map[string]string{
 	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*",
 	"missing-body-file": "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":     "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
+	"bad-graphql":       "a GraphQL request (GRAPHQL method or X-REQUEST-TYPE: GraphQL) without a query, or whose variables block is not a JSON object",
+	"bad-save-path":     "a `>> file` after the body with no path, a path outside the project, or a second one on the same request",
 }
 
 // Span returns the 1-based byte columns [col, end) of sub within line, or
@@ -258,10 +260,27 @@ func (p *parser) parseBlock(b *block) *Request {
 	// Body: the rest of the block, trailing blank lines trimmed. Editor-only
 	// handler blocks are lifted out first so they are ignored rather than sent.
 	if i < len(b.lines) {
-		bodyLines, handlers := splitHandlerBlocks(b.lines[i:], b.nums[i:])
+		bodyLines, handlers, saves := splitHandlerBlocks(b.lines[i:], b.nums[i:])
 		for _, h := range handlers {
 			col, end := Span(p.rawLine(b, h.line), h.text, 0)
 			p.warn("editor-script", h.line, col, end, "ignoring %s (apic has no scripting; see docs/comparison.md)", h.what)
+		}
+		for _, sv := range saves {
+			raw := p.rawLine(b, sv.line)
+			marker := ">>"
+			if sv.overwrite {
+				marker = ">>!"
+			}
+			col, end := Span(raw, sv.path, strings.Index(raw, marker)+len(marker))
+			switch {
+			case sv.path == "":
+				mcol, mend := Span(raw, marker, 0)
+				p.errorf("bad-save-path", sv.line, mcol, mend, "%s needs a file path to save the response body to", marker)
+			case req.SaveTo != nil:
+				p.errorf("bad-save-path", sv.line, col, end, "the response body is already saved to %s on line %d; one %s per request", req.SaveTo.Path, req.SaveTo.Line, marker)
+			default:
+				req.SaveTo = &SaveTo{Path: sv.path, Overwrite: sv.overwrite, Line: sv.line, Column: col}
+			}
 		}
 		body := strings.Join(bodyLines, "\n")
 		body = strings.TrimRight(body, "\n\t ")
@@ -355,18 +374,27 @@ type handlerBlock struct {
 	text string // the trimmed first line of the block, for its span
 }
 
+// saveLine is a `>> file` or `>>! file` line found after a body.
+type saveLine struct {
+	path      string
+	overwrite bool
+	line      int
+}
+
 // splitHandlerBlocks removes the response-handler and pre-request-script
 // blocks that VS Code REST Client and JetBrains allow after a body, returning
-// the real body lines and what was dropped.
+// the real body lines, what was dropped, and the `>> file` lines that say
+// where the response body goes.
 //
 // Without this they are not "ignored" as docs/comparison.md promises: a
 // "> {% ... %}" handler is sent as part of the request body, and a leading
 // "< {%" is mistaken for the "< ./file" body-file syntax and fails at run time
 // looking for a file called "{%". Note "< ./body.json" is a real body file and
 // must survive; only "< {%" is a script.
-func splitHandlerBlocks(lines []string, nums []int) ([]string, []handlerBlock) {
+func splitHandlerBlocks(lines []string, nums []int) ([]string, []handlerBlock, []saveLine) {
 	var body []string
 	var found []handlerBlock
+	var saves []saveLine
 	for i := 0; i < len(lines); i++ {
 		t := strings.TrimSpace(lines[i])
 		num := 0
@@ -387,13 +415,14 @@ func splitHandlerBlocks(lines []string, nums []int) ([]string, []handlerBlock) {
 					break
 				}
 			}
-		case strings.HasPrefix(t, ">> "), strings.HasPrefix(t, ">>! "):
-			found = append(found, handlerBlock{line: num, what: "response redirect", text: t})
+		case t == ">>" || t == ">>!" || strings.HasPrefix(t, ">> ") || strings.HasPrefix(t, ">>! "):
+			overwrite := strings.HasPrefix(t, ">>!")
+			saves = append(saves, saveLine{path: strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(t, ">>!"), ">>")), overwrite: overwrite, line: num})
 		case strings.HasPrefix(t, "> ") && !strings.HasPrefix(t, ">> "):
 			found = append(found, handlerBlock{line: num, what: "response handler file", text: t})
 		default:
 			body = append(body, lines[i])
 		}
 	}
-	return body, found
+	return body, found, saves
 }

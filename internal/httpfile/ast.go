@@ -65,13 +65,24 @@ type Request struct {
 	URL               string // raw template
 	HTTPVersion       string
 	Headers           []Header
-	Body              string // raw template, empty when none
-	BodyLine          int    // line of the first body line, 0 when there is no body
-	BodyFile          string // set when the body is `< ./file`
-	BodyFileTemplated bool   // `<@ ./file`: substitute {{vars}} inside the file too
-	BodyFileLine      int    // line of the `< ./file` reference, for diagnostics
-	BodyFileColumn    int    // column where the path starts on that line
-	Line              int    // line number of the request line
+	Body              string  // raw template, empty when none
+	BodyLine          int     // line of the first body line, 0 when there is no body
+	BodyFile          string  // set when the body is `< ./file`
+	BodyFileTemplated bool    // `<@ ./file`: substitute {{vars}} inside the file too
+	BodyFileLine      int     // line of the `< ./file` reference, for diagnostics
+	BodyFileColumn    int     // column where the path starts on that line
+	SaveTo            *SaveTo // `>> ./file` after the body: where the response body goes
+	Line              int     // line number of the request line
+}
+
+// SaveTo is a `>> ./file` (create) or `>>! ./file` (overwrite) line after
+// the body: the response body is written there, relative to the `.http`
+// file. Column is where the path starts on the line.
+type SaveTo struct {
+	Path      string
+	Overwrite bool
+	Line      int
+	Column    int
 }
 
 // DirectiveSpan returns the line and the [col, end) columns of the value of

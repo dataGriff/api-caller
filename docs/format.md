@@ -35,6 +35,7 @@ Accept: application/json
 | Request separator | `###` optionally followed by a title, used as the description |
 | File variable | `@name = value` anywhere outside a body; last declaration wins; values may use `{{vars}}` |
 | Comment | `# text` or `// text` |
+| GraphQL request | `GRAPHQL {{baseUrl}}/graphql` (or a `X-REQUEST-TYPE: GraphQL` header): the body is the query, a JSON object after a blank line is the variables; see [GraphQL](#graphql) |
 | Directive | `# @key value` before the request line |
 | Request line | `METHOD url [HTTP/1.1]`; a bare URL means `GET` |
 | Query continuation | indented lines starting with `?` or `&` are appended to the URL |
@@ -42,6 +43,7 @@ Accept: application/json
 | Body | everything after the blank line until the next `###` |
 | Body from file | `< ./payload.json` (raw) or `<@ ./payload.json` (with `{{vars}}` substituted), relative to the `.http` file |
 | Multipart body | `Content-Type: multipart/form-data; boundary=X` with the parts written between `--X` lines; a part whose content is `< ./file` sends that file's bytes. See [Multipart uploads](#multipart-uploads) |
+| Save the response | `>> ./out.json` after the body writes the response body there (fails if the file exists); `>>! ./out.json` overwrites. Relative to the `.http` file, inside the project. See [Saving a response](#saving-a-response) |
 | Editor script blocks | `> {% … %}`, `< {% … %}` and `> ./handler.js` are skipped with a warning, not sent — apic has no scripting. `apic validate` lists them |
 
 Files are found by walking the project root for `*.http` and `*.rest`,
@@ -106,12 +108,24 @@ a variable: it configures a client certificate, see
 | Placeholder | Value |
 |---|---|
 | `{{$uuid}}` / `{{$guid}}` | random UUID v4 |
-| `{{$timestamp}}` | Unix seconds |
+| `{{$timestamp}}` / `{{$timestamp -1 d}}` | Unix seconds, with an optional offset |
 | `{{$isoTimestamp}}` | RFC 3339 UTC |
-| `{{$datetime rfc1123}}` / `{{$datetime iso8601}}` / `{{$datetime "2006-01-02"}}` | formatted time (Go layout for custom formats) |
+| `{{$datetime rfc1123}}` / `{{$datetime iso8601}}` / `{{$datetime "2006-01-02"}}` / `{{$datetime iso8601 1 h}}` | formatted UTC time (Go layout for custom formats), with an optional offset |
+| `{{$localDatetime}}` / `{{$localDatetime rfc1123 -1 d}}` | the same in the machine's own zone; the format is optional |
 | `{{$randomInt 1 100}}` | random integer in [min, max) |
+| `{{$random.integer(1, 100)}}` / `{{$random.float(0, 1)}}` | JetBrains' random numbers: an integer in [min, max), a float with three decimals; `(0, 1000)` without arguments |
+| `{{$random.alphabetic(10)}}` / `{{$random.alphanumeric(10)}}` / `{{$random.hexadecimal(10)}}` | random text of that length (10 without arguments) |
+| `{{$random.email}}` / `{{$random.uuid}}` | `<8 letters>@example.com`, a UUID v4 |
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
+| `{{$projectRoot}}` | the project root, absolute, for `< {{$projectRoot}}/fixtures/x.json` |
+
+An offset is `<n> <unit>`, as REST Client writes it: `-1 d`, `2 h`,
+`30 m`, `-10 s`, `500 ms`, `1 w`, `1 M` (months), `1 Q` (quarters),
+`1 y`. Months, quarters and years move by the calendar, so the 31st plus
+a month rolls forward the way Go's `AddDate` does. The random values are
+sample data for payloads, not credentials; `$exampleServer` is a JetBrains
+concept apic does not add.
 
 ### Response references
 
@@ -124,6 +138,63 @@ X-Request-Id: {{login.response.headers.x-request-id}}
 ```
 
 `@capture` is the same idea with a short name that also persists between runs.
+
+## Saving a response
+
+A `>>` line after the body, as REST Client and JetBrains write it, saves
+the response body to a file:
+
+```
+### Export
+# @name export-csv
+GET {{baseUrl}}/reports/daily.csv
+
+>>! ./fixtures/daily.csv
+```
+
+`>> path` creates the file and fails (the request is not OK) when it
+already exists; `>>! path` overwrites. The path is relative to the
+`.http` file and must stay inside the project (`apic validate` reports
+`bad-save-path` otherwise); directories are created. The bytes are
+written as they came, so a binary download stays intact, and the file
+is created `0600` when a secret went into the request (a private
+variable, a capture, a credential), `0644` otherwise. The run's output
+says `↳ saved to fixtures/daily.csv`, `--json` carries `saved_to`, and
+a body that is not text is summarised (`binary body · 12 KB ·
+image/png`) rather than printed. `apic run --output <file>` does the
+same for one request without editing the file.
+
+## GraphQL
+
+Both editors have a GraphQL shape, and apic runs both. JetBrains writes
+the method as `GRAPHQL`; REST Client marks a `POST` with an
+`X-REQUEST-TYPE: GraphQL` header. Either way the body is the query, and
+a JSON object after a blank line is the variables:
+
+```
+### Todos by state
+# @name todos-by-state
+# @assert body.$.data.todos.# >= 1
+GRAPHQL {{baseUrl}}/graphql
+Authorization: Bearer {{token}}
+
+query Todos($done: Boolean) {
+  todos(done: $done) { id title }
+}
+
+{"done": {{done}}}
+```
+
+apic sends it as a `POST` with `Content-Type: application/json` (unless
+the request sets its own) and the body `{"query": "...", "variables":
+{...}}`, which is what a GraphQL server reads. Placeholders resolve in
+both halves, the `X-REQUEST-TYPE` header never goes on the wire, and the
+variables are optional. `apic list` shows the method as written;
+`describe`, `curl` and `--json` show the POST and the JSON body actually
+sent. Selectors are the plain ones: `body.$.data.todos.#`. A query can
+come from a file too (`<@ ./todos.graphql`); a request without a query,
+or whose variables are not a JSON object, is a `bad-graphql` error in
+`apic validate`.
 
 ## Selectors
 

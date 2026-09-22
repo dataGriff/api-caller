@@ -158,6 +158,6 @@ uses them still parses (pass prompted values with `--var`).
 
 ## What is not supported?
 
-No scripting, no browser-based OAuth2 flows, no GraphQL or gRPC tooling
+No scripting, no GraphQL schema tooling (a query is sent as the editors write it), no gRPC
 beyond plain HTTP. The honest full list is in
 [the comparison](comparison.md#what-apic-does-not-do).

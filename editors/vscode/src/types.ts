@@ -68,9 +68,13 @@ export interface RunResult {
     status_text: string;
     headers: Record<string, string>;
     body: unknown;
+    /** "base64" when the body is not text; body is then the base64 of its bytes. */
+    body_encoding?: string;
     duration_ms: number;
     size: number;
   };
+  /** Where a `>> file` line or --output wrote the body, relative to the project root. */
+  saved_to?: string;
   captures?: Record<string, string>;
   asserts?: AssertResult[];
   errors?: string[];
@@ -101,6 +105,7 @@ export interface Description {
   headers: Record<string, string>;
   body?: string;
   body_file?: string;
+  save_to?: string;
   /** null when the request has no placeholders at all. */
   variables: VarInfo[] | null;
   captures?: string[];

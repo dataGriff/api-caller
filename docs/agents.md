@@ -43,7 +43,9 @@ The `--json` shape is stable:
 }
 ```
 
-`response.body` is parsed JSON when the body is JSON, otherwise a string.
+`response.body` is parsed JSON when the body is JSON, otherwise a string;
+a body that is not text comes as base64 with `"body_encoding": "base64"`
+beside it, and `saved_to` says where a `>> file` line wrote it.
 `request.auth` names the auth type applied (`aws`, `oauth2` and so on) without
 exposing credentials, and sensitive request headers are shown as `***`;
 see [auth.md](auth.md). URL, body and captures are real values so an agent

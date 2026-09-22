@@ -353,6 +353,36 @@ first, which is handy for a fixture with an id or a timestamp in it:
 Paths are relative to the `.http` file, and `apic validate` fails if the
 file is missing.
 
+## Download a file
+
+A `>>` line after the body saves the response body, bytes as they came,
+so a CSV export or an image lands on disk intact:
+
+```http
+### Daily report
+# @name daily-report
+# @assert status == 200
+# @assert header.content-type contains text/csv
+GET {{baseUrl}}/reports/daily.csv
+
+>>! ./fixtures/daily.csv
+```
+
+`>>` creates the file and fails if it exists; `>>!` overwrites. The path
+is relative to the `.http` file and stays inside the project; the run
+says `↳ saved to fixtures/daily.csv`. For a one-off without editing the
+file:
+
+```sh
+apic run daily-report --output /tmp/daily.csv
+```
+
+A binary body is summarised in the output (`binary body · 12 KB ·
+image/png`) rather than printed, and under `--json` it travels as
+base64 with `"body_encoding": "base64"`. A saved file is created `0600`
+when a secret (a private variable, a captured token, a credential) went
+into the request, since the response may carry one back.
+
 ## Follow, or do not follow, redirects
 
 Redirects are followed by default. To assert on the redirect itself:

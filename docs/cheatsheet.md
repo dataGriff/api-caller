@@ -25,12 +25,14 @@ Content-Type: application/json
 | Inline | Everything after the blank line, `{{vars}}` substituted |
 | From a file | `< ./payload.json` as it is, `<@ ./payload.json` with `{{vars}}` substituted |
 | Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
+| GraphQL | `GRAPHQL {{baseUrl}}/graphql` (or `X-REQUEST-TYPE: GraphQL`), the query as the body, variables as a JSON object after a blank line; sent as a JSON POST; see [format](format.md#graphql) |
+| Save the response | `>> ./out.json` (create) or `>>! ./out.json` (overwrite) after the body; `apic run --output file` for one run; see [format](format.md#saving-a-response) |
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `apic run <target>...` | Send requests; several targets run in order as a flow |
+| `apic run <target>...` | Send requests; several targets run in order as a flow; `--output file` saves one response body |
 | `apic ui` | [Terminal UI](tui.md); `--demo` needs no project |
 | `apic test [paths]` | Run [Gherkin features](testing.md) |
 | `apic list [pattern]` | Every request, filtered by id, URL, file or description |
@@ -100,12 +102,15 @@ First match wins:
 | Placeholder | Value |
 |---|---|
 | `{{$uuid}}` / `{{$guid}}` | random UUID v4 |
-| `{{$timestamp}}` | Unix seconds |
+| `{{$timestamp}}` / `{{$timestamp -1 d}}` | Unix seconds, optional offset (`s m h d w M Q y ms`) |
 | `{{$isoTimestamp}}` | RFC 3339 UTC |
-| `{{$datetime rfc1123\|iso8601\|"2006-01-02"}}` | formatted time |
-| `{{$randomInt 1 100}}` | random integer in [min, max) |
+| `{{$datetime rfc1123\|iso8601\|"2006-01-02" [1 h]}}` | formatted UTC time, optional offset |
+| `{{$localDatetime [format] [offset]}}` | the same in the local zone |
+| `{{$randomInt 1 100}}` / `{{$random.integer(1, 100)}}` | random integer in [min, max) |
+| `{{$random.float(0, 1)}}`, `$random.alphabetic(n)`, `alphanumeric(n)`, `hexadecimal(n)`, `email`, `uuid` | JetBrains' random family |
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
+| `{{$projectRoot}}` | absolute project root |
 | `{{login.response.body.$.token}}` | an earlier response in the same flow |
 
 ## Selectors

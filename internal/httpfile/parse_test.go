@@ -13,8 +13,8 @@ func TestParseSample(t *testing.T) {
 	if len(f.Vars) != 2 || f.Vars[0].Name != "baseUrl" || f.Vars[0].Value != "https://api.example.com" {
 		t.Fatalf("vars = %+v", f.Vars)
 	}
-	if len(f.Requests) != 6 {
-		t.Fatalf("want 6 requests, got %d", len(f.Requests))
+	if len(f.Requests) != 8 {
+		t.Fatalf("want 8 requests, got %d", len(f.Requests))
 	}
 
 	login := f.Requests[0]
@@ -71,6 +71,21 @@ func TestParseSample(t *testing.T) {
 	}
 	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
 		t.Errorf("retry directive = %q, %v", v, ok)
+	}
+
+	gql := f.Requests[6]
+	if gql.Method != "GRAPHQL" || !gql.IsGraphQL() || gql.Name != "todos-by-state" {
+		t.Errorf("graphql = %+v", gql)
+	}
+	if q, v, err := gql.GraphQL(); err != nil || q != "query Todos($done: Boolean) {\n  todos(done: $done) { id title }\n}" || v != `{"done": {{done}}}` {
+		t.Errorf("graphql split = %q %q %v", q, v, err)
+	}
+	rc := f.Requests[7]
+	if rc.Method != "POST" || !rc.IsGraphQL() {
+		t.Errorf("rest client graphql = %+v", rc)
+	}
+	if q, v, err := rc.GraphQL(); err != nil || q != "{ todos { id } }" || v != "" {
+		t.Errorf("rest client split = %q %q %v", q, v, err)
 	}
 
 	var warnings, errors int
@@ -300,5 +315,76 @@ func TestPreRequestScriptIsNotABodyFile(t *testing.T) {
 	}
 	if got := f2.Requests[0].BodyFile; got != "./body.json" {
 		t.Errorf("BodyFile = %q, want ./body.json", got)
+	}
+}
+
+func TestGraphQL(t *testing.T) {
+	// The variables are the object after the last blank line; a blank line
+	// inside the query is not a split point unless an object follows it.
+	q, v := SplitGraphQL("query {\n  a\n}\n\n{\"x\": 1}")
+	if q != "query {\n  a\n}" || v != `{"x": 1}` {
+		t.Fatalf("%q %q", q, v)
+	}
+	q, v = SplitGraphQL("query {\n  a\n}\n\nfragment F on T { b }")
+	if q != "query {\n  a\n}\n\nfragment F on T { b }" || v != "" {
+		t.Fatalf("%q %q", q, v)
+	}
+	env, err := GraphQLEnvelope("{ a }", `{"x": 1}`)
+	if err != nil || env != `{"query":"{ a }","variables":{"x":1}}` {
+		t.Fatalf("%q %v", env, err)
+	}
+	if env, err := GraphQLEnvelope("{ a }", ""); err != nil || env != `{"query":"{ a }"}` {
+		t.Fatalf("%q %v", env, err)
+	}
+	if _, err := GraphQLEnvelope("{ a }", `[1]`); err == nil {
+		t.Fatal("an array is not a variables object")
+	}
+	for _, bad := range []string{"GRAPHQL http://x\n", "GRAPHQL http://x\n\n{ a }\n\n{nope}\n"} {
+		f, _ := Parse("g.http", bad)
+		if _, _, err := f.Requests[0].GraphQL(); err == nil {
+			t.Errorf("%q should not be a valid GraphQL request", bad)
+		}
+	}
+	f, _ := Parse("g.http", "POST http://x\nx-request-type: graphql\n\n{ a }\n")
+	if !f.Requests[0].IsGraphQL() {
+		t.Error("the header is case-insensitive")
+	}
+	f, _ = Parse("g.http", "POST http://x\n\n{ a }\n")
+	if f.Requests[0].IsGraphQL() {
+		t.Error("a plain POST is not GraphQL")
+	}
+}
+
+func TestSaveTo(t *testing.T) {
+	src := "### a\n# @name a\nGET http://x\n\n>> ./out/a.json\n\n### b\n# @name b\nPOST http://x\n\n{\"k\": 1}\n\n>>! ../b.bin\n\n### c\nGET http://x\n\n>>\n\n### d\nGET http://x\n\n>> one.txt\n>>! two.txt\n"
+	f, diags := Parse("s.http", src)
+	if len(f.Requests) != 4 {
+		t.Fatalf("%d requests", len(f.Requests))
+	}
+	a, b, c, d := f.Requests[0], f.Requests[1], f.Requests[2], f.Requests[3]
+	if a.SaveTo == nil || *a.SaveTo != (SaveTo{Path: "./out/a.json", Line: 5, Column: 4}) || a.Body != "" {
+		t.Errorf("a = %+v body %q", a.SaveTo, a.Body)
+	}
+	if b.SaveTo == nil || *b.SaveTo != (SaveTo{Path: "../b.bin", Overwrite: true, Line: 13, Column: 5}) || b.Body != `{"k": 1}` {
+		t.Errorf("b = %+v body %q", b.SaveTo, b.Body)
+	}
+	if c.SaveTo != nil || d.SaveTo == nil || d.SaveTo.Path != "one.txt" {
+		t.Errorf("c = %+v d = %+v", c.SaveTo, d.SaveTo)
+	}
+	var codes []string
+	for _, dg := range diags {
+		codes = append(codes, dg.Code)
+		if dg.Code == "bad-save-path" && dg.Line == 23 && (dg.Column != 5 || dg.EndColumn != 12) {
+			t.Errorf("second >> span: %+v", dg)
+		}
+	}
+	if strings.Join(codes, ",") != "bad-save-path,bad-save-path" {
+		t.Errorf("codes = %v (%+v)", codes, diags)
+	}
+	// Not an editor script any more: no warning for a redirect line.
+	for _, dg := range diags {
+		if dg.Code == "editor-script" {
+			t.Errorf("redirect reported as a script: %+v", dg)
+		}
 	}
 }

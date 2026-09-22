@@ -50,6 +50,7 @@ func (r Result) DisplayResponse() *Response {
 	out.Headers = r.Response.DisplayHeaders(r.Redact)
 	if r.Redact && out.Body != nil {
 		out.Body = Masked
+		out.BodyEncoding = "" // the mask is text, whatever the body was
 	}
 	return &out
 }

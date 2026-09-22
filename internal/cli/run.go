@@ -16,7 +16,7 @@ import (
 
 func (a *App) runCmd() *cobra.Command {
 	var verbose, bodyOnly, keepGoing, noRetry bool
-	var retry, reportPath string
+	var retry, reportPath, outputPath string
 	cmd := &cobra.Command{
 		Use:   "run <request|file.http|file.http#name>...",
 		Short: "Send one request, or every request in a file as a flow",
@@ -38,7 +38,8 @@ seconds apart; each failed attempt prints a line as it happens.`,
   apic run get-user --env staging --var userId=42
   apic run smoke.http --json | jq .response.status
   apic run get-user --body-only | jq .email
-  apic run smoke.http --keep-going --report report.html`,
+  apic run smoke.http --keep-going --report report.html
+  apic run daily-report --output reports/daily.csv`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := a.newRunner()
@@ -63,6 +64,15 @@ seconds apart; each failed attempt prints a line as it happens.`,
 				if err := outputOverlapsSources(reportPath, r.Project, nil); err != nil {
 					return err
 				}
+			}
+			if outputPath != "" {
+				if flow {
+					return &runner.UsageError{Msg: fmt.Sprintf("--output saves one response; the targets name %d requests (add `>> file` lines to the requests instead)", len(reqs))}
+				}
+				if err := outputOverlapsSources(outputPath, r.Project, nil); err != nil {
+					return err
+				}
+				r.Opts.Output = outputPath
 			}
 			started := time.Now()
 			// Each result is printed as it lands, so a flow shows progress
@@ -132,5 +142,6 @@ seconds apart; each failed attempt prints a line as it happens.`,
 	cmd.Flags().StringVar(&retry, "retry", "", "re-send until the assertions pass: \"<attempts> [interval]\", e.g. \"10 2s\" (requests with # @retry keep their own)")
 	cmd.Flags().BoolVar(&noRetry, "no-retry", false, "send every request once, ignoring # @retry, --retry and apic.yaml")
 	cmd.Flags().StringVar(&reportPath, "report", "", "also write a self-contained HTML report of the run to this file")
+	cmd.Flags().StringVar(&outputPath, "output", "", "save the response body to this file (one request only; like a `>>! file` line in the request)")
 	return cmd
 }
