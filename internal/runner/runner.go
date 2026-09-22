@@ -863,9 +863,14 @@ func (r *Runner) saveBody(req *httpfile.Request, path string, overwrite, fromCwd
 		// request that carried a secret is tightened whatever it was.
 		_ = os.Chmod(target, mode)
 	}
+	// Reported relative to the project when inside it; the root may be
+	// reached through a symlink while target is the real path.
 	result.SavedTo = target
-	if rel, err := filepath.Rel(r.Project.Root, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		result.SavedTo = filepath.ToSlash(rel)
+	for _, root := range []string{r.Project.Root, realPrefix(r.Project.Root)} {
+		if rel, err := filepath.Rel(root, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			result.SavedTo = filepath.ToSlash(rel)
+			break
+		}
 	}
 	return nil
 }
@@ -1666,18 +1671,32 @@ func confine(root, dir, rel string) (string, error) {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return "", err
 		}
-		dirReal, derr := filepath.EvalSymlinks(filepath.Dir(abs))
-		if derr != nil {
-			real = abs
-		} else {
-			real = filepath.Join(dirReal, filepath.Base(abs))
-		}
+		real = realPrefix(abs)
 	}
 	inside, err := filepath.Rel(rootReal, real)
 	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
 		return "", errOutsideRoot
 	}
 	return real, nil
+}
+
+// realPrefix resolves the symlinks of the longest existing ancestor of a
+// path that does not exist yet (a `>> file` into a new directory) and
+// keeps the rest as written, so a root under a symlink (macOS's /var is
+// /private/var) still contains what it should.
+func realPrefix(abs string) string {
+	rest := ""
+	for cur := abs; ; {
+		if real, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(real, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
 }
 
 func dedupe(in []string) []string {

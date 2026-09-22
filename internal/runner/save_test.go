@@ -165,3 +165,53 @@ GET ` + srv.URL + `/data
 		t.Fatalf("--output wrote %q", got)
 	}
 }
+
+// A project reached through a symlink (macOS keeps temp dirs under /var,
+// which is /private/var) still saves into directories that do not exist
+// yet: the confinement resolves the nearest existing ancestor.
+func TestSaveResponseThroughSymlinkedRoot(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("csv,data\n"))
+	}))
+	t.Cleanup(srv.Close)
+	// The project is a real directory whose path goes through a symlink,
+	// as /var/folders/... does on macOS.
+	realParent := t.TempDir()
+	linkParent := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(realParent, linkParent); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	real := filepath.Join(realParent, "proj")
+	link := filepath.Join(linkParent, "proj")
+	if err := os.Mkdir(real, 0o755); err != nil { //nolint:gosec // test fixture
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "api.http"), []byte("### r\n# @name r\nGET "+srv.URL+"/x\n\n>> ./new/deeper/out.csv\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := project.Load(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := New(p, Options{NoSession: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.Run(context.Background(), p.Requests()[0])
+	if err != nil || !res.OK || res.SavedTo != "new/deeper/out.csv" {
+		t.Fatalf("%v %+v", err, res)
+	}
+	if got, err := os.ReadFile(filepath.Join(real, "new", "deeper", "out.csv")); err != nil || string(got) != "csv,data\n" {
+		t.Fatalf("%q %v", got, err)
+	}
+	// And an escape through the link is still an escape.
+	if err := os.WriteFile(filepath.Join(real, "api.http"), []byte("### r\n# @name r\nGET "+srv.URL+"/x\n\n>> ../../nope/out.csv\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = project.Load(link)
+	r, _ = New(p, Options{NoSession: true})
+	res, err = r.Run(context.Background(), p.Requests()[0])
+	if err != nil || res.OK || !strings.Contains(res.Errors[0], "outside project root") {
+		t.Fatalf("%v %+v", err, res)
+	}
+}
