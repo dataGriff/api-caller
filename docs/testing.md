@@ -131,9 +131,15 @@ The "response" is always the last request sent in the scenario.
 | `Then the response body contains:` + doc string | JSON subset: every key in the doc string must be present and equal; arrays must match in length and order; extra keys in the response are fine. |
 | `Then the response time is under 500 ms` | Round-trip time. |
 
-Body paths use the same selector syntax as `# @assert`: `$.a.b`,
-`$.items[0].id`, `$.items.#` (count), `$` for the whole body. The leading
-`$.` may be omitted (`"name"` means `$.name`).
+Body paths use the same JSONPath as `# @assert`: `$.a.b`,
+`$.items[0].id`, `$.items[-1]`, `$.items[1:3]`, `$..id`,
+`$.items[?(@.done == true)].id`, `.length` or `.#` (count), `$` for the
+whole body ([all the forms](format.md#body-paths)). The leading `$.` may
+be omitted (`"name"` means `$.name`, `"..id"` means `$..id`). Header
+steps take `"set-cookie.#"` for how many values a header has and
+`"link[1]"` for one of them. A step's value is quoted, so to check a
+set of matches, count it or look for one member:
+`the response body "items[?(@.done == true)].id" contains "c"`.
 
 ### Capturing
 

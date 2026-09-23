@@ -119,11 +119,11 @@ First match wins:
 |---|---|
 | `status` | status code |
 | `statusText` | e.g. `OK` |
-| `header.<name>` | first value of a response header |
+| `header.<name>` | first value of a response header; `.#` counts its values, `[1]` picks one |
 | `cookie.<name>` | value of a cookie the response set |
 | `body` | raw body |
 | `body.$` | whole JSON body |
-| `body.$.<path>` | `body.$.items[0].id`, `body.$.items.#` (count), `body.$["key.with.dots"]` |
+| `body.$.<path>` | `body.$.items[0].id`, `[-1]`, `[1:3]`, `[*]`, `body.$..id`, `body.$.items[?(@.done == true)].id`, `.#` or `.length` (count), `body.$["key.with.dots"]`; see [format](format.md#body-paths) |
 | `duration` | round-trip time in milliseconds |
 
 ## Assertion operators

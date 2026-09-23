@@ -34,12 +34,13 @@ type Result struct {
 // Parse splits an expression into selector, operator and value.
 func Parse(expr string) (Expr, error) {
 	s := strings.TrimSpace(expr)
-	fields := strings.Fields(s)
+	// The selector may hold spaces inside brackets (a filter), so it is
+	// read up to the first space outside one.
+	sel, rest := selector.Leading(s)
+	fields := append([]string{sel}, strings.Fields(rest)...)
 	if len(fields) < 2 {
 		return Expr{}, fmt.Errorf("assert %q: expected `<selector> <op> <value>`", expr)
 	}
-	sel := fields[0]
-	rest := strings.TrimSpace(s[len(sel):])
 	if rest == "exists" || rest == "not exists" {
 		return Expr{Selector: sel, Op: rest}, nil
 	}

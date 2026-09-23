@@ -52,7 +52,7 @@ var Codes = map[string]string{
 	"bad-ref":           "a `# @ref` or `# @forceRef` whose target is not one request in the project",
 	"ref-cycle":         "a `# @ref` chain that leads back to the request it started from",
 	"bad-retry":         "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
-	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*",
+	"unknown-selector":  "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*, or a body path apic cannot read",
 	"missing-body-file": "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":     "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
 	"bad-graphql":       "a GraphQL request (GRAPHQL method or X-REQUEST-TYPE: GraphQL) without a query, or whose variables block is not a JSON object",

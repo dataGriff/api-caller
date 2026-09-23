@@ -65,6 +65,12 @@ func server(t *testing.T) *httptest.Server {
 		}
 		_ = json.NewEncoder(w).Encode(u)
 	})
+	mux.HandleFunc("GET /catalog", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Add("Link", "<https://x/catalog?page=2>; rel=next")
+		w.Header().Add("Link", "<https://x/catalog?page=9>; rel=last")
+		_, _ = w.Write([]byte(`{"items": [{"id": "a", "name": "apple", "done": true, "price": 1.5}, {"id": "b", "name": "banana", "done": false, "price": 0.25}, {"id": "c", "name": "avocado", "done": true, "price": 2}], "owner": {"id": "u1", "tags": []}, "note": null}`))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -110,6 +116,11 @@ POST {{baseUrl}}/login-form
 # @name me
 # @step I ask who I am
 GET {{baseUrl}}/me
+
+### a list to select from
+# @name catalog
+# @step I list the catalog
+GET {{baseUrl}}/catalog
 `
 
 func newProject(t *testing.T, srv *httptest.Server) *project.Project {
@@ -1324,6 +1335,32 @@ Feature: No jar
     Then the response cookie "sid" is "c-1"
     When I ask who I am
     Then the response status is 401
+`, "dev")
+	if code != 0 || sum.Failed != 0 {
+		t.Fatalf("code=%d summary=%+v", code, sum)
+	}
+}
+
+// The JSONPath forms work the same in steps as in # @assert: filters,
+// recursive descent, negative indexes, slices, .length and multi-valued
+// headers, with or without the leading $.
+func TestSelectorForms(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	sum, code := run(t, p, `
+Feature: Selectors
+  Scenario: JSONPath
+    When I list the catalog
+    Then the response body "$.items[-1].id" is "c"
+    And the response body "items[?(@.done == true)].id" contains "c"
+    And the response body "$.items[?(@.name =~ /^a/)].length" is "2"
+    And the response body "$..id" contains "u1"
+    And the response body "..price" contains "0.25"
+    And the response body "$.items[1:3].length" is "2"
+    And the response body "items.length" is "3"
+    And the response body "$.items[?(@.price > 5)]" does not exist
+    And the response header "link.#" is "2"
+    And the response header "link[-1]" contains "rel=last"
 `, "dev")
 	if code != 0 || sum.Failed != 0 {
 		t.Fatalf("code=%d summary=%+v", code, sum)

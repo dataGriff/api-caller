@@ -23,7 +23,7 @@ var Vocabulary = []struct{ Pattern, Purpose string }{
 	{`I run the file "<file.http>"`, "send every request in a file, stopping at the first failure"},
 	{`the response status is <n>` + " / is not <n>", "status code"},
 	{`the response is successful` + " / a client error / a server error", "2xx / 4xx / 5xx"},
-	{`the response body "<path>" is "<value>"`, `also: is not, contains, starts with, ends with, matches; <path> like $.items[0].id`},
+	{`the response body "<path>" is "<value>"`, `also: is not, contains, starts with, ends with, matches; <path> like $.items[0].id, $..id or $.items[?(@.done == true)].id`},
 	{`the response header "<name>" is "<value>"`, "same operators as for the body"},
 	{`the response cookie "<name>" is "<value>"`, "a cookie the response set; same operators, also exists / does not exist"},
 	{`the response body "<path>" exists` + " / does not exist", "presence of a value"},
@@ -382,7 +382,7 @@ func selector(where, sel string) string {
 		return "body.$"
 	case strings.HasPrefix(sel, "$.") || strings.HasPrefix(sel, "$["):
 		return "body." + sel
-	case strings.HasPrefix(sel, "["):
+	case strings.HasPrefix(sel, "[") || strings.HasPrefix(sel, ".."):
 		return "body.$" + sel
 	default:
 		return "body.$." + sel

@@ -110,3 +110,15 @@ func TestCompareNumbersExactly(t *testing.T) {
 		t.Error("an all-zero exponent is fine")
 	}
 }
+
+// A selector with spaces inside a bracket is one selector.
+func TestParseFilterSelector(t *testing.T) {
+	e, err := Parse(`body.$.items[?(@.name == "a b")].length == 2`)
+	if err != nil || e.Selector != `body.$.items[?(@.name == "a b")].length` || e.Op != "==" || e.Value != "2" {
+		t.Fatalf("%+v %v", e, err)
+	}
+	e, err = Parse(`body.$.items[?(@.x =~ /a ]b/)] exists`)
+	if err != nil || e.Selector != `body.$.items[?(@.x =~ /a ]b/)]` || e.Op != "exists" {
+		t.Fatalf("%+v %v", e, err)
+	}
+}
