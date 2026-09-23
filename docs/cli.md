@@ -4,6 +4,10 @@
 apic [command] [flags]
 ```
 
+Each command's section below explains what it does, its JSON and its
+exit codes; [Commands and flags](#commands-and-flags) at the end is every
+flag of every command, generated from the binary's own command tree.
+
 All commands are non-interactive: apic never prompts. The one exception is
 `apic ui`, the terminal UI, which refuses to start unless it has a terminal
 to draw on. Colour is off when stdout is not a terminal, when `NO_COLOR` is
@@ -725,3 +729,307 @@ and the URL above.
 | `.apic/session.json` | Captured values per environment. Written by `run`, cleared by `session clear`. `.apic/.gitignore` is created alongside so it is never committed. |
 | `.apic/cookies.json` | The cookie jar per environment, when cookies are on. Written `0600` by `run`, cleared by `session clear`, listed by `session cookies`. |
 | `>> file` targets | Response bodies a request saves (`>> ./out.json`, `>>! ./out.json`) or `run --output` writes. Inside the project for `>>`; `0600` when a secret went into the request. |
+
+<!-- BEGIN GENERATED: go run ./scripts/clidocs (task docs:cli) rewrites this section; edit the flags in internal/cli instead -->
+
+## Commands and flags
+
+Generated from apic's own command tree, so it lists exactly what the
+binary accepts. The sections above explain each command; this is every
+flag in one place. `man apic` and `man apic-run` show the same, where
+the release archive's `man/` pages are installed.
+
+### Global flags
+
+These work with every command.
+
+| Flag | Meaning |
+|---|---|
+| `--cacert <string>` | PEM file with certificates to trust in addition to the system roots |
+| `--cert <string>` | PEM client certificate to present (mTLS) |
+| `--cookies` | keep a cookie jar per environment in .apic/cookies.json (or set cookies: true in apic.yaml) |
+| `-C, --dir <string>` | project root holding .http files and env files (default `.`) |
+| `-e, --env <string>` | environment from http-client.env.json (default from apic.yaml) |
+| `--insecure` | skip TLS certificate verification |
+| `--json` | machine-readable JSON output |
+| `--key <string>` | PEM private key for --cert (default: the --cert file) |
+| `--no-color` | disable colour (also honours NO_COLOR) |
+| `--no-proxy` | send requests directly, ignoring --proxy, apic.yaml and the environment |
+| `--no-session` | do not read or write captured values in .apic/session.json |
+| `--proxy <string>` | send requests through this proxy (http, https or socks5 URL); beats proxy: in apic.yaml and HTTP(S)_PROXY |
+| `--redact` | mask all request headers, bodies, query values and captures in output (for CI logs) |
+| `--timeout <duration>` | request timeout (default 30s or apic.yaml) |
+| `--var <string>` | override a variable, name=value (repeatable) |
+
+### apic completion
+
+Generate the autocompletion script for the specified shell.
+
+```
+apic completion
+```
+
+No flags of its own.
+
+### apic completion bash
+
+Generate the autocompletion script for bash.
+
+```
+apic completion bash
+```
+
+| Flag | Meaning |
+|---|---|
+| `--no-descriptions` | disable completion descriptions |
+
+### apic completion fish
+
+Generate the autocompletion script for fish.
+
+```
+apic completion fish [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--no-descriptions` | disable completion descriptions |
+
+### apic completion powershell
+
+Generate the autocompletion script for powershell.
+
+```
+apic completion powershell [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--no-descriptions` | disable completion descriptions |
+
+### apic completion zsh
+
+Generate the autocompletion script for zsh.
+
+```
+apic completion zsh [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--no-descriptions` | disable completion descriptions |
+
+### apic curl
+
+Print the equivalent curl command (with variables resolved).
+
+```
+apic curl <request>
+```
+
+No flags of its own.
+
+### apic demo
+
+Scaffold and serve a fake API, so apic can be tried with no setup.
+
+```
+apic demo [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--force` | overwrite existing files |
+| `-o, --out <string>` | directory to write the example project into (default `apic-demo`) |
+| `--port <int>` | port to serve the demo API on (default `8089`) |
+
+### apic describe
+
+Show a request's variables, where each comes from, captures and asserts.
+
+```
+apic describe <request>
+```
+
+No flags of its own.
+
+### apic env
+
+Show environments and the variables in effect.
+
+```
+apic env
+```
+
+No flags of its own.
+
+### apic fmt
+
+Rewrite .http files in their canonical form.
+
+```
+apic fmt [path...] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--check` | do not write; list the files that would change and exit 1 if any |
+| `--diff` | do not write; print a unified diff of what would change and exit 1 if any |
+
+### apic import
+
+Scaffold .http files from an OpenAPI 3 document, a Postman collection or a curl command.
+
+```
+apic import <openapi.yaml|openapi.json|collection.postman.json> | --curl <command> [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--curl <string>` | a curl command to turn into a request (- reads stdin) |
+| `--env-name <string>` | environment name for the generated http-client.env.json (OpenAPI) (default `dev`) |
+| `--force` | overwrite existing files |
+| `--into <string>` | append the request to this .http file (relative to the project root), creating it if needed |
+| `--name <string>` | request name (default: from the method and path) |
+| `-o, --out <string>` | directory to write .http files into (default `.`) |
+| `--postman-env <string>` | Postman environment export to turn into an environment (repeatable) |
+
+### apic init
+
+Scaffold a new apic project: config, env files and a first request.
+
+```
+apic init [dir] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--base-url <string>` | baseUrl for the environment (default `https://api.example.com`) |
+| `--env <string>` | name of the first environment (default `dev`) |
+| `--force` | overwrite existing files |
+
+### apic list
+
+List every request in the project.
+
+```
+apic list [pattern]
+```
+
+No flags of its own.
+
+### apic mcp
+
+Serve the project's requests to AI agents over MCP (stdio, or HTTP).
+
+```
+apic mcp [--http <host:port> [--token <bearer>]] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--http <string>` | serve the streamable HTTP transport on this host:port instead of stdio |
+| `--token <string>` | bearer token clients must send (default $APIC_MCP_TOKEN); required off the loopback interface |
+
+### apic run
+
+Send one request, or every request in a file as a flow.
+
+```
+apic run <request|file.http|file.http#name>... [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--body-only` | print only the response body (for piping) |
+| `--keep-going` | in a flow, continue after a failure |
+| `--no-retry` | send every request once, ignoring # @retry, --retry and apic.yaml |
+| `--output <string>` | save the response body to this file (one request only; like a ">>! file" line in the request) |
+| `--report <string>` | also write a self-contained HTML report of the run to this file |
+| `--retry <string>` | re-send until the assertions pass: "<attempts> [interval]", e.g. "10 2s" (requests with # @retry keep their own) |
+| `-v, --verbose` | show request and response headers |
+
+### apic session
+
+Show captured values stored for later runs.
+
+```
+apic session
+```
+
+No flags of its own.
+
+### apic session clear
+
+Forget captured values for the current environment (or --all).
+
+```
+apic session clear [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--all` | clear every environment |
+
+### apic session cookies
+
+List the cookies stored per environment (values masked).
+
+```
+apic session cookies
+```
+
+No flags of its own.
+
+### apic test
+
+Run Gherkin feature files against the project's requests.
+
+```
+apic test [path|file.feature]... [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `-f, --format <string>` | report format: pretty, progress, cucumber, junit, html (default `pretty`) |
+| `-o, --output <string>` | write the report to a file instead of stdout |
+| `--steps` | print the built-in step vocabulary and declared phrases, then exit |
+| `--stop-on-failure` | stop after the first failed scenario |
+| `-t, --tags <string>` | tag expression, e.g. "@smoke && ~@slow" |
+| `--use-session` | read and write .apic/session.json instead of an isolated session per scenario |
+
+### apic ui
+
+Browse and run the project's requests in a terminal UI.
+
+```
+apic ui [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--demo` | serve the built-in demo API in-process and open the UI on its example project |
+
+### apic validate
+
+Parse every .http file and report problems (for CI).
+
+```
+apic validate [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `-f, --format <string>` | output format: text, json, github or sarif (default `text`) |
+
+### apic version
+
+Print the apic version.
+
+```
+apic version
+```
+
+No flags of its own.
+
+<!-- END GENERATED -->

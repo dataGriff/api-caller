@@ -133,6 +133,16 @@ tasks:
     cmds:
       - go run ./scripts/schemas
 
+  docs:cli:
+    desc: Regenerate the "Commands and flags" section of docs/cli.md from the command tree (a test fails when it is stale)
+    cmds:
+      - go run ./scripts/clidocs
+
+  man:
+    desc: Write the man pages into man/ (goreleaser does this before packaging)
+    cmds:
+      - go run ./scripts/clidocs -man man
+
   learn:check:
     desc: Run every marked command block in the course pages (docs/learn) against apic demo
     cmds:

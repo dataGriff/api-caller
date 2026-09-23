@@ -142,6 +142,6 @@ seconds apart; each failed attempt prints a line as it happens.`,
 	cmd.Flags().StringVar(&retry, "retry", "", "re-send until the assertions pass: \"<attempts> [interval]\", e.g. \"10 2s\" (requests with # @retry keep their own)")
 	cmd.Flags().BoolVar(&noRetry, "no-retry", false, "send every request once, ignoring # @retry, --retry and apic.yaml")
 	cmd.Flags().StringVar(&reportPath, "report", "", "also write a self-contained HTML report of the run to this file")
-	cmd.Flags().StringVar(&outputPath, "output", "", "save the response body to this file (one request only; like a `>>! file` line in the request)")
+	cmd.Flags().StringVar(&outputPath, "output", "", "save the response body to this file (one request only; like a \">>! file\" line in the request)")
 	return cmd
 }

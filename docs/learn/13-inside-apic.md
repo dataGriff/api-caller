@@ -144,7 +144,7 @@ lists the known directives in one alternation; add `tag` to it, or
 `TestGrammarMatchesKnownDirectives` fails on the next `go test`. That
 test is the dialect contract at work.
 
-**Surface it.** `apic list` builds its entries in `internal/cli/inspect.go`.
+**Surface it.** `apic list` builds its entries in `internal/cli/list.go`.
 Give `listEntry` a field and fill it from the directives:
 
 ```go
