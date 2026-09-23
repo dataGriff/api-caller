@@ -254,6 +254,38 @@ and may be quoted.
 # @assert header.set-cookie.# >= 1
 ```
 
+### The shape of a response
+
+These say what a value is rather than what it equals:
+
+| Assertion | Passes when |
+|---|---|
+| `body.$.id isInteger` | the value is a whole number; also `isNumber`, `isString`, `isBoolean`, `isArray`, `isObject`, `isNull` |
+| `body.$.id not isString` | the `not` form of any of them |
+| `body.$.items isEmpty` / `not isEmpty` | an empty (or non-empty) string, array or object |
+| `body.$.items length == 3` | its length compares: a string's characters, an array's elements, an object's keys; any of `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| `body.$ matchesSchema ./schemas/user.json` | it validates against a JSON Schema |
+
+Types are JSON types: a status, a duration and a count are numbers;
+headers, cookies, `statusText` and the raw `body` are strings. A failed
+type check reports what the value is (`actual: number`).
+
+`matchesSchema` reads a JSON Schema file (draft 2020-12 or draft-07,
+`$ref` within the file) relative to the `.http` file and inside the
+project; a failure reports the path in the document and the rule it
+broke. `apic validate` reports a schema file that does not exist as
+`missing-schema-file`.
+
+```
+### Get a user, checked for shape
+# @name get-user
+# @assert status == 200
+# @assert body.$ matchesSchema ./schemas/user.json
+# @assert body.$.id isInteger
+# @assert body.$.roles not isEmpty
+GET {{baseUrl}}/users/{{userId}}
+```
+
 ## Flows
 
 `apic run file.http` runs every request in the file in order and stops at

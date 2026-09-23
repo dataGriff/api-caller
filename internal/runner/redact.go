@@ -92,9 +92,5 @@ func (r Result) DisplayAsserts() []assert.Result {
 // RedactExpr keeps the selector and operator of an assertion expression and
 // hides the expected value.
 func RedactExpr(expr string) string {
-	fields := strings.Fields(expr)
-	if len(fields) <= 2 {
-		return expr
-	}
-	return fields[0] + " " + fields[1] + " " + Masked
+	return assert.Redact(expr, Masked)
 }

@@ -1366,3 +1366,56 @@ Feature: Selectors
 		t.Fatalf("code=%d summary=%+v", code, sum)
 	}
 }
+
+// A step for each predicate: types, emptiness, length and a JSON Schema
+// read from the project root, passing and failing with the reason.
+func TestShapeSteps(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	must(t, os.MkdirAll(filepath.Join(p.Root, "schemas"), 0o755))
+	must(t, os.WriteFile(filepath.Join(p.Root, "schemas", "catalog.json"), []byte(`{"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {"$ref": "#/$defs/item"}}}, "$defs": {"item": {"type": "object", "required": ["id", "price"], "properties": {"id": {"type": "string"}, "price": {"type": "number"}}}}}`), 0o600))
+	must(t, os.WriteFile(filepath.Join(p.Root, "schemas", "item.json"), []byte(`{"type": "object", "required": ["id"]}`), 0o600))
+	sum, code := run(t, p, `
+Feature: Shapes
+  Scenario: The catalog has the right shape
+    When I list the catalog
+    Then the response body "items" has length 3
+    And the response body "items[0].name" has length 5
+    And the response body "$.items" is an array
+    And the response body "$.owner" is an object
+    And the response body "items[0].price" is a number
+    And the response body "items[2].price" is an integer
+    And the response body "items[0].id" is a string
+    And the response body "items[0].done" is a boolean
+    And the response body "note" is null
+    And the response body "owner.tags" is empty
+    And the response body "items" is not empty
+    And the response body matches the schema "schemas/catalog.json"
+    And the response body "items[1]" matches the schema "schemas/item.json"
+`, "dev")
+	if code != 0 || sum.Failed != 0 {
+		t.Fatalf("code=%d summary=%+v", code, sum)
+	}
+	sum, code = run(t, p, `
+Feature: Shapes
+  Scenario: Wrong type
+    When I list the catalog
+    Then the response body "items[0].price" is an integer
+
+  Scenario: Wrong schema
+    When I list the catalog
+    Then the response body "owner" matches the schema "schemas/catalog.json"
+
+  Scenario: Wrong length
+    When I list the catalog
+    Then the response body "items" has length 2
+`, "dev")
+	if code != 1 || sum.Failed != 3 {
+		t.Fatalf("code=%d summary=%+v", code, sum)
+	}
+	for i, want := range []string{`expected body.$.items[0].price isInteger, got "number"`, "items", `expected body.$.items length == 2, got "3"`} {
+		if !strings.Contains(sum.Failures[i].Error, want) {
+			t.Errorf("failure %d: %q lacks %q", i, sum.Failures[i].Error, want)
+		}
+	}
+}

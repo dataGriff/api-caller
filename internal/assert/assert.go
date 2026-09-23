@@ -1,25 +1,65 @@
-// Package assert parses and evaluates `# @assert` expressions of the form
-// `<selector> <op> <value>` or `<selector> exists` / `<selector> not exists`.
+// Package assert parses and evaluates `# @assert` expressions:
+// `<selector> <op> <value>`, `<selector> exists` / `not exists`, a
+// predicate such as `<selector> isInteger` or `not isEmpty`,
+// `<selector> length <op> <n>` and `<selector> matchesSchema <file>`.
 package assert
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/dataGriff/api-caller/internal/selector"
 )
 
 // Operators lists the supported comparison operators.
-var Operators = []string{"==", "!=", "<=", ">=", "<", ">", "contains", "matches", "startsWith", "endsWith", "exists", "not exists"}
+var Operators = []string{"==", "!=", "<=", ">=", "<", ">", "contains", "matches", "startsWith", "endsWith", "matchesSchema", "exists", "not exists"}
+
+// Predicates take no value: `body.$.id isInteger`, `body.$.items not
+// isEmpty`. Each also has a `not` form.
+var Predicates = []string{"isString", "isNumber", "isInteger", "isBoolean", "isArray", "isObject", "isNull", "isEmpty"}
+
+// comparisons are the operators `length` takes: `body.$.items length == 3`.
+var comparisons = []string{"==", "!=", "<=", ">=", "<", ">"}
 
 // Expr is a parsed assertion.
 type Expr struct {
 	Selector string
-	Op       string
-	Value    string // raw right-hand side; may contain {{placeholders}}
+	// Op is the operator, a predicate (`isString`, `not isEmpty`) or
+	// `matchesSchema`, whose Value is the schema file.
+	Op    string
+	Value string // raw right-hand side; may contain {{placeholders}}
+	// Length compares the selected value's length (characters, elements
+	// or keys) rather than the value: `body.$.items length == 3`.
+	Length bool
+}
+
+// Unary reports an operator that takes no value.
+func (e Expr) Unary() bool {
+	return e.Op == "exists" || e.Op == "not exists" || isPredicate(strings.TrimPrefix(e.Op, "not "))
+}
+
+func isPredicate(op string) bool {
+	for _, p := range Predicates {
+		if p == op {
+			return true
+		}
+	}
+	return false
+}
+
+// Options carries what evaluation may need beyond the response.
+type Options struct {
+	// Schema reads a JSON Schema file named by `matchesSchema`, resolved
+	// and confined the way the caller's files are. Nil refuses the
+	// operator.
+	Schema func(path string) ([]byte, error)
 }
 
 // Result is the outcome of evaluating one assertion.
@@ -44,6 +84,27 @@ func Parse(expr string) (Expr, error) {
 	if rest == "exists" || rest == "not exists" {
 		return Expr{Selector: sel, Op: rest}, nil
 	}
+	if unary := strings.Join(fields[1:], " "); isPredicate(strings.TrimPrefix(unary, "not ")) {
+		return Expr{Selector: sel, Op: unary}, nil
+	}
+	if isPredicate(fields[1]) || fields[1] == "not" && len(fields) > 2 && isPredicate(fields[2]) {
+		return Expr{}, fmt.Errorf("assert %q: %q does not take a value", expr, strings.Join(fields[1:min(3, len(fields))], " "))
+	}
+	if fields[1] == "length" {
+		if len(fields) < 4 {
+			return Expr{}, fmt.Errorf("assert %q: expected `<selector> length <op> <number>`", expr)
+		}
+		op := fields[2]
+		ok := false
+		for _, c := range comparisons {
+			ok = ok || c == op
+		}
+		if !ok {
+			return Expr{}, fmt.Errorf("assert %q: length takes one of %s, got %q", expr, strings.Join(comparisons, ", "), op)
+		}
+		val := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(strings.TrimPrefix(rest, "length")), op))
+		return Expr{Selector: sel, Op: op, Value: val, Length: true}, nil
+	}
 	if strings.HasPrefix(rest, "exists ") {
 		return Expr{}, fmt.Errorf("assert %q: %q does not take a value", expr, "exists")
 	}
@@ -58,7 +119,7 @@ func Parse(expr string) (Expr, error) {
 		}
 	}
 	if !valid {
-		return Expr{}, fmt.Errorf("assert %q: unknown operator %q (one of %s)", expr, op, strings.Join(Operators, ", "))
+		return Expr{}, fmt.Errorf("assert %q: unknown operator %q (one of %s, length <op>, or a predicate: %s)", expr, op, strings.Join(Operators, ", "), strings.Join(Predicates, ", "))
 	}
 	val := strings.TrimSpace(rest[len(op):])
 	if val == "" {
@@ -70,33 +131,177 @@ func Parse(expr string) (Expr, error) {
 	return Expr{Selector: sel, Op: op, Value: val}, nil
 }
 
+// Display is how an expression reads in results: the selector, the
+// operator and the rendered value.
+func (e Expr) Display(expected string) string {
+	op := e.Op
+	if e.Length {
+		op = "length " + op
+	}
+	if e.Unary() {
+		return e.Selector + " " + op
+	}
+	return e.Selector + " " + op + " " + expected
+}
+
+// Redact keeps an assertion's selector and operator and replaces its
+// value with mask. The selector is read the way Parse reads it, so a
+// filter with spaces stays whole.
+func Redact(expr, mask string) string {
+	e, err := Parse(expr)
+	if err != nil || e.Unary() {
+		return expr
+	}
+	return e.Display(mask)
+}
+
 // Eval evaluates a parsed expression against a response. expected is the
 // right-hand side after template rendering.
 func Eval(e Expr, expected string, resp *selector.Response) Result {
-	display := e.Selector + " " + e.Op
-	if e.Op != "exists" && e.Op != "not exists" {
-		display += " " + expected
+	return EvalWith(e, expected, resp, Options{})
+}
+
+// EvalWith is Eval with what matchesSchema needs.
+func EvalWith(e Expr, expected string, resp *selector.Response, opts Options) Result {
+	res := Result{Expr: e.Display(expected)}
+	if !e.Unary() {
+		res.Expected = expected
 	}
-	res := Result{Expr: display, Expected: expected}
-	actual, ok, err := selector.Select(resp, e.Selector)
+	v, ok, err := selector.SelectValue(resp, e.Selector)
 	if err != nil {
 		res.Error = err.Error()
 		return res
 	}
-	res.Actual = actual
+	res.Actual = v.Text
 	switch e.Op {
 	case "exists":
 		res.Pass = ok
+		return res
 	case "not exists":
 		res.Pass = !ok
-	default:
-		if !ok {
-			res.Error = "no value at " + e.Selector
+		return res
+	}
+	if !ok {
+		res.Error = "no value at " + e.Selector
+		return res
+	}
+	switch {
+	case e.Length:
+		n, err := length(v)
+		if err != nil {
+			res.Error = err.Error()
 			return res
 		}
-		res.Pass, res.Error = compare(actual, e.Op, expected)
+		res.Actual = strconv.Itoa(n)
+		res.Pass, res.Error = compare(res.Actual, e.Op, expected)
+	case e.Unary():
+		want := !strings.HasPrefix(e.Op, "not ")
+		got, err := predicate(strings.TrimPrefix(e.Op, "not "), v)
+		if err != nil {
+			res.Error = err.Error()
+			return res
+		}
+		if e.Op != "isEmpty" && e.Op != "not isEmpty" {
+			res.Actual = v.Kind.String() // what it is, not what it says
+		}
+		res.Pass = got == want
+	case e.Op == "matchesSchema":
+		problem, err := matchesSchema(e.Selector, v, expected, opts)
+		if err != nil {
+			res.Error = err.Error()
+			return res
+		}
+		res.Pass = problem == ""
+		if !res.Pass {
+			res.Actual = problem
+		}
+	default:
+		res.Pass, res.Error = compare(v.Text, e.Op, expected)
 	}
 	return res
+}
+
+// length is a string's characters, an array's elements or an object's keys.
+func length(v selector.Value) (int, error) {
+	switch v.Kind {
+	case selector.KindString:
+		return utf8.RuneCountInString(v.Text), nil
+	case selector.KindArray:
+		var a []json.RawMessage
+		if err := json.Unmarshal([]byte(v.Text), &a); err != nil {
+			return 0, err
+		}
+		return len(a), nil
+	case selector.KindObject:
+		var o map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(v.Text), &o); err != nil {
+			return 0, err
+		}
+		return len(o), nil
+	}
+	return 0, fmt.Errorf("length needs a string, an array or an object, got %s %s", v.Kind, v.Text)
+}
+
+func predicate(op string, v selector.Value) (bool, error) {
+	switch op {
+	case "isString":
+		return v.Kind == selector.KindString, nil
+	case "isNumber":
+		return v.Kind == selector.KindNumber, nil
+	case "isInteger":
+		if v.Kind != selector.KindNumber {
+			return false, nil
+		}
+		n, ok := ParseNumber(v.Text)
+		return ok && n.IsInt(), nil
+	case "isBoolean":
+		return v.Kind == selector.KindBool, nil
+	case "isArray":
+		return v.Kind == selector.KindArray, nil
+	case "isObject":
+		return v.Kind == selector.KindObject, nil
+	case "isNull":
+		return v.Kind == selector.KindNull, nil
+	case "isEmpty":
+		if v.Kind != selector.KindString && v.Kind != selector.KindArray && v.Kind != selector.KindObject {
+			return false, fmt.Errorf("isEmpty needs a string, an array or an object, got %s %s", v.Kind, v.Text)
+		}
+		n, err := length(v)
+		return n == 0, err
+	}
+	return false, fmt.Errorf("unknown predicate %s", op)
+}
+
+// matchesSchema validates the selected value against a JSON Schema file
+// (draft 2020-12 or draft-07, `$ref` within the file). It returns what
+// does not match, or "" when it does; err is a schema that cannot be read.
+func matchesSchema(sel string, v selector.Value, path string, opts Options) (string, error) {
+	if opts.Schema == nil {
+		return "", fmt.Errorf("matchesSchema is not available here")
+	}
+	data, err := opts.Schema(path)
+	if err != nil {
+		return "", err
+	}
+	var schema jsonschema.Schema
+	if err := json.Unmarshal(data, &schema); err != nil {
+		return "", fmt.Errorf("schema %s: %w", path, err)
+	}
+	resolved, err := schema.Resolve(nil)
+	if err != nil {
+		return "", fmt.Errorf("schema %s: %w", path, err)
+	}
+	var instance any
+	text := v.Text
+	if v.Kind == selector.KindString && sel != "body" {
+		instance = text // a JSON string value, already unquoted
+	} else if err := json.Unmarshal([]byte(text), &instance); err != nil {
+		return "", fmt.Errorf("matchesSchema needs JSON, and %s is not: %w", sel, err)
+	}
+	if err := resolved.Validate(instance); err != nil {
+		return err.Error(), nil
+	}
+	return "", nil
 }
 
 // reNumber is the decimal syntax assertions treat as numeric: an optional

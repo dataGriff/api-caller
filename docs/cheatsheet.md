@@ -130,7 +130,9 @@ First match wins:
 
 `==` `!=` `<` `<=` `>` `>=` (numeric when both sides are numbers) ·
 `contains` · `startsWith` · `endsWith` · `matches` (Go regexp) · `exists` ·
-`not exists`
+`not exists` · `isString` `isNumber` `isInteger` `isBoolean` `isArray`
+`isObject` `isNull` `isEmpty` (and `not …`) · `length <op> <n>` ·
+`matchesSchema <file.json>`
 
 ```
 # @assert status < 300
@@ -138,6 +140,9 @@ First match wins:
 # @assert header.content-type contains json
 # @assert body.$.email matches ^[^@]+@example\.com$
 # @assert body.$.error not exists
+# @assert body.$.id isInteger
+# @assert body.$.items length == 3
+# @assert body.$ matchesSchema ./schemas/user.json
 ```
 
 ## Gherkin steps

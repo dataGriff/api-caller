@@ -467,6 +467,7 @@ Codes:
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
 | `bad-graphql` | A GraphQL request (`GRAPHQL` method or `X-REQUEST-TYPE: GraphQL`) without a query, or whose variables block is not a JSON object. |
 | `bad-save-path` | A `>> file` line with no path, a path outside the project, or a second one on the same request. |
+| `missing-schema-file` | A `# @assert … matchesSchema <file>` whose schema file does not exist or lies outside the project. |
 
 In a GitHub Actions workflow:
 

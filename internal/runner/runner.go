@@ -979,7 +979,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			return nil, usagef("%s:%d: %v", req.File.Path, a.Line, err)
 		}
 		expected := expr.Value
-		if expr.Op != "exists" && expr.Op != "not exists" {
+		if !expr.Unary() {
 			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 			if err != nil {
 				var me *template.MissingError
@@ -1169,7 +1169,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		result.Captures[c.Name] = v
 	}
 	for _, a := range asserts {
-		ar := assert.Eval(a.expr, a.expected, raw)
+		ar := assert.EvalWith(a.expr, a.expected, raw, assert.Options{Schema: func(path string) ([]byte, error) { return r.readBodyFile(req, path, "schema") }})
 		if !ar.Pass {
 			result.OK = false
 		}
@@ -1641,6 +1641,24 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 		return nil, nil, usagef("%s:%d: multipart body: %v", req.File.Path, req.Line, err)
 	}
 	return buf.Bytes(), parts, nil
+}
+
+// ProjectFile reads a file named relative to the project root, confined to
+// it: a schema a feature step names, which has no .http file to be
+// relative to.
+func (r *Runner) ProjectFile(rel string) ([]byte, error) {
+	real, err := confine(r.Project.Root, r.Project.Root, rel)
+	if errors.Is(err, errOutsideRoot) {
+		return nil, usagef("%q resolves outside project root", rel)
+	}
+	if err != nil {
+		return nil, usagef("%s: %v", rel, err)
+	}
+	data, err := os.ReadFile(real) //nolint:gosec // a project file, confined above
+	if err != nil {
+		return nil, usagef("%s: %v", rel, err)
+	}
+	return data, nil
 }
 
 // filePath resolves a `< file` reference relative to the request's file and

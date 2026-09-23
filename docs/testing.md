@@ -127,6 +127,10 @@ The "response" is always the last request sent in the scenario.
 | `Then the response header "content-type" contains "json"` | Same operators on a header (case-insensitive name). |
 | `Then the response cookie "sid" exists` / `is "..."` | A cookie the response set (`Set-Cookie`); same operators, plus `exists` and `does not exist`. With the [cookie jar](format.md#cookies) on, each scenario has its own jar; `--use-session` shares the stored one. |
 | `Then the response body "$.error" exists` / `does not exist` | Presence. |
+| `Then the response body "$.items" has length 3` | Length: a string's characters, an array's elements, an object's keys. |
+| `Then the response body "$.id" is a number` | Type: `a string`, `a number`, `an integer`, `a boolean`, `an array`, `an object`, `null`. |
+| `Then the response body "$.items" is empty` / `is not empty` | An empty string, array or object. |
+| `Then the response body matches the schema "schemas/user.json"` | JSON Schema (2020-12 or draft-07), the path from the project root; `the response body "$.user" matches the schema "…"` checks part of it. A failure names the path in the document and the rule it broke. |
 | `Then the response body is:` + doc string | Semantic JSON equality: key order and whitespace do not matter, extra keys fail. |
 | `Then the response body contains:` + doc string | JSON subset: every key in the doc string must be present and equal; arrays must match in length and order; extra keys in the response are fine. |
 | `Then the response time is under 500 ms` | Round-trip time. |

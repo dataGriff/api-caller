@@ -381,6 +381,19 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				diags = append(diags, diag(r.File.Path, "error", "unknown-selector", a.Line, a.Column, a.Column+len(expr.Selector),
 					fmt.Sprintf("assert %q: %s", a.Expr, selectorProblem(err))))
 			}
+			if expr.Op == "matchesSchema" && !strings.Contains(expr.Value, "{{") {
+				schema := filepath.Join(p.Root, filepath.Dir(r.File.Path), expr.Value)
+				_, inside := Within(p.Root, schema)
+				if _, err := os.Stat(schema); !inside || err != nil {
+					col := a.Column + strings.LastIndex(a.Expr, expr.Value)
+					why := "not found"
+					if !inside {
+						why = "resolves outside the project root"
+					}
+					diags = append(diags, diag(r.File.Path, "error", "missing-schema-file", a.Line, col, col+len(expr.Value),
+						fmt.Sprintf("schema file %s %s", expr.Value, why)))
+				}
+			}
 		}
 		for _, c := range r.Captures {
 			if err := selector.Check(c.Selector); err != nil {

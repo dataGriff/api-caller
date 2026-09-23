@@ -12,7 +12,7 @@ lands against the tools you might otherwise use.
 | Request files editors can send with a click | no | yes (`.http`) | yes (`.http`) | Bruno app / extension (`.bru`) | no | yes (`.http`) |
 | Environments | shell vars | env files | env files, `.env` | yes | `--variables-file` | env files, `.env`, shell, `--var` |
 | Capture and reuse values | shell plumbing | in-editor only | yes, in one run | JS scripts, in one run | yes, in one run | yes, and persisted between runs |
-| Assertions | none | none (JetBrains: JS) | yes, plus JS | yes | yes | yes |
+| Assertions | none | none (JetBrains: JS) | yes, plus JS | yes | yes | yes: JSONPath filters, types, length, JSON Schema |
 | Structured output for programs | curl's | no | `--json`, JUnit | reports (JSON, JUnit, HTML) | JSON report | JSON per request, NDJSON for flows |
 | Discovery (`list`, `describe`) | `task --list` | file tree | no | GUI | no | yes |
 | Never prompts | yes | n/a | picker unless `--all`/`--name` | yes | yes | yes |
@@ -27,7 +27,7 @@ lands against the tools you might otherwise use.
 | Proxy | `-x` | IDE settings | yes | yes | `-x` | yes (`--proxy`, `proxy:` and `noProxy:` in apic.yaml, `HTTP(S)_PROXY`) |
 | Client certificates, private CAs | via curl flags | JetBrains | yes | yes | yes | yes (`tls:` in apic.yaml, flags, JetBrains `SSLConfiguration`) |
 | Multipart uploads with file parts | `curl -F` | yes | yes | yes | yes | yes |
-| GraphQL, gRPC, WebSocket | GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | no |
+| GraphQL, gRPC, WebSocket | curl for GraphQL | GraphQL | GraphQL, gRPC, WS, MQTT, AMQP | yes | GraphQL | GraphQL |
 | GUI | no | the editor | VS Code extension | yes | no | terminal UI (`apic ui`) |
 
 ## Size
@@ -100,7 +100,9 @@ agent story.
 
 Hurl is the closest single-binary alternative: a plain-text format with
 assertions and captures, fast, well tested, and richer than apic in
-assertion predicates and protocol details. If you do not care about the
+protocol details. The contract checks Hurl users write (`isInteger`,
+`count == 3`, a JSON Schema) have apic equivalents: `isInteger`,
+`length == 3`, `matchesSchema`. If you do not care about the
 `.http` format, editor support, persisted sessions or MCP, Hurl is a fine
 choice.
 
@@ -137,8 +139,7 @@ So you are not surprised later:
   terminal, never an agent.
 - HTTP only. A GraphQL query is sent the way the editors write it (the
   `GRAPHQL` method or `X-REQUEST-TYPE: GraphQL`, becoming a JSON POST),
-  but there is no schema tooling,
-  no gRPC, no WebSocket.
+  but there is no GraphQL schema tooling, no gRPC, no WebSocket.
 - No GUI and no response viewer beyond the terminal; the editors cover
   that.
 - Reports are limited to what `apic test` emits (pretty, progress, cucumber

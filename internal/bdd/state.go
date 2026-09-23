@@ -454,11 +454,7 @@ func (c *Config) describeFailure(res *runner.Result) string {
 // redactExpr keeps the selector and operator of an assertion expression
 // and hides the expected value.
 func redactExpr(expr string) string {
-	fields := strings.Fields(expr)
-	if len(fields) <= 2 {
-		return expr
-	}
-	return fields[0] + " " + fields[1] + " " + runner.Masked
+	return runner.RedactExpr(expr)
 }
 
 func excerpt(s string, n int) string {

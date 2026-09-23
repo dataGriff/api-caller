@@ -138,7 +138,8 @@ suite("completion items", () => {
   });
 
   test("operators and auth types", () => {
-    assert.strictEqual(operatorItems().length, 12);
+    assert.strictEqual(operatorItems().length, 23);
+    assert.ok(operatorItems().some((i) => i.label === "matchesSchema"));
     assert.strictEqual(authItems().find((i) => i.label === "bearer")?.insert, "bearer {{${1:token}}}");
     // The key is positional, the header an option: `apikey <key> header=…`.
     assert.strictEqual(authItems().find((i) => i.label === "apikey")?.insert, "apikey {{${1:apiKey}}} header=${2:X-Api-Key}");
