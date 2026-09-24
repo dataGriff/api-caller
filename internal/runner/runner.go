@@ -800,8 +800,14 @@ func (r *Runner) MissingError(req *httpfile.Request, missing []string) error {
 		hint := fmt.Sprintf("pass --var %s=... or add it to %s", m, env.PublicFile)
 		if info.CapturedBy != "" {
 			hint = fmt.Sprintf("it is captured by request %q; run `apic run %s` first, or pass --var %s=...", info.CapturedBy, info.CapturedBy, m)
-		} else if strings.HasPrefix(m, "$") || strings.Contains(m, ".response.") {
-			hint = "built-in or response reference could not be resolved"
+		} else if name, sel, ok := strings.Cut(m, ".response."); ok {
+			if res, ran := r.results[name]; ran && res.raw != nil {
+				hint = fmt.Sprintf("the response of %q has nothing at %s", name, sel)
+			} else {
+				hint = fmt.Sprintf("request %q has not run in this invocation; add `# @ref %s`, run the whole file as a flow, or capture the value with # @capture", name, name)
+			}
+		} else if strings.HasPrefix(m, "$") {
+			hint = "built-in could not be resolved"
 		}
 		parts = append(parts, fmt.Sprintf("{{%s}}: %s", m, hint))
 	}
@@ -1529,13 +1535,18 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 			if strings.HasPrefix(e, "$") || strings.Contains(e, ".response.") {
 				v, ok, secret, err := r.resolveExprMeta(req, e, 0)
 				info := VarInfo{Name: e, Source: "built-in", Value: v, Secret: secret, Missing: !ok || err != nil}
-				if strings.Contains(e, ".response.") {
+				if name, _, isRef := strings.Cut(e, ".response."); isRef {
 					info.Source = "response reference (flow only)"
+					if !ok && err == nil && refRuns[name] {
+						// `# @ref` runs the request first, as for a
+						// captured variable.
+						info.RefRuns = true
+					}
 				}
 				if err != nil {
 					info.Source += ": " + err.Error()
 				}
-				if !ok || err != nil {
+				if (!ok || err != nil) && !info.RefRuns {
 					d.Ready = false
 				}
 				d.Variables = append(d.Variables, info)

@@ -37,6 +37,12 @@ nav:
       - Agents and MCP: agents.md
       - Editors: editors.md
       - Taskfile: taskfile.md
+      - Migrate:
+          - From Postman: migrate/postman.md
+          - From Bruno: migrate/bruno.md
+          - From Hurl: migrate/hurl.md
+          - From httpyac: migrate/httpyac.md
+          - From curl and Taskfile: migrate/curl.md
   - Reference:
       - CLI reference: cli.md
       - Errors: errors.md

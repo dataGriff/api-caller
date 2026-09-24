@@ -149,7 +149,7 @@ tasks:
       - go run ./scripts/clidocs -man man
 
   learn:check:
-    desc: Run every marked command block in the course pages (docs/learn) against apic demo
+    desc: Run every marked command block in the course (docs/learn) and the migration guides (docs/migrate) against apic demo
     cmds:
       - go run ./scripts/learncheck
 

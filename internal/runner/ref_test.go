@@ -101,6 +101,18 @@ GET {{baseUrl}}/fail
 GET {{baseUrl}}/me
 Authorization: Bearer {{token}}
 
+### httpyac style: a response reference to a request # @ref runs
+# @name whoami-by-response
+# @ref login
+# @assert status == 200
+GET {{baseUrl}}/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### The same without the ref
+# @name whoami-by-response-alone
+GET {{baseUrl}}/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+
 ### No such ref
 # @name dangling
 # @ref nope
@@ -354,5 +366,32 @@ func TestRefDiamondRunsSharedDependencyOnce(t *testing.T) {
 	}
 	if n := names(res.Deps[1].Deps); len(n) != 1 || n[0] != "region" {
 		t.Fatalf("nested deps of whoami-in-region = %v, want only region", n)
+	}
+}
+
+// A response reference to a request that has not run is missing, like a
+// captured variable, so `# @ref` runs the request first: the way httpyac
+// files are written. Without the ref the error says to add one.
+func TestRefRunsForAResponseReference(t *testing.T) {
+	dir, logins := refProject(t)
+	ctx := context.Background()
+	r := newRunner(t, dir, Options{Env: "dev", Session: session.NewMemory()})
+
+	d := r.Describe(lookup(t, r, "whoami-by-response"))
+	if !d.Ready || len(d.Variables) != 2 || d.Variables[0].Name != "login.response.body.$.access_token" || !d.Variables[0].RefRuns {
+		t.Fatalf("describe: ready=%v vars=%+v", d.Ready, d.Variables)
+	}
+	res, err := r.Run(ctx, lookup(t, r, "whoami-by-response"))
+	if err != nil || !res.OK || len(res.Deps) != 1 || logins.Load() != 1 {
+		t.Fatalf("whoami-by-response: %+v deps=%v logins=%d err=%v", res, names(res.Deps), logins.Load(), err)
+	}
+
+	r2 := newRunner(t, dir, Options{Env: "dev", Session: session.NewMemory()})
+	_, err = r2.Run(ctx, lookup(t, r2, "whoami-by-response-alone"))
+	if CodeOf(err) != CodeMissingVariable || !strings.Contains(err.Error(), `request "login" has not run in this invocation; add `+"`# @ref login`") {
+		t.Fatalf("want a missing-variable error suggesting @ref, got %s: %v", CodeOf(err), err)
+	}
+	if logins.Load() != 1 {
+		t.Fatalf("login must not run without a ref, ran %d times", logins.Load())
 	}
 }

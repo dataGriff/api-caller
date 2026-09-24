@@ -2,7 +2,10 @@
 
 apic is deliberately narrow: run `.http` files anywhere, for humans and
 agents, from one static binary. This page is an honest look at where that
-lands against the tools you might otherwise use.
+lands against the tools you might otherwise use. To move a project across,
+see the migration guides: from [Postman](migrate/postman.md),
+[Bruno](migrate/bruno.md), [Hurl](migrate/hurl.md),
+[httpyac](migrate/httpyac.md), and [curl and Taskfile](migrate/curl.md).
 
 ## Summary
 

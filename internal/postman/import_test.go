@@ -227,6 +227,25 @@ func TestTranslateTests(t *testing.T) {
 	}
 }
 
+// A pm.test on one line reads the same as the block form: an arrow
+// expression, an arrow block or a function block, each statement inside
+// translated or reported on its own.
+func TestTranslateOneLineTests(t *testing.T) {
+	got := translateTests([]string{
+		`pm.test("ok", () => pm.response.to.have.status(200));`,
+		`pm.test('fast', function () { pm.expect(pm.response.responseTime).to.be.below(500); });`,
+		"pm.test(`both`, () => { pm.response.to.have.header(\"ETag\"); pm.expect(pm.response.text()).to.include(\"x\") })",
+		`pm.test("custom", () => pm.expect(tv4.validate(1, 2)).to.be.true);`,
+	})
+	want := []string{"status == 200", "duration < 500", "header.etag exists", "body contains x"}
+	if strings.Join(got.Asserts, "|") != strings.Join(want, "|") {
+		t.Errorf("asserts = %q", got.Asserts)
+	}
+	if len(got.Unsupported) != 1 || got.Unsupported[0] != "pm.expect(tv4.validate(1, 2)).to.be.true" {
+		t.Errorf("unsupported = %q", got.Unsupported)
+	}
+}
+
 func TestImportAPIKeyInQueryOpensTheQueryString(t *testing.T) {
 	dir := t.TempDir()
 	col := filepath.Join(dir, "c.json")

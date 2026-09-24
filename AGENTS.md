@@ -17,7 +17,7 @@ holds the commands (one file per command) and `internal/ui` the terminal UI; `in
 is the offline API and project behind `apic demo`; `examples/` are the
 static sample projects CI validates and format-checks; `editors/vscode/`
 is the extension, released on its own `vscode-v*` tags; `setup-apic/` the
-GitHub Action; `docs/` the site, with the course under `docs/learn/` and
+GitHub Action; `docs/` the site, with the course under `docs/learn/` (and the migration guides under `docs/migrate/`, whose runnable blocks `task learn:check` runs too) and
 the generators under `scripts/`.
 
 Two things worth knowing that the page also says: the OpenAPI and Postman

@@ -1,7 +1,8 @@
 // Command learncheck runs the commands in the course pages so a lesson
 // cannot rot: it builds apic, starts `apic demo` in a scratch directory,
-// then extracts every fenced block in docs/learn/*.md that is preceded by
-// an `<!-- learn -->` comment and runs it there with `sh -e`, in page order.
+// then extracts every fenced block in docs/learn/*.md and docs/migrate/*.md
+// that is preceded by an `<!-- learn -->` comment and runs it there with
+// `sh -e`, in page order (the course first, then the migration guides).
 //
 // Blocks that need credentials, an editor or a browser are simply not
 // marked. Run it with `task learn:check`; CI runs it on every change to the
@@ -87,21 +88,25 @@ func closesFence(line, fence string) bool {
 }
 
 func main() {
-	docs := flag.String("docs", "docs/learn", "directory holding the lesson pages")
+	docs := flag.String("docs", "docs/learn,docs/migrate", "comma-separated directories holding the pages, run in this order")
 	keep := flag.Bool("keep", false, "keep the scratch directory for inspection")
 	flag.Parse()
-	if err := run(*docs, *keep); err != nil {
+	if err := run(strings.Split(*docs, ","), *keep); err != nil {
 		fmt.Fprintln(os.Stderr, "learncheck:", err)
 		os.Exit(1)
 	}
 }
 
-func run(docs string, keep bool) error {
-	pages, err := filepath.Glob(filepath.Join(docs, "*.md"))
-	if err != nil {
-		return err
+func run(dirs []string, keep bool) error {
+	var pages []string
+	for _, dir := range dirs {
+		found, err := filepath.Glob(filepath.Join(dir, "*.md"))
+		if err != nil {
+			return err
+		}
+		sort.Strings(found)
+		pages = append(pages, found...)
 	}
-	sort.Strings(pages)
 	var blocks []Block
 	for _, p := range pages {
 		data, err := os.ReadFile(p) //nolint:gosec // the course pages, by glob
@@ -111,7 +116,7 @@ func run(docs string, keep bool) error {
 		blocks = append(blocks, Extract(p, string(data))...)
 	}
 	if len(blocks) == 0 {
-		return fmt.Errorf("no runnable blocks under %s (mark one with <!-- learn -->)", docs)
+		return fmt.Errorf("no runnable blocks under %s (mark one with <!-- learn -->)", strings.Join(dirs, ", "))
 	}
 
 	work, err := os.MkdirTemp("", "learncheck-*")

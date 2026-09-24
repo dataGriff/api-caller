@@ -209,7 +209,8 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Errors](docs/errors.md) | Every error code, its exit status and what to do about it |
 | [FAQ](docs/faq.md) | Missing variables, 403s, secrets in logs, Windows |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
-| [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |
+| [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, httpyac, ijhttp, Kulala.nvim, curl |
+| Migration guides | From [Postman](docs/migrate/postman.md), [Bruno](docs/migrate/bruno.md), [Hurl](docs/migrate/hurl.md), [httpyac](docs/migrate/httpyac.md), [curl and Taskfile](docs/migrate/curl.md) |
 
 ## For agents
 
