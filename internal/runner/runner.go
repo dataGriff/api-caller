@@ -465,9 +465,11 @@ type Result struct {
 	// Skipped says why a flow did not send the request: "disabled" for
 	// `# @disabled`. A skipped result is OK and has no response.
 	Skipped string `json:"skipped,omitempty"`
-	Redact  bool   `json:"-"` // set from Options.Redact
-	raw     *selector.Response
-	req     *httpfile.Request
+	// Iteration is the row of `apic run --data` this result belongs to.
+	Iteration *Iteration `json:"iteration,omitempty"`
+	Redact    bool       `json:"-"` // set from Options.Redact
+	raw       *selector.Response
+	req       *httpfile.Request
 	// authNote says what the auth did on the wire beyond setting a header:
 	// for digest, whether a challenge was answered. Shown by run -v.
 	authNote string
@@ -493,17 +495,35 @@ func (r Result) MarshalJSON() ([]byte, error) {
 	type alias Result
 	out := struct {
 		alias
-		Request  json.RawMessage   `json:"request"`
-		Captures map[string]string `json:"captures,omitempty"`
-		Response *Response         `json:"response,omitempty"`
-		Asserts  []assert.Result   `json:"asserts,omitempty"`
-	}{alias: alias(r), Captures: r.DisplayCaptures(), Response: r.DisplayResponse(), Asserts: r.DisplayAsserts()}
+		Request   json.RawMessage   `json:"request"`
+		Captures  map[string]string `json:"captures,omitempty"`
+		Response  *Response         `json:"response,omitempty"`
+		Asserts   []assert.Result   `json:"asserts,omitempty"`
+		Iteration *Iteration        `json:"iteration,omitempty"`
+	}{alias: alias(r), Captures: r.DisplayCaptures(), Response: r.DisplayResponse(), Asserts: r.DisplayAsserts(), Iteration: r.Iteration}
+	if it := r.Iteration; it != nil && r.Redact {
+		// A row is data the caller supplied, which may hold secrets.
+		masked := *it
+		masked.Row = map[string]string{}
+		for k := range it.Row {
+			masked.Row[k] = Masked
+		}
+		out.Iteration = &masked
+	}
 	req, err := r.Request.marshal(r.Redact)
 	if err != nil {
 		return nil, err
 	}
 	out.Request = req
 	return json.Marshal(out)
+}
+
+// Iteration places a result in a data-driven run: which row of how many,
+// and the row's values (the variables it supplied).
+type Iteration struct {
+	Index int               `json:"index"` // 1-based
+	Total int               `json:"total"`
+	Row   map[string]string `json:"row"`
 }
 
 // DisplayCaptures returns captures, masked when redacting.

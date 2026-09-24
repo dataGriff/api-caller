@@ -62,7 +62,7 @@ narrow this with `dir: api`.
 ## apic run
 
 ```
-apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry] [--output <file>] [--report <file.html>]
+apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry] [--output <file>] [--report <file.html>] [--data rows.csv|rows.json|- [--data-share-session]]
 ```
 
 Sends requests and reports status, timing, body, captures and assertions.
@@ -94,6 +94,8 @@ shows progress.
 | `--report <file.html>` | Also write a self-contained HTML report of the run: summary, every request with its status, timing, assertions (actual against expected), captures and the request and response headers and bodies, collapsed. Honours `--redact` like the text output and shows a "redacted" badge; sensitive headers are masked either way. Refused when the path is a project file. |
 | `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
 | `--output <file>` | Save the response body to this file, relative to the working directory, overwriting: what a `>>! file` line in the request does (see [format.md](format.md#saving-a-response)). One request only; a flow is refused, and so is a project input as the target. The text output says `↳ saved to <file>` and `--json` carries `saved_to`. |
+| `--data <file>` | Run the targets once per row: a CSV file whose header row names the variables, or a JSON array of objects; `-` reads stdin. See [Data-driven runs](#data-driven-runs). |
+| `--data-share-session` | With `--data`, let one iteration's captures reach the next and the session file. |
 
 Examples:
 
@@ -155,6 +157,9 @@ apic run get-user --body-only | jq .email
 - `attempts` (omitted when no retry policy applied) is how many times the
   request was sent; the object describes the last attempt. Attempt lines
   are not printed under `--json`.
+- `iteration` (only under [`--data`](#data-driven-runs)) is
+  `{"index": 3, "total": 50, "row": {"id": "7"}}`: which row the object
+  belongs to and the variables it supplied, values `***` under `--redact`.
 - `skipped` (omitted otherwise) is `"disabled"` for a
   [`# @disabled`](format.md#pauses-and-disabled-requests) request that a
   file's flow did not send: `ok` is true and there is no `response`.
@@ -167,6 +172,36 @@ apic run get-user --body-only | jq .email
 - When a request could not be sent at all (missing variable, network), the
   error goes to stderr and the exit code is 2 or 3; in a flow, the earlier
   results are still printed.
+
+### Data-driven runs
+
+```sh
+apic run get-user --data users.csv
+apic run checkout.http --data orders.json --keep-going --report orders.html
+jq -c '[.[] | {id}]' ids.json | apic run get-user --data -
+```
+
+`--data` runs the targets once per row. In a CSV file the header row names
+the variables (a spreadsheet's byte order mark is ignored); in JSON each
+object is a row, numbers written without an exponent. The row's values
+sit at `--var` precedence, over the same names from `--var`, for that
+iteration only.
+
+Each iteration starts from the session as it was when the run began and
+writes nothing back, so what one iteration captures does not reach the
+next: fifty users each get their own `{{id}}`, not the last one's.
+`--data-share-session` runs every iteration on one session instead, which
+also saves captures to `.apic/session.json` as a plain run does. A token a
+`# @ref login` fetched is fetched once per iteration without it and once
+with it.
+
+The text output heads each iteration `iteration 3/50 · id=7 name=alice`
+(the values left out under `--redact`) and ends with
+`50 of 50 iterations: 49 passed`; each `--json` object carries
+`iteration`. A failed iteration stops the run unless `--keep-going`, which
+then runs every row and, as in a flow, every request; the exit code is 1
+if any iteration failed. `--output` is refused with `--data`, since it
+would be overwritten each time; `--report` covers every iteration.
 
 ## apic test
 
@@ -1009,6 +1044,8 @@ apic run <request|file.http|file.http#name>... [flags]
 | Flag | Meaning |
 |---|---|
 | `--body-only` | print only the response body (for piping) |
+| `--data <string>` | run the targets once per row of a CSV file (header row names the variables) or JSON array of objects; - reads stdin |
+| `--data-share-session` | with --data, let captures from one iteration reach the next and the session file |
 | `--keep-going` | in a flow, continue after a failure |
 | `--no-retry` | send every request once, ignoring # @retry, --retry and apic.yaml |
 | `--output <string>` | save the response body to this file (one request only; like a "&gt;&gt;! file" line in the request) |

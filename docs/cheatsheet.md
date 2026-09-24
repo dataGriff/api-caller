@@ -34,6 +34,7 @@ Content-Type: application/json
 | Command | What it does |
 |---|---|
 | `apic run <target>...` | Send requests; several targets run in order as a flow; `--output file` saves one response body |
+| `apic run <target> --data rows.csv` | Run once per row of a CSV file or JSON array; each row's columns are variables |
 | `apic ui` | [Terminal UI](tui.md); `--demo` needs no project |
 | `apic test [paths]` | Run [Gherkin features](testing.md) |
 | `apic list [pattern]` | Every request, filtered by id, URL, file or description |

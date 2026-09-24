@@ -217,7 +217,8 @@ paste into your project's `AGENTS.md`. The contract only grows: a body
 that is not text now comes as base64 with `body_encoding` beside it,
 `saved_to` names the file a `>> file` line wrote, a `# @disabled`
 request a flow skipped prints `"skipped": "disabled"` with no response,
-and `response.proto` says whether it came over HTTP/1.1 or HTTP/2.
+`response.proto` says whether it came over HTTP/1.1 or HTTP/2, and under
+`run --data` each object carries its `iteration`.
 
 ## The format
 
