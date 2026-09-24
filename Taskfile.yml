@@ -163,6 +163,14 @@ tasks:
     cmds:
       - mkdocs build --strict
 
+  docs:check:
+    desc: Spelling (codespell), prose style (vale) and external links (lychee), as the docs workflow runs them; needs the three tools on PATH
+    cmds:
+      - codespell
+      - vale sync
+      - vale docs README.md CONTRIBUTING.md AGENTS.md SECURITY.md
+      - lychee --config .lychee.toml --no-progress 'docs/**/*.md' README.md CONTRIBUTING.md SECURITY.md
+
   notices:
     desc: Generate THIRD_PARTY_NOTICES.md from the modules compiled into apic
     cmds:

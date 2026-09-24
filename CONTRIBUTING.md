@@ -55,6 +55,25 @@ publishing), `task docs` (preview the documentation site).
 - **A commit message that says why.** What changed is in the diff; the reason is
   not.
 
+## Docs quality checks
+
+The docs workflow runs three checks before it builds the site, and
+`task docs:check` runs the same three locally:
+
+- **codespell** for typos, across the docs and the code's comments. A typo
+  an example makes on purpose goes in `ignore-words-list` in
+  `.codespellrc`.
+- **Vale** for style: British spelling ("colour", "behaviour", "licence")
+  outside code spans, the project's names spelled one way
+  (`docs/.vale/styles/config/vocabularies/Apic/accept.txt`), and no
+  repeated words. Only errors fail; `vale --minAlertLevel=warning docs`
+  shows write-good's advice on passive voice and wordiness, to read rather
+  than obey.
+- **lychee** for external links, on pull requests, failing on 404 and 410.
+  Links to this repository and the docs site are left to `mkdocs build
+  --strict`, since a page added in the same pull request is not published
+  yet.
+
 ## Writing a course lesson
 
 The **Learn** tab of the docs is the "From zero to apic" course, one page

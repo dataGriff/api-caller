@@ -40,6 +40,7 @@ never parses `.http` files itself (it reads `--json`).
 - `task notices`: regenerate THIRD_PARTY_NOTICES.md (goreleaser runs this before packaging)
 - `task shots`: regenerate `docs/assets/apic-ui.svg` and `apic-run.svg` from real output (needs port 8089 free)
 - `task docs` / `task docs:build`: preview or strictly build the docs site (`pip install "mkdocs<2" "mkdocs-material<10"`)
+- `task docs:check`: codespell, Vale and lychee, as the docs workflow runs them (needs the three on PATH). Prose is British English: Vale's `Apic.British` rule fails on `color` or `behavior` outside code spans. A deliberate typo in an example goes in `.codespellrc`'s `ignore-words-list`; a name Vale should hold to one spelling goes in `docs/.vale/styles/config/vocabularies/Apic/accept.txt`
 - `task docs:cli`: regenerate the "Commands and flags" section at the end of `docs/cli.md` from the command tree (`scripts/clidocs`; a test fails when it is stale); `task man` writes the man pages goreleaser ships
 - `task docs:errors`: regenerate `docs/errors.md` from `runner.Catalogue` (`scripts/errdocs`; a test fails when it is stale). A new error gets a code from the catalogue: `runner.Usage(runner.CodeX, msg)` or `usagef(CodeX, …)`, never a bare message; a new code needs an entry in `Catalogue` and a case in `internal/cli/errors_test.go`, which runs a real command for every code
 - New commands need a row in the README table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`; a new or changed flag needs `task docs:cli`. A flag's usage text must not contain backticks: cobra reads the first backticked word as the value's name (a test checks)
@@ -69,6 +70,9 @@ never parses `.http` files itself (it reads `--json`).
 - `errorlint` is on because exit codes are a public contract: `runner.ExitCode`
   uses `errors.As`, so wrapping a `TransportError` cannot silently turn a
   documented 3 into a 2. There is a test for exactly that.
+- CI's lint job also runs `codespell` over the whole tree; the docs workflow runs
+  codespell, Vale (errors only: British spelling, project terms, repeated words)
+  and, on pull requests, lychee for external links, before building the site.
 - CI also runs `govulncheck`, CodeQL (weekly and per PR) and a coverage job
   that uploads `coverage.out` as an artifact. Dependabot watches `gomod` and
   `github-actions` weekly.

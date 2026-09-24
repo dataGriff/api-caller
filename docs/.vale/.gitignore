@@ -1,0 +1,4 @@
+# Packages that `vale sync` downloads; the project's own style is committed.
+styles/*
+!styles/Apic/
+!styles/config/
