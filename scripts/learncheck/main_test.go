@@ -61,7 +61,7 @@ func TestExtractHandlesCRLF(t *testing.T) {
 }
 
 // TestTemplateRunsEndToEnd builds apic, starts the demo and runs the blocks
-// in the course template, which is what CI does for every lesson.
+// in the course and the migration guides, which is what CI does.
 func TestTemplateRunsEndToEnd(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the binary and serves the demo")
@@ -73,7 +73,7 @@ func TestTemplateRunsEndToEnd(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := run(filepath.Join("docs", "learn"), false); err != nil {
+	if err := run([]string{filepath.Join("docs", "learn"), filepath.Join("docs", "migrate")}, false); err != nil {
 		t.Fatal(err)
 	}
 }

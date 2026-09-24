@@ -102,20 +102,57 @@ export function problemsByPath(out: ValidateOutput, textOf: (path: string) => re
   return byPath;
 }
 
+/** An error apic reported on stderr, from the `--json` object when there is one. */
+export interface ApicError {
+  message: string;
+  /** The catalogue code (E101…), from apic 0.2 on. */
+  code?: string;
+  title?: string;
+  hint?: string;
+  /** Where docs/errors.md explains the code. */
+  url?: string;
+}
+
 /**
- * The problem `apic validate` reports on stderr when it cannot load the
- * project at all (`error: apic.yaml: …`, `error: users.http:12: …`): the
- * file, a 0-based line (0 when none), and the message.
+ * The error on apic's stderr: under `--json` one line holding
+ * `{"error": {code, title, message, hint, exit, url}}`; from older
+ * releases, or without `--json`, an `error: …` line.
  */
-export function parseUsageError(stderr: string): { path: string; line: number; message: string } | undefined {
-  const first = stderr
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .find((l) => l.startsWith("error:"));
-  if (!first) {
+export function parseStderrError(stderr: string): ApicError | undefined {
+  const lines = stderr.split(/\r?\n/).map((l) => l.trim());
+  for (const line of lines) {
+    if (!line.startsWith("{")) {
+      continue;
+    }
+    try {
+      const e = (JSON.parse(line) as { error?: ApicError }).error;
+      if (e && typeof e.message === "string") {
+        return { message: e.message, code: e.code, title: e.title, hint: e.hint, url: e.url };
+      }
+    } catch {
+      // not the error object
+    }
+  }
+  const at = lines.findIndex((l) => l.startsWith("error:"));
+  if (at < 0) {
     return undefined;
   }
-  const text = first.slice("error:".length).trim();
+  // A message can run over several lines (one per missing variable).
+  const rest = lines.slice(at + 1).filter((l) => l !== "");
+  return { message: [lines[at].slice("error:".length).trim(), ...rest].join("\n") };
+}
+
+/**
+ * The problem `apic validate` reports on stderr when it cannot load the
+ * project at all (`apic.yaml: …`, `users.http:12: …`): the file, a 0-based
+ * line (0 when none), and the message.
+ */
+export function parseUsageError(stderr: string): { path: string; line: number; message: string } | undefined {
+  const err = parseStderrError(stderr);
+  if (!err) {
+    return undefined;
+  }
+  const text = err.message.split("\n")[0].trim();
   const m = /^([^\s:]+(?:\.[a-z]+)):(?:(\d+):)?\s*(.*)$/.exec(text);
   if (m) {
     return { path: m[1], line: m[2] ? Math.max(0, Number(m[2]) - 1) : 0, message: m[3] || text };

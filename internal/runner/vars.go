@@ -384,12 +384,14 @@ func randomBuiltin(expr string) (string, error) {
 }
 
 // responseRef resolves `<name>.response.<selector>` against a request already
-// run in this invocation, e.g. login.response.body.$.token.
+// run in this invocation, e.g. login.response.body.$.token. One that has not
+// run yet is missing rather than an error, so a `# @ref` to it runs it
+// first, as for a captured variable, and MissingError explains the rest.
 func (r *Runner) responseRef(expr string) (string, bool, error) {
 	name, sel, _ := strings.Cut(expr, ".response.")
 	res, ok := r.results[name]
 	if !ok || res.raw == nil {
-		return "", false, fmt.Errorf("request %q has not been run in this invocation (run the whole file as a flow, or use @capture)", name)
+		return "", false, nil
 	}
 	v, found, err := selector.Select(res.raw, sel)
 	if err != nil {

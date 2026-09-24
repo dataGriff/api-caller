@@ -1,0 +1,8 @@
+# Typos in the docs, the READMEs and the code's comments and strings. Run
+# from the repository root: `codespell` (task docs:check and CI do).
+[codespell]
+skip = ./.git,./bin,./dist,./site,./man,./coverage.out,./THIRD_PARTY_NOTICES.md,*.svg,*.png,go.sum,*.vsix,./editors/vscode/node_modules,./editors/vscode/out,./editors/vscode/dist,./editors/vscode/package-lock.json,./docs/schemas,./docs/.vale/styles/write-good,.lycheecache,testdata
+# Deliberate: stauts, basci, isnt, nmae and asert are typos the lessons and
+# tests make on purpose; te, ue and aCount are variable names; reFence is
+# a regexp.
+ignore-words-list = te,ue,acount,stauts,basci,isnt,nmae,asert,refence

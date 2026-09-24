@@ -138,13 +138,18 @@ tasks:
     cmds:
       - go run ./scripts/clidocs
 
+  docs:errors:
+    desc: Regenerate docs/errors.md from the error catalogue in internal/runner/errors.go (a test fails when it is stale)
+    cmds:
+      - go run ./scripts/errdocs
+
   man:
     desc: Write the man pages into man/ (goreleaser does this before packaging)
     cmds:
       - go run ./scripts/clidocs -man man
 
   learn:check:
-    desc: Run every marked command block in the course pages (docs/learn) against apic demo
+    desc: Run every marked command block in the course (docs/learn) and the migration guides (docs/migrate) against apic demo
     cmds:
       - go run ./scripts/learncheck
 
@@ -157,6 +162,14 @@ tasks:
     desc: Build the documentation site with strict link checking
     cmds:
       - mkdocs build --strict
+
+  docs:check:
+    desc: Spelling (codespell), prose style (vale) and external links (lychee), as the docs workflow runs them; needs the three tools on PATH
+    cmds:
+      - codespell
+      - vale sync
+      - vale docs README.md CONTRIBUTING.md AGENTS.md SECURITY.md
+      - lychee --config .lychee.toml --no-progress 'docs/**/*.md' README.md CONTRIBUTING.md SECURITY.md
 
   notices:
     desc: Generate THIRD_PARTY_NOTICES.md from the modules compiled into apic

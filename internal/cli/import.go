@@ -42,24 +42,24 @@ from stdin, so a copied command can be piped in.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if curl != "" {
 				if len(args) > 0 {
-					return &runner.UsageError{Msg: "--curl takes the command, not a file"}
+					return runner.Usage(runner.CodeFlag, "--curl takes the command, not a file")
 				}
 				return a.importCurl(curl, into, name)
 			}
 			if len(args) != 1 {
-				return &runner.UsageError{Msg: "import needs a file to read, or --curl"}
+				return runner.Usage(runner.CodeFlag, "import needs a file to read, or --curl")
 			}
 			if into != "" || name != "" {
-				return &runner.UsageError{Msg: "--into and --name go with --curl"}
+				return runner.Usage(runner.CodeFlag, "--into and --name go with --curl")
 			}
 			data, err := os.ReadFile(args[0]) //nolint:gosec // the file the user named on the command line
 			if err != nil {
-				return &runner.UsageError{Msg: err.Error()}
+				return runner.Usage(runner.CodeFile, err.Error())
 			}
 			if postman.LooksLikeCollection(data) {
 				res, err := postman.Import(args[0], postman.Options{OutDir: out, EnvFiles: postmanEnvs, Force: force})
 				if err != nil {
-					return &runner.UsageError{Msg: err.Error()}
+					return runner.Usage(runner.CodeImport, err.Error())
 				}
 				if a.g.json {
 					return a.writeJSON(res)
@@ -71,14 +71,14 @@ from stdin, so a copied command can be piped in.`,
 				return nil
 			}
 			if postman.LooksLikeEnvironment(data) {
-				return &runner.UsageError{Msg: args[0] + " is a Postman environment; pass the collection and give environments with --postman-env"}
+				return runner.Usage(runner.CodeFlag, args[0]+" is a Postman environment; pass the collection and give environments with --postman-env")
 			}
 			if len(postmanEnvs) > 0 {
-				return &runner.UsageError{Msg: "--postman-env goes with a Postman collection, not an OpenAPI document"}
+				return runner.Usage(runner.CodeFlag, "--postman-env goes with a Postman collection, not an OpenAPI document")
 			}
 			res, err := openapi.Import(args[0], openapi.Options{OutDir: out, EnvName: envName, Force: force})
 			if err != nil {
-				return &runner.UsageError{Msg: err.Error()}
+				return runner.Usage(runner.CodeImport, err.Error())
 			}
 			if a.g.json {
 				return a.writeJSON(res)
@@ -102,13 +102,13 @@ func (a *App) importCurl(command, into, name string) error {
 	if command == "-" {
 		data, err := io.ReadAll(a.Stdin)
 		if err != nil {
-			return &runner.UsageError{Msg: "reading the command from stdin: " + err.Error()}
+			return runner.Usage(runner.CodeFile, "reading the command from stdin: "+err.Error())
 		}
 		command = string(data)
 	}
 	req, err := curlimport.Parse(command)
 	if err != nil {
-		return &runner.UsageError{Msg: "curl: " + err.Error()}
+		return runner.Usage(runner.CodeImport, "curl: "+err.Error())
 	}
 	// The project's baseUrl, when there is one, replaces the host.
 	baseURL := ""
@@ -131,7 +131,7 @@ func (a *App) importCurl(command, into, name string) error {
 		}
 		data, err := os.ReadFile(target) //nolint:gosec // the request file the user named
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return &runner.UsageError{Msg: err.Error()}
+			return runner.Usage(runner.CodeImport, err.Error())
 		}
 		existing = string(data)
 		// A name already in the file gets a suffix rather than a duplicate.
@@ -154,7 +154,7 @@ func (a *App) importCurl(command, into, name string) error {
 			side := name + ".body.txt"
 			sidePath := filepath.Join(filepath.Dir(target), side)
 			if err := os.WriteFile(sidePath, []byte(req.Body), 0o644); err != nil { //nolint:gosec // a request body file the user edits and commits
-				return &runner.UsageError{Msg: err.Error()}
+				return runner.Usage(runner.CodeImport, err.Error())
 			}
 			req.Body, req.BodyFile = "", "./"+side
 			fmt.Fprintf(a.Stdout, "wrote %s\n", filepath.Join(filepath.Dir(into), side))
@@ -167,7 +167,7 @@ func (a *App) importCurl(command, into, name string) error {
 			text = strings.TrimRight(existing, "\n") + "\n\n" + block
 		}
 		if err := os.WriteFile(target, []byte(text), 0o644); err != nil { //nolint:gosec // a .http file the user edits and commits
-			return &runner.UsageError{Msg: err.Error()}
+			return runner.Usage(runner.CodeImport, err.Error())
 		}
 	}
 	if a.g.json {

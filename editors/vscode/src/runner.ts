@@ -1,13 +1,15 @@
 // Runs requests through the apic binary, one at a time like the terminal
 // UI, with a cancellable progress notification, and hands the results to
 // the panel and the decorations. Exit codes 2 and 3 surface the CLI's own
-// error text, with a "Run login" action when the hint names a request.
+// error text, with a "Run login" action when the hint names a request and
+// a link to the error's entry in the catalogue when apic gives a code.
 import * as vscode from "vscode";
 import type { Apic } from "./apic";
 import type { Decorations } from "./decorations";
 import type { Environments } from "./environment";
 import type { ResponsePanel } from "./responsePanel";
 import type { CurlOutput, Description, RunResult } from "./types";
+import { parseStderrError } from "./validate";
 
 const capturedBy = /captured by request "([^"]+)"/;
 
@@ -76,12 +78,17 @@ export class Runner {
   }
 
   private async reportError(root: string, stderr: string, code: number): Promise<void> {
-    const text = stderr.trim().split("\n").slice(0, 4).join(" ").replace(/\s+/g, " ") || `apic exited with ${code}`;
-    const hinted = capturedBy.exec(stderr)?.[1];
-    const actions = hinted ? [`Run ${hinted}`, "Show output"] : ["Show output"];
+    const err = parseStderrError(stderr);
+    const body = err?.message ?? stderr;
+    const text = body.trim().split("\n").slice(0, 4).join(" ").replace(/\s+/g, " ") || `apic exited with ${code}`;
+    const hinted = capturedBy.exec(body)?.[1];
+    const explain = err?.code && err.url ? `What is ${err.code}?` : undefined;
+    const actions = [...(hinted ? [`Run ${hinted}`] : []), ...(explain ? [explain] : []), "Show output"];
     const choice = await vscode.window.showErrorMessage(text, ...actions);
     if (choice === "Show output") {
       this.output.show(true);
+    } else if (choice && choice === explain && err?.url) {
+      await vscode.env.openExternal(vscode.Uri.parse(err.url));
     } else if (choice && hinted) {
       await this.run(root, [hinted]);
     }

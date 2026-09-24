@@ -168,7 +168,7 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 		return nil, nil
 	}
 	if s.CertFile != "" && s.Passphrase {
-		return nil, usagef("tls: the client key for %s needs a passphrase (hasCertificatePassphrase), which apic cannot supply; store a decrypted key instead", s.CertFile)
+		return nil, usagef(CodeTLSConfig, "tls: the client key for %s needs a passphrase (hasCertificatePassphrase), which apic cannot supply; store a decrypted key instead", s.CertFile)
 	}
 	key := s.key()
 	r.tlsMu.Lock()
@@ -190,14 +190,14 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 		}
 		pem, err := os.ReadFile(path) //nolint:gosec // confined to the project root, or named on the command line
 		if err != nil {
-			return nil, usagef("tls: ca file %s: %v", s.CAFile, err)
+			return nil, usagef(CodeTLSConfig, "tls: ca file %s: %v", s.CAFile, err)
 		}
 		pool, err := x509.SystemCertPool()
 		if err != nil || pool == nil {
 			pool = x509.NewCertPool()
 		}
 		if !pool.AppendCertsFromPEM(pem) {
-			return nil, usagef("tls: ca file %s: no PEM certificates found", s.CAFile)
+			return nil, usagef(CodeTLSConfig, "tls: ca file %s: no PEM certificates found", s.CAFile)
 		}
 		c.RootCAs = pool
 	}
@@ -215,7 +215,7 @@ func (r *Runner) tlsConfig(s tlsSettings) (*tls.Config, error) {
 		}
 		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 		if err != nil {
-			return nil, usagef("tls: client certificate %s: %v", s.CertFile, err)
+			return nil, usagef(CodeTLSConfig, "tls: client certificate %s: %v", s.CertFile, err)
 		}
 		c.Certificates = []tls.Certificate{cert}
 	}
@@ -232,10 +232,10 @@ func (r *Runner) tlsPath(p, what string, fromFlag bool) (string, error) {
 	}
 	real, err := project.Confine(r.Project.Root, r.Project.Root, p)
 	if errors.Is(err, project.ErrOutsideRoot) {
-		return "", usagef("tls: %s %s: resolves outside the project root", what, p)
+		return "", usagef(CodeTLSConfig, "tls: %s %s: resolves outside the project root", what, p)
 	}
 	if err != nil {
-		return "", usagef("tls: %s %s: %v", what, p, err)
+		return "", usagef(CodeTLSConfig, "tls: %s %s: %v", what, p, err)
 	}
 	return real, nil
 }
@@ -249,10 +249,10 @@ func refuseWorldReadable(path, shown string) error {
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return usagef("tls: client key %s: %v", shown, err)
+		return usagef(CodeTLSConfig, "tls: client key %s: %v", shown, err)
 	}
 	if perm := info.Mode().Perm(); perm&0o004 != 0 {
-		return usagef("tls: client key %s is world-readable (mode %04o); run `chmod 600 %s`", shown, perm, shown)
+		return usagef(CodeTLSConfig, "tls: client key %s is world-readable (mode %04o); run `chmod 600 %s`", shown, perm, shown)
 	}
 	return nil
 }

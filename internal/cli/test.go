@@ -60,7 +60,7 @@ phrase) · 3 a server could not be reached.`,
 			}
 			runner.Version = Version
 			if useSession && a.g.noSess {
-				return &runner.UsageError{Msg: "--use-session and --no-session cannot be combined"}
+				return runner.Usage(runner.CodeFlag, "--use-session and --no-session cannot be combined")
 			}
 			opts := bdd.Options{
 				Config: bdd.Config{Project: p, Env: a.g.env, Vars: vars, UseSession: useSession,
@@ -79,7 +79,7 @@ phrase) · 3 a server could not be reached.`,
 			if output != "" {
 				features, err := bdd.FeatureFiles(opts)
 				if err != nil {
-					return &runner.UsageError{Msg: err.Error()}
+					return runner.Usage(runner.CodeFeatures, err.Error())
 				}
 				if err := outputOverlapsSources(output, p, features); err != nil {
 					return err
@@ -91,7 +91,7 @@ phrase) · 3 a server could not be reached.`,
 					// A report that was not fully written fails the command
 					// whatever the scenarios did: CI must not lose it silently.
 					if cerr := lf.Close(); cerr != nil {
-						retErr = &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v (run result: %v)", output, cerr, describeOutcome(retErr))}
+						retErr = runner.Usage(runner.CodeFile, fmt.Sprintf("write report %s: %v (run result: %v)", output, cerr, describeOutcome(retErr)))
 					}
 				}()
 				opts.Output = lf
@@ -130,7 +130,7 @@ func (a *App) testHTML(ctx context.Context, opts bdd.Options, output string) err
 	}
 	meta := report.Meta{Version: Version, Env: opts.Env, Time: started, Redacted: opts.Redact, Project: opts.Project.Root}
 	if err := report.Features(dest, meta, raw); err != nil {
-		return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", output, err)}
+		return runner.Usage(runner.CodeFile, fmt.Sprintf("write report %s: %v", output, err))
 	}
 	if runErr != nil {
 		return testErr(runErr)
@@ -149,7 +149,7 @@ func testErr(err error) error {
 	if errors.As(err, &te) || errors.As(err, &ue) {
 		return err
 	}
-	return &runner.UsageError{Msg: err.Error()}
+	return runner.Usage(runner.CodeFeatures, err.Error())
 }
 
 // isTerminal reports whether w is an interactive terminal; reports written
@@ -199,7 +199,7 @@ func describeOutcome(err error) string {
 // session. features are the resolved feature files selected for this run.
 func outputOverlapsSources(output string, p *project.Project, features []string) error {
 	refuse := func() error {
-		return &runner.UsageError{Msg: fmt.Sprintf("--output %s would overwrite a project file; write it elsewhere", output)}
+		return runner.Usage(runner.CodeFlag, fmt.Sprintf("--output %s would overwrite a project file; write it elsewhere", output))
 	}
 	bodyFiles := map[string]bool{}
 	for _, req := range p.Requests() {

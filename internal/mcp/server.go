@@ -112,8 +112,13 @@ func (s *service) newRunner(env string, vars map[string]string, keepGoing bool) 
 }
 
 // toolError returns a tool-level error the agent can read and act on.
+// toolError reports a failed call with the error's catalogue code, as the
+// CLI's --json does: the text for a model to read, the object to branch on.
 func toolError(err error) (*sdk.CallToolResult, any, error) {
-	return &sdk.CallToolResult{IsError: true, Content: []sdk.Content{&sdk.TextContent{Text: err.Error()}}}, nil, nil
+	info := runner.Info(err)
+	obj, _ := json.Marshal(map[string]any{"error": info})
+	text := fmt.Sprintf("%s\n(%s %s: %s)", err.Error(), info.Code, info.Title, info.Hint)
+	return &sdk.CallToolResult{IsError: true, Content: []sdk.Content{&sdk.TextContent{Text: text}}, StructuredContent: json.RawMessage(obj)}, nil, nil
 }
 
 func structured(v any) (*sdk.CallToolResult, any, error) {
@@ -294,11 +299,11 @@ func (s *service) runFile(ctx context.Context, _ *sdk.CallToolRequest, in runFil
 		return toolError(err)
 	}
 	if !strings.Contains(in.File, ".http") && !strings.Contains(in.File, ".rest") {
-		return toolError(fmt.Errorf("%q is not a .http file; use run_request for a single request", in.File))
+		return toolError(runner.Usagef(runner.CodeFlag, "%q is not a .http file; use run_request for a single request", in.File))
 	}
 	reqs, err := r.Project.Resolve(in.File)
 	if err != nil {
-		return toolError(err)
+		return toolError(runner.Usage(runner.CodeUnknownRequest, err.Error()))
 	}
 	results, runErr := r.RunAll(ctx, reqs)
 	ok := runErr == nil
@@ -476,10 +481,10 @@ func (s *service) resourcePath(uri string) (string, error) {
 func single(r *runner.Runner, target string) (*httpfile.Request, error) {
 	reqs, err := r.Project.Resolve(target)
 	if err != nil {
-		return nil, err
+		return nil, runner.Usage(runner.CodeUnknownRequest, err.Error())
 	}
 	if len(reqs) != 1 {
-		return nil, fmt.Errorf("%q names %d requests; use run_file for a whole file or %s#<name> for one", target, len(reqs), target)
+		return nil, runner.Usagef(runner.CodeAmbiguous, "%q names %d requests; use run_file for a whole file or %s#<name> for one", target, len(reqs), target)
 	}
 	return reqs[0], nil
 }

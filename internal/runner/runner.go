@@ -134,7 +134,7 @@ type Runner struct {
 func New(p *project.Project, opts Options) (*Runner, error) {
 	for _, d := range p.Diagnostics {
 		if d.Severity == "error" {
-			return nil, usagef("%s:%d: %s (run `apic validate`)", d.Path, d.Line, d.Message)
+			return nil, usagef(CodeInvalidFile, "%s:%d: %s (run `apic validate`)", d.Path, d.Line, d.Message)
 		}
 	}
 	if opts.Env == "" {
@@ -145,20 +145,20 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		if p.Config.Timeout != "" {
 			d, err := time.ParseDuration(p.Config.Timeout)
 			if err != nil {
-				return nil, usagef("apic.yaml: bad timeout %q", p.Config.Timeout)
+				return nil, usagef(CodeProject, "apic.yaml: bad timeout %q", p.Config.Timeout)
 			}
 			opts.Timeout = d
 		}
 	}
 	envs, err := env.Load(p.Root)
 	if err != nil {
-		return nil, usagef("%v", err)
+		return nil, usagef(CodeProject, "%v", err)
 	}
 	if opts.Env != "" && !envs.Has(opts.Env) {
 		if names := envs.Names(); len(names) > 0 {
-			return nil, usagef("environment %q not found in %s (have: %s)", opts.Env, env.PublicFile, strings.Join(names, ", "))
+			return nil, usagef(CodeEnvironment, "environment %q not found in %s (have: %s)", opts.Env, env.PublicFile, strings.Join(names, ", "))
 		}
-		return nil, usagef("environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
+		return nil, usagef(CodeEnvironment, "environment %q requested but no %s found in %s", opts.Env, env.PublicFile, p.Root)
 	}
 	// Flag paths are the user's own, relative to where they typed them,
 	// which absolute paths tell apart from the project's confined ones.
@@ -185,7 +185,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		r.Session = opts.Session
 	case !opts.NoSession:
 		if r.Session, err = session.Open(p.Root); err != nil {
-			return nil, usagef("session: %v", err)
+			return nil, usagef(CodeSession, "session: %v", err)
 		}
 	}
 	if opts.Cookies || p.Config.Cookies {
@@ -196,7 +196,7 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 			r.Jar = session.NewMemoryJar()
 		default:
 			if r.Jar, err = session.OpenJar(p.Root); err != nil {
-				return nil, usagef("cookies: %v", err)
+				return nil, usagef(CodeSession, "cookies: %v", err)
 			}
 		}
 	}
@@ -452,6 +452,9 @@ type Result struct {
 	Captures map[string]string `json:"captures,omitempty"`
 	Asserts  []assert.Result   `json:"asserts,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
+	// Error is the error that stopped the request, with its catalogue
+	// code, when one did; Errors keeps the message too.
+	Error *ErrorInfo `json:"error,omitempty"`
 	// Attempts is how many times the request was sent under a `# @retry`
 	// policy (or --retry, or retry in apic.yaml); zero when none applied.
 	Attempts int `json:"attempts,omitempty"`
@@ -557,7 +560,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	var err error
 	if res.URL, err = render(strings.TrimSpace(req.URL)); err != nil {
-		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+		return nil, usagef(CodeBuild, "%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	res.TLS = r.tlsInfoForURL(res.URL)
 	res.Proxy = r.ProxyInfo(res.URL)
@@ -578,7 +581,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		}
 		v, err := render(h.Value)
 		if err != nil {
-			return nil, usagef("%s:%d: header %s: %v", req.File.Path, req.Line, h.Name, err)
+			return nil, usagef(CodeBuild, "%s:%d: header %s: %v", req.File.Path, req.Line, h.Name, err)
 		}
 		res.Headers = append(res.Headers, httpfile.Header{Name: h.Name, Value: v})
 		if usesSecret(h.Value) {
@@ -614,7 +617,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 		body = ""
 	}
 	if m, err := req.Multipart(); err != nil {
-		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+		return nil, usagef(CodeInvalidFile, "%s:%d: %v", req.File.Path, req.Line, err)
 	} else if m != nil {
 		if res.rawBody, res.Parts, err = r.multipartBody(req, m, render); err != nil {
 			return nil, err
@@ -624,7 +627,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	}
 	if body != "" {
 		if res.Body, err = render(body); err != nil {
-			return nil, usagef("%s:%d: body: %v", req.File.Path, req.Line, err)
+			return nil, usagef(CodeBuild, "%s:%d: body: %v", req.File.Path, req.Line, err)
 		}
 	}
 	if spec, err := r.authSpec(req); err != nil {
@@ -632,7 +635,7 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	} else if spec != nil {
 		rendered, err := spec.Render(render)
 		if err != nil {
-			return nil, usagef("%s:%d: @auth: %v", req.File.Path, req.Line, err)
+			return nil, usagef(CodeAuth, "%s:%d: @auth: %v", req.File.Path, req.Line, err)
 		}
 		res.Auth, res.AuthSpec = spec.Type, rendered
 		res.secret = true
@@ -647,20 +650,20 @@ func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 func (r *Runner) graphqlBody(req *httpfile.Request, body string, templated bool, render func(string) (string, error)) (string, error) {
 	query, variables := httpfile.SplitGraphQL(body)
 	if query == "" {
-		return "", usagef("%s:%d: a GraphQL request needs a query in its body", req.File.Path, req.Line)
+		return "", usagef(CodeInvalidFile, "%s:%d: a GraphQL request needs a query in its body", req.File.Path, req.Line)
 	}
 	if templated {
 		var err error
 		if query, err = render(query); err != nil {
-			return "", usagef("%s:%d: body: %v", req.File.Path, req.Line, err)
+			return "", usagef(CodeBuild, "%s:%d: body: %v", req.File.Path, req.Line, err)
 		}
 		if variables, err = render(variables); err != nil {
-			return "", usagef("%s:%d: variables: %v", req.File.Path, req.Line, err)
+			return "", usagef(CodeBuild, "%s:%d: variables: %v", req.File.Path, req.Line, err)
 		}
 	}
 	out, err := httpfile.GraphQLEnvelope(query, variables)
 	if err != nil {
-		return "", usagef("%s:%d: %v", req.File.Path, req.Line, err)
+		return "", usagef(CodeBuild, "%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	return out, nil
 }
@@ -679,7 +682,7 @@ func (r *Runner) authSpec(req *httpfile.Request) (*auth.Spec, error) {
 	}
 	spec, err := auth.Parse(raw)
 	if err != nil {
-		return nil, usagef("%s: %v", where, err)
+		return nil, usagef(CodeAuth, "%s: %v", where, err)
 	}
 	if spec.Type == "none" {
 		return nil, nil
@@ -797,12 +800,18 @@ func (r *Runner) MissingError(req *httpfile.Request, missing []string) error {
 		hint := fmt.Sprintf("pass --var %s=... or add it to %s", m, env.PublicFile)
 		if info.CapturedBy != "" {
 			hint = fmt.Sprintf("it is captured by request %q; run `apic run %s` first, or pass --var %s=...", info.CapturedBy, info.CapturedBy, m)
-		} else if strings.HasPrefix(m, "$") || strings.Contains(m, ".response.") {
-			hint = "built-in or response reference could not be resolved"
+		} else if name, sel, ok := strings.Cut(m, ".response."); ok {
+			if res, ran := r.results[name]; ran && res.raw != nil {
+				hint = fmt.Sprintf("the response of %q has nothing at %s", name, sel)
+			} else {
+				hint = fmt.Sprintf("request %q has not run in this invocation; add `# @ref %s`, run the whole file as a flow, or capture the value with # @capture", name, name)
+			}
+		} else if strings.HasPrefix(m, "$") {
+			hint = "built-in could not be resolved"
 		}
 		parts = append(parts, fmt.Sprintf("{{%s}}: %s", m, hint))
 	}
-	return usagef("%s:%d: missing variable%s\n  %s", req.File.Path, req.Line, plural(len(missing)), strings.Join(parts, "\n  "))
+	return usagef(CodeMissingVariable, "%s:%d: missing variable%s\n  %s", req.File.Path, req.Line, plural(len(missing)), strings.Join(parts, "\n  "))
 }
 
 func refKey(ref httpfile.Ref) string {
@@ -822,7 +831,7 @@ func (r *Runner) cycleError(req *httpfile.Request, ref httpfile.Ref, chain []*ht
 		}
 	}
 	ids = append(ids, target.ID())
-	return usagef("%s:%d: %s %s is a cycle: %s", req.File.Path, ref.Line, refKey(ref), ref.ID, strings.Join(ids, " -> "))
+	return usagef(CodeRef, "%s:%d: %s %s is a cycle: %s", req.File.Path, ref.Line, refKey(ref), ref.ID, strings.Join(ids, " -> "))
 }
 
 func plural(n int) string {
@@ -921,10 +930,10 @@ func (r *Runner) refTarget(req *httpfile.Request, ref httpfile.Ref) (*httpfile.R
 	}
 	targets, err := r.Project.Resolve(ref.ID)
 	if err != nil {
-		return nil, usagef("%s:%d: %s %s: %v", req.File.Path, ref.Line, key, ref.ID, err)
+		return nil, usagef(CodeRef, "%s:%d: %s %s: %v", req.File.Path, ref.Line, key, ref.ID, err)
 	}
 	if len(targets) != 1 {
-		return nil, usagef("%s:%d: %s %s names %d requests; refer to one request by name or file#name", req.File.Path, ref.Line, key, ref.ID, len(targets))
+		return nil, usagef(CodeRef, "%s:%d: %s %s names %d requests; refer to one request by name or file#name", req.File.Path, ref.Line, key, ref.ID, len(targets))
 	}
 	return targets[0], nil
 }
@@ -937,14 +946,21 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	var deps []*Result
 	// failed builds the result of a request that never went out because a
 	// dependency failed, keeping what the dependency produced.
-	failed := func(msg string) *Result {
-		return &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL},
+	// err is the error behind msg, if any; a dependency that failed its
+	// assertions is not an error and has none.
+	failed := func(msg string, err error) *Result {
+		res := &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL},
 			Errors: []string{msg}, Deps: deps, Redact: r.Opts.Redact, req: req}
+		if err != nil {
+			res.Error = Info(err)
+			res.Error.Message = msg
+		}
+		return res
 	}
 	runDep := func(ref httpfile.Ref) (*Result, error) {
 		target, err := r.refTarget(req, ref)
 		if err != nil {
-			return failed(err.Error()), err
+			return failed(err.Error(), err), err
 		}
 		next := make([]*httpfile.Request, len(chain)+1)
 		copy(next, chain)
@@ -960,10 +976,10 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			deps = append(deps, dep)
 		}
 		if err != nil {
-			return failed(fmt.Sprintf("%s %s: %v", refKey(ref), ref.ID, err)), err
+			return failed(fmt.Sprintf("%s %s: %v", refKey(ref), ref.ID, err), err), err
 		}
 		if !dep.OK {
-			return failed(fmt.Sprintf("%s %s failed", refKey(ref), ref.ID)), nil
+			return failed(fmt.Sprintf("%s %s failed", refKey(ref), ref.ID), nil), nil
 		}
 		return nil, nil
 	}
@@ -1008,7 +1024,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	for _, a := range req.Asserts {
 		expr, err := assert.Parse(a.Expr)
 		if err != nil {
-			return nil, usagef("%s:%d: %v", req.File.Path, a.Line, err)
+			return nil, usagef(CodeDirective, "%s:%d: %v", req.File.Path, a.Line, err)
 		}
 		expected := expr.Value
 		if !expr.Unary() {
@@ -1018,7 +1034,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 				if errors.As(err, &me) {
 					return nil, r.MissingError(req, dedupe(me.Exprs))
 				}
-				return nil, usagef("%s:%d: assert %q: %v", req.File.Path, a.Line, a.Expr, err)
+				return nil, usagef(CodeDirective, "%s:%d: assert %q: %v", req.File.Path, a.Line, a.Expr, err)
 			}
 		}
 		preparedAsserts = append(preparedAsserts, preparedAssert{expr: expr, expected: expected, raw: a.Expr})
@@ -1028,7 +1044,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	if t, ok := req.Directive("timeout"); ok {
 		d, err := time.ParseDuration(t)
 		if err != nil {
-			return nil, usagef("%s:%d: bad @timeout %q", req.File.Path, req.Line, t)
+			return nil, usagef(CodeDirective, "%s:%d: bad @timeout %q", req.File.Path, req.Line, t)
 		}
 		timeout = d
 	}
@@ -1040,7 +1056,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	schemas := assert.Options{Schema: assert.Schemas(func(path string) ([]byte, error) { return r.readBodyFile(req, path, "schema") })}
 	pause, err := req.Sleep()
 	if err != nil {
-		return nil, usagef("%s:%d: @sleep: %v", req.File.Path, req.Line, err)
+		return nil, usagef(CodeDirective, "%s:%d: @sleep: %v", req.File.Path, req.Line, err)
 	}
 	if pause > 0 {
 		if err := r.sleep(ctx, pause); err != nil {
@@ -1128,7 +1144,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, resolved.Method, resolved.URL, body)
 	if err != nil {
-		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+		return nil, usagef(CodeBuild, "%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	httpReq.Header.Set("User-Agent", "apic/"+Version)
 	for _, h := range resolved.Headers {
@@ -1145,16 +1161,16 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 			return nil, err
 		}
 		if err := auth.Apply(ctx, resolved.AuthSpec, httpReq, resolved.BodyBytes(), env); err != nil {
-			return nil, usagef("%s:%d: auth: %v", req.File.Path, req.Line, err)
+			return nil, usagef(CodeAuth, "%s:%d: auth: %v", req.File.Path, req.Line, err)
 		}
 	}
 
 	want, err := wantFor(req)
 	if err != nil {
-		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+		return nil, usagef(CodeDirective, "%s:%d: %v", req.File.Path, req.Line, err)
 	}
 	if want == protoHTTP2 && httpReq.URL.Scheme != "https" {
-		return nil, usagef("%s:%d: HTTP/2 needs an https:// URL; apic does not send cleartext HTTP/2 (h2c). Write HTTP/1.1 or leave the version out", req.File.Path, req.Line)
+		return nil, usagef(CodeDirective, "%s:%d: HTTP/2 needs an https:// URL; apic does not send cleartext HTTP/2 (h2c). Write HTTP/1.1 or leave the version out", req.File.Path, req.Line)
 	}
 	client, err := r.client(req, httpReq.URL.Host, want)
 	if err != nil {
@@ -1166,7 +1182,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		client.Transport = digest
 	}
 	if info := r.proxyInfo(httpReq.URL); info != nil && info.Error != "" {
-		return nil, usagef("%s:%d: %s", req.File.Path, req.Line, info.Error)
+		return nil, usagef(CodeProxy, "%s:%d: %s", req.File.Path, req.Line, info.Error)
 	}
 	start := time.Now()
 	trace.mu.Lock()
@@ -1174,21 +1190,30 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	trace.mu.Unlock()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
-		if want == protoHTTP2 {
-			err = fmt.Errorf("%w (the request line asks for HTTP/2; the server may not offer it)", err)
+		te := r.transportError(err)
+		if want == protoHTTP2 && te.ErrorCode() == CodeTransport {
+			// Refused ALPN reads as a plain failure; say what it was.
+			te.Code = CodeProtocol
 		}
-		return nil, r.transportError(err)
+		if want == protoHTTP2 {
+			te.Err = fmt.Errorf("%w (the request line asks for HTTP/2; the server may not offer it)", te.Err)
+		}
+		return nil, te
 	}
 	defer func() { _ = httpResp.Body.Close() }()
 	if want == protoHTTP2 && httpResp.ProtoMajor != 2 {
-		return nil, r.transportError(fmt.Errorf("the request line asks for HTTP/2, but %s answered with %s", httpReq.URL.Host, httpResp.Proto))
+		return nil, &TransportError{Code: CodeProtocol, Err: fmt.Errorf("the request line asks for HTTP/2, but %s answered with %s", httpReq.URL.Host, httpResp.Proto)}
 	}
 	// Bounded: an unbounded ReadAll lets one hostile or oversized response take
 	// the process down, and the body is held more than once while it is parsed
 	// and rendered.
 	data, err := readBody(httpResp.Body, r.maxBodyBytes())
 	if err != nil {
-		return nil, r.transportError(err)
+		te := r.transportError(err)
+		if errors.Is(err, errBodyTooLarge) {
+			te.Code = CodeProtocol
+		}
+		return nil, te
 	}
 	dur := time.Since(start)
 
@@ -1267,7 +1292,7 @@ func truncate(s string, n int) string {
 // transportError wraps a network failure. Go's URL errors quote the full
 // URL, query values included, so under Redact the URL is masked the way
 // the rest of the output masks it.
-func (r *Runner) transportError(err error) error {
+func (r *Runner) transportError(err error) *TransportError {
 	var ue *url.Error
 	if r.Opts.Redact && errors.As(err, &ue) {
 		return &TransportError{Err: fmt.Errorf("%s %s: %w", ue.Op, Masked, ue.Err)}
@@ -1314,21 +1339,21 @@ func (r *Runner) retryPolicy(req *httpfile.Request) (retryPolicy, error) {
 	if v, ok := req.Directive("retry"); ok {
 		n, d, err := httpfile.ParseRetry(v)
 		if err != nil {
-			return one, usagef("%s:%d: bad @retry %q: %v", req.File.Path, req.Line, v, err)
+			return one, usagef(CodeDirective, "%s:%d: bad @retry %q: %v", req.File.Path, req.Line, v, err)
 		}
 		return retryPolicy{n, d}, nil
 	}
 	if r.Opts.Retry != "" {
 		n, d, err := httpfile.ParseRetry(r.Opts.Retry)
 		if err != nil {
-			return one, usagef("--retry %q: %v", r.Opts.Retry, err)
+			return one, usagef(CodeFlag, "--retry %q: %v", r.Opts.Retry, err)
 		}
 		return retryPolicy{n, d}, nil
 	}
 	if v := r.Project.Config.Retry; v != "" {
 		n, d, err := httpfile.ParseRetry(v)
 		if err != nil {
-			return one, usagef("apic.yaml: bad retry %q: %v", v, err)
+			return one, usagef(CodeProject, "apic.yaml: bad retry %q: %v", v, err)
 		}
 		return retryPolicy{n, d}, nil
 	}
@@ -1374,7 +1399,7 @@ func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Resul
 		}
 		res, err := r.Run(ctx, req)
 		if err != nil && res == nil {
-			res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}, req: req}
+			res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}, Error: Info(err), req: req}
 		}
 		out = append(out, res)
 		if r.OnResult != nil {
@@ -1510,13 +1535,18 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 			if strings.HasPrefix(e, "$") || strings.Contains(e, ".response.") {
 				v, ok, secret, err := r.resolveExprMeta(req, e, 0)
 				info := VarInfo{Name: e, Source: "built-in", Value: v, Secret: secret, Missing: !ok || err != nil}
-				if strings.Contains(e, ".response.") {
+				if name, _, isRef := strings.Cut(e, ".response."); isRef {
 					info.Source = "response reference (flow only)"
+					if !ok && err == nil && refRuns[name] {
+						// `# @ref` runs the request first, as for a
+						// captured variable.
+						info.RefRuns = true
+					}
 				}
 				if err != nil {
 					info.Source += ": " + err.Error()
 				}
-				if !ok || err != nil {
+				if (!ok || err != nil) && !info.RefRuns {
 					d.Ready = false
 				}
 				d.Variables = append(d.Variables, info)
@@ -1677,7 +1707,7 @@ func (r *Runner) readBodyFile(req *httpfile.Request, rel, what string) ([]byte, 
 	// path is resolved and confined to the project root by filePath.
 	data, err := os.ReadFile(path) //nolint:gosec // confined to the project root
 	if err != nil {
-		return nil, usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+		return nil, usagef(CodeBodyFile, "%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
 	return data, nil
 }
@@ -1690,7 +1720,7 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	if err := w.SetBoundary(m.Boundary); err != nil {
-		return nil, nil, usagef("%s:%d: multipart boundary %q: %v", req.File.Path, req.Line, m.Boundary, err)
+		return nil, nil, usagef(CodeInvalidFile, "%s:%d: multipart boundary %q: %v", req.File.Path, req.Line, m.Boundary, err)
 	}
 	parts := make([]FormPart, 0, len(m.Parts))
 	for _, p := range m.Parts {
@@ -1699,7 +1729,7 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 		for _, h := range p.Headers {
 			v, err := render(h.Value)
 			if err != nil {
-				return nil, nil, usagef("%s:%d: part header %s: %v", req.File.Path, p.Line, h.Name, err)
+				return nil, nil, usagef(CodeBuild, "%s:%d: part header %s: %v", req.File.Path, p.Line, h.Name, err)
 			}
 			hdr.Add(h.Name, v)
 			switch {
@@ -1720,7 +1750,7 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 			if p.FileTemplated {
 				s, err := render(string(data))
 				if err != nil {
-					return nil, nil, usagef("%s:%d: part file %s: %v", req.File.Path, p.FileLine, p.File, err)
+					return nil, nil, usagef(CodeBodyFile, "%s:%d: part file %s: %v", req.File.Path, p.FileLine, p.File, err)
 				}
 				data = []byte(s)
 			}
@@ -1728,22 +1758,22 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 		} else {
 			s, err := render(p.Body)
 			if err != nil {
-				return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+				return nil, nil, usagef(CodeBuild, "%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
 			}
 			data, fp.Value = []byte(s), s
 		}
 		fp.Size = len(data)
 		pw, err := w.CreatePart(hdr)
 		if err != nil {
-			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+			return nil, nil, usagef(CodeBuild, "%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
 		}
 		if _, err := pw.Write(data); err != nil {
-			return nil, nil, usagef("%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
+			return nil, nil, usagef(CodeBuild, "%s:%d: part %s: %v", req.File.Path, p.Line, p.Name, err)
 		}
 		parts = append(parts, fp)
 	}
 	if err := w.Close(); err != nil {
-		return nil, nil, usagef("%s:%d: multipart body: %v", req.File.Path, req.Line, err)
+		return nil, nil, usagef(CodeBuild, "%s:%d: multipart body: %v", req.File.Path, req.Line, err)
 	}
 	return buf.Bytes(), parts, nil
 }
@@ -1754,14 +1784,14 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 func (r *Runner) ProjectFile(rel string) ([]byte, error) {
 	real, err := project.Confine(r.Project.Root, r.Project.Root, rel)
 	if errors.Is(err, project.ErrOutsideRoot) {
-		return nil, usagef("%q resolves outside project root", rel)
+		return nil, usagef(CodeBodyFile, "%q resolves outside project root", rel)
 	}
 	if err != nil {
-		return nil, usagef("%s: %v", rel, err)
+		return nil, usagef(CodeBodyFile, "%s: %v", rel, err)
 	}
 	data, err := os.ReadFile(real) //nolint:gosec // a project file, confined above
 	if err != nil {
-		return nil, usagef("%s: %v", rel, err)
+		return nil, usagef(CodeBodyFile, "%s: %v", rel, err)
 	}
 	return data, nil
 }
@@ -1771,10 +1801,10 @@ func (r *Runner) ProjectFile(rel string) ([]byte, error) {
 func (r *Runner) filePath(req *httpfile.Request, rel, what string) (string, error) {
 	real, err := project.Confine(r.Project.Root, filepath.Join(r.Project.Root, filepath.Dir(req.File.Path)), rel)
 	if errors.Is(err, project.ErrOutsideRoot) {
-		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
+		return "", usagef(CodeBodyFile, "%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
 	}
 	if err != nil {
-		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
+		return "", usagef(CodeBodyFile, "%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
 	return real, nil
 }

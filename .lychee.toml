@@ -1,0 +1,38 @@
+# External link check for the docs and the README (`task docs:check`, and
+# the docs workflow on pull requests that touch them). Internal links are
+# mkdocs build --strict's job, so only http and https are checked here.
+scheme = ["https", "http"]
+
+# A link fails on 404 Not Found and 410 Gone. Other answers, such as a site
+# that refuses robots (403) or rate-limits (429), are not rot; a timeout is
+# retried before it counts.
+accept = ["100..=403", "405..=409", "411..=599"]
+max_retries = 3
+retry_wait_time = 2
+timeout = 20
+max_concurrency = 16
+
+# Remember results for a day, so a re-run does not hammer the same hosts.
+cache = true
+max_cache_age = "1d"
+
+exclude_all_private = true
+exclude_loopback = true
+exclude = [
+  # Placeholders and examples in the prose, and the demo API.
+  '^https?://([a-z0-9-]+\.)*example\.(com|org|net)',
+  '^https?://localhost',
+  '^https?://127\.0\.0\.1',
+  '^https?://proxy',
+  '\{\{',
+  # The docs site and this repository's files: a page or file added in the
+  # same pull request is not published yet, and mkdocs checks the pages.
+  '^https://datagriff\.github\.io/api-caller',
+  '^https://github\.com/dataGriff/api-caller/(blob|tree|releases|issues|pull|compare)',
+  '^https://raw\.githubusercontent\.com/dataGriff/api-caller',
+  # The extension's own listings exist once it is published.
+  '^https://marketplace\.visualstudio\.com/items\?itemName=dataGriff\.',
+  '^https://open-vsx\.org/extension/dataGriff/',
+]
+
+exclude_path = ["site", "editors/vscode/node_modules", "node_modules"]

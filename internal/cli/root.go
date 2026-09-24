@@ -3,12 +3,14 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,8 +100,28 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(), a.snippetCmd(),
 		a.validateCmd(), a.fmtCmd(), a.importCmd(), a.initCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
 	_ = root.RegisterFlagCompletionFunc("env", a.completeEnvs)
+	codeArgumentErrors(root)
 	a.Root = root
 	return a
+}
+
+// codeArgumentErrors gives cobra's own errors, a bad flag value or the
+// wrong number of arguments, the code of any other bad flag.
+func codeArgumentErrors(c *cobra.Command) {
+	c.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return runner.Usage(runner.CodeFlag, err.Error())
+	})
+	if args := c.Args; args != nil {
+		c.Args = func(cmd *cobra.Command, a []string) error {
+			if err := args(cmd, a); err != nil {
+				return runner.Usage(runner.CodeFlag, err.Error())
+			}
+			return nil
+		}
+	}
+	for _, sub := range c.Commands() {
+		codeArgumentErrors(sub)
+	}
 }
 
 // Main runs the CLI and returns the process exit code.
@@ -124,9 +146,33 @@ func (a *App) Execute(ctx context.Context, args []string) int {
 		}
 		return ec.code
 	}
+	if runner.CodeOf(err) == runner.CodeOther && strings.HasPrefix(err.Error(), "unknown command") {
+		err = runner.Usage(runner.CodeFlag, err.Error())
+		// cobra stops before parsing flags for a command it cannot find,
+		// so --json has to be read from the arguments.
+		a.g.json = a.g.json || slices.Contains(args, "--json")
+	}
 	code := runner.ExitCode(err)
-	fmt.Fprintln(a.Stderr, "error:", err)
+	a.printError(err, code)
 	return code
+}
+
+// printError writes an error to stderr: under --json as an object an
+// agent can branch on, otherwise as a line, followed on a terminal by the
+// code and where the catalogue explains it.
+func (a *App) printError(err error, exit int) {
+	info := runner.Info(err)
+	info.Exit = exit
+	if a.g.json {
+		enc := json.NewEncoder(a.Stderr)
+		enc.SetEscapeHTML(false) // hints say <command>
+		_ = enc.Encode(map[string]any{"error": info})
+		return
+	}
+	fmt.Fprintln(a.Stderr, "error:", err)
+	if isTerminal(a.Stderr) {
+		fmt.Fprintln(a.Stderr, theme.Dim.Render(fmt.Sprintf("  %s %s · see %s", info.Code, info.Title, info.URL)))
+	}
 }
 
 // exitError carries an explicit exit code (e.g. failed assertions).
@@ -140,7 +186,7 @@ func (e *exitError) Error() string { return e.msg }
 func (a *App) loadProject() (*project.Project, error) {
 	p, err := project.Load(a.g.dir)
 	if err != nil {
-		return nil, &runner.UsageError{Msg: err.Error()}
+		return nil, runner.Usage(runner.CodeProject, err.Error())
 	}
 	return p, nil
 }
@@ -265,7 +311,7 @@ func (a *App) varMap() (map[string]string, error) {
 	for _, kv := range a.g.vars {
 		k, v, ok := strings.Cut(kv, "=")
 		if !ok || k == "" {
-			return nil, &runner.UsageError{Msg: fmt.Sprintf("--var %q must be name=value", kv)}
+			return nil, runner.Usage(runner.CodeFlag, fmt.Sprintf("--var %q must be name=value", kv))
 		}
 		vars[k] = v
 	}

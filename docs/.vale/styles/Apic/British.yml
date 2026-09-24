@@ -1,0 +1,35 @@
+# apic's docs are written in British English ("licence", "colour"). Code,
+# flags and identifiers (--no-color, LICENSE) are in code spans, which
+# Vale does not check.
+extends: substitution
+message: "Use British spelling: '%s', not '%s'."
+level: error
+ignorecase: true
+swap:
+  analyze: analyse
+  analyzed: analysed
+  behavior: behaviour
+  behaviors: behaviours
+  canceled: cancelled
+  canceling: cancelling
+  catalog: catalogue
+  center: centre
+  color: colour
+  colors: colours
+  customize: customise
+  customized: customised
+  favorite: favourite
+  gray: grey
+  initialize: initialise
+  initialized: initialised
+  normalize: normalise
+  normalized: normalised
+  organization: organisation
+  organize: organise
+  prioritize: prioritise
+  recognize: recognise
+  recognizes: recognises
+  serialize: serialise
+  serialized: serialised
+  summarize: summarise
+  unauthorized: unauthorised

@@ -13,6 +13,10 @@ type translated struct {
 }
 
 var (
+	// reTestInline is a whole pm.test on one line, the way Postman's
+	// snippets and most hand-written tests put a single check: the body is
+	// an arrow expression or a braced block.
+	reTestInline  = regexp.MustCompile(`^pm\.test\(\s*(?:"[^"]*"|'[^']*'|` + "`[^`]*`" + `)\s*,\s*(?:(?:function\s*\(\s*\)|\(\s*\)\s*=>)\s*\{(.*)\}|\(\s*\)\s*=>\s*(.+?))\s*\)\s*;?$`)
 	reTestOpen    = regexp.MustCompile(`^pm\.test\(.*,\s*(?:function\s*\(\s*\)|\(\s*\)\s*=>)\s*\{\s*$`)
 	reBlockClose  = regexp.MustCompile(`^\}\s*\)?\s*;?$`)
 	reJSONVar     = regexp.MustCompile(`^(?:var|let|const)\s+(\w+)\s*=\s*pm\.response\.json\(\)\s*;?$`)
@@ -35,7 +39,7 @@ var (
 func translateTests(lines []string) translated {
 	var out translated
 	jsonVars := map[string]bool{}
-	for _, raw := range lines {
+	for _, raw := range expandInlineTests(lines) {
 		line := strings.TrimSpace(raw)
 		switch {
 		case line == "", strings.HasPrefix(line, "//"), strings.HasPrefix(line, "/*"), strings.HasPrefix(line, "*"):
@@ -100,6 +104,30 @@ func translateTests(lines []string) translated {
 			continue
 		}
 		out.Unsupported = append(out.Unsupported, line)
+	}
+	return out
+}
+
+// expandInlineTests replaces a one-line pm.test with the statements inside
+// it, so `pm.test("ok", () => pm.response.to.have.status(200));` reads the
+// same as the three-line form. A statement it then cannot translate is
+// reported on its own.
+func expandInlineTests(lines []string) []string {
+	var out []string
+	for _, raw := range lines {
+		m := reTestInline.FindStringSubmatch(strings.TrimSpace(raw))
+		switch {
+		case m == nil:
+			out = append(out, raw)
+		case m[2] != "":
+			out = append(out, m[2])
+		default:
+			for _, stmt := range strings.Split(m[1], ";") {
+				if stmt = strings.TrimSpace(stmt); stmt != "" {
+					out = append(out, stmt)
+				}
+			}
+		}
 	}
 	return out
 }

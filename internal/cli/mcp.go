@@ -49,7 +49,7 @@ without a bearer token guarding it.`,
 					fmt.Fprintf(a.Stderr, "apic mcp listening on http://%s (%s)\n", bound, guard)
 				})
 				if err != nil {
-					return &runner.UsageError{Msg: err.Error()}
+					return runner.Usage(runner.CodeServer, err.Error())
 				}
 				return nil
 			}

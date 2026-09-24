@@ -35,6 +35,11 @@ jobs:
           go-version-file: go.mod
       - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - run: go vet ./...
+      # Typos in comments, strings and the docs; .codespellrc says what to skip.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "codespell==2.4.3" && codespell
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.5.0
@@ -75,7 +80,8 @@ jobs:
       # actually reaches, so a finding here is worth acting on.
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-  # The course pages under docs/learn carry runnable blocks marked with
+  # The course pages under docs/learn and the migration guides under
+  # docs/migrate carry runnable blocks marked with
   # <!-- learn -->; this builds apic, serves the demo API and runs them, so
   # a lesson cannot quietly stop working.
   learn:

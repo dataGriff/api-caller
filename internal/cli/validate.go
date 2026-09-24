@@ -95,7 +95,7 @@ Errors exit 2, so it works as a pull-request gate.
 				}
 				a.validateSummary(p, diags, errs)
 			default:
-				return &runner.UsageError{Msg: fmt.Sprintf("--format must be text, json, github or sarif, got %q", format)}
+				return runner.Usage(runner.CodeFlag, fmt.Sprintf("--format must be text, json, github or sarif, got %q", format))
 			}
 			if errs > 0 {
 				return &exitError{code: runner.ExitUsage}

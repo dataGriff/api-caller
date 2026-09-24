@@ -4,7 +4,7 @@ on:
     branches: [main]
     paths: [docs/**, mkdocs.yml, .github/workflows/docs.yml]
   pull_request:
-    paths: [docs/**, mkdocs.yml, .github/workflows/docs.yml]
+    paths: [docs/**, mkdocs.yml, README.md, CONTRIBUTING.md, AGENTS.md, SECURITY.md, .vale.ini, .codespellrc, .lychee.toml, .github/workflows/docs.yml]
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Spelling, prose style and, on pull requests, external links, before the
+  # site is built. The same three run locally with `task docs:check`.
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "codespell==2.4.3" && codespell
+      - name: vale
+        env:
+          VALE_VERSION: 3.9.1
+        run: |
+          curl -sSfL "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" | tar -xz -C "$RUNNER_TEMP" vale
+          "$RUNNER_TEMP/vale" sync
+          "$RUNNER_TEMP/vale" docs README.md CONTRIBUTING.md AGENTS.md SECURITY.md
+      # External links rot on their own schedule, so they are checked when
+      # the docs change in a pull request, not on the way to deploying main.
+      - if: github.event_name == 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.sha }}
+          restore-keys: lychee-
+      - if: github.event_name == 'pull_request'
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config .lychee.toml --no-progress 'docs/**/*.md' README.md CONTRIBUTING.md SECURITY.md
+          fail: true
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

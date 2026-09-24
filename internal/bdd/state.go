@@ -77,9 +77,10 @@ func (c *Config) fail(err error) error {
 		var te *runner.TransportError
 		switch {
 		case errors.As(err, &ue):
-			err = &runner.UsageError{Msg: c.maskError(ue.Msg)}
+			err = runner.Usage(ue.Code, c.maskError(ue.Msg))
 		case errors.As(err, &te):
-			err = &runner.TransportError{Err: errors.New(c.maskError(te.Err.Error()))}
+			// Masking replaces the error chain, so the code is kept first.
+			err = &runner.TransportError{Code: te.ErrorCode(), Err: errors.New(c.maskError(te.Err.Error()))}
 		default:
 			err = errors.New(c.maskError(err.Error()))
 		}
@@ -328,9 +329,9 @@ func (s *scenario) render(text string) (string, error) {
 	out, err := s.r.Render(text)
 	if err != nil {
 		if s.cfg.Redact {
-			return "", s.cfg.fail(&runner.UsageError{Msg: "step value (hidden by --redact): " + err.Error()})
+			return "", s.cfg.fail(runner.Usage(runner.CodeFeatures, "step value (hidden by --redact): "+err.Error()))
 		}
-		return "", s.cfg.fail(&runner.UsageError{Msg: fmt.Sprintf("%q: %v", text, err)})
+		return "", s.cfg.fail(runner.Usage(runner.CodeFeatures, fmt.Sprintf("%q: %v", text, err)))
 	}
 	return out, nil
 }
@@ -341,7 +342,7 @@ func (s *scenario) render(text string) (string, error) {
 func (s *scenario) run(ctx context.Context, target string, vars map[string]string) error {
 	reqs, err := s.r.Target(target)
 	if err != nil {
-		return s.cfg.fail(&runner.UsageError{Msg: err.Error()})
+		return s.cfg.fail(runner.Usage(runner.CodeUnknownRequest, err.Error()))
 	}
 	return s.runRequests(ctx, reqs, vars)
 }
@@ -352,7 +353,7 @@ func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, va
 	// response": an assertion after an empty or failed run must not read it.
 	s.last = nil
 	if len(reqs) == 0 {
-		return s.cfg.fail(&runner.UsageError{Msg: "nothing to run: the target has no requests"})
+		return s.cfg.fail(runner.Usage(runner.CodeFeatures, "nothing to run: the target has no requests"))
 	}
 	restore := s.setScoped(vars)
 	defer restore()
@@ -372,7 +373,7 @@ func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, va
 		if s.cfg.Redact && errors.As(err, &te) && s.last != nil {
 			// Go's transport errors quote the full URL; keep the masked form only,
 			// and record that form so the CLI never prints the original.
-			err = &runner.TransportError{Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.cfg.maskError(s.last.Request.DisplayURL(true)))}
+			err = &runner.TransportError{Code: te.ErrorCode(), Err: fmt.Errorf("could not reach %s %s (details hidden by --redact)", s.last.Request.Method, s.cfg.maskError(s.last.Request.DisplayURL(true)))}
 		}
 		return s.cfg.fail(err)
 	}
@@ -481,7 +482,7 @@ func tableVars(t *godog.Table) ([]tableRow, error) {
 	var out []tableRow
 	for i, row := range t.Rows {
 		if len(row.Cells) != 2 {
-			return nil, &runner.UsageError{Msg: fmt.Sprintf("table row %d must have two cells: name | value", i+1)}
+			return nil, runner.Usage(runner.CodeFeatures, fmt.Sprintf("table row %d must have two cells: name | value", i+1))
 		}
 		k, v := row.Cells[0].Value, row.Cells[1].Value
 		if i == 0 && strings.EqualFold(k, "name") && strings.EqualFold(v, "value") {
@@ -524,12 +525,12 @@ var reVarName = regexp.MustCompile(`^[A-Za-z_][\w.-]*$`)
 // set from a feature can be referenced as {{name}}.
 func checkVarName(name string) error {
 	if !reVarName.MatchString(name) {
-		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q: letters, digits, underscore, dot and dash, starting with a letter or underscore", name)}
+		return runner.Usage(runner.CodeFeatures, fmt.Sprintf("invalid variable name %q: letters, digits, underscore, dot and dash, starting with a letter or underscore", name))
 	}
 	if strings.Contains(name, ".response.") {
 		// {{name.response.…}} always means a named response, so such a
 		// variable could never be read back.
-		return &runner.UsageError{Msg: fmt.Sprintf("invalid variable name %q: \".response.\" is reserved for response references", name)}
+		return runner.Usage(runner.CodeFeatures, fmt.Sprintf("invalid variable name %q: \".response.\" is reserved for response references", name))
 	}
 	return nil
 }

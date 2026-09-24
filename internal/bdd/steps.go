@@ -188,7 +188,7 @@ func stepRunFile(ctx context.Context, target string) error {
 	lower := strings.ToLower(target)
 	isFile := strings.HasSuffix(lower, ".http") || strings.HasSuffix(lower, ".rest")
 	if strings.Contains(target, "#") || !isFile {
-		return sc.cfg.fail(&runner.UsageError{Msg: fmt.Sprintf("I run the file: %q is not a .http/.rest file (use `I run %q` for a single request)", target, target)})
+		return sc.cfg.fail(runner.Usage(runner.CodeFeatures, fmt.Sprintf("I run the file: %q is not a .http/.rest file (use `I run %q` for a single request)", target, target)))
 	}
 	return sc.run(ctx, target, nil)
 }

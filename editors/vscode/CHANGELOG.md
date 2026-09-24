@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Errors from apic read the `--json` error object on stderr (apic's error
+  catalogue), and the message offers "What is E101?", which opens the
+  code's entry on the docs site. Older binaries' `error:` lines still work.
 - Completions: directives after `# @` with snippet bodies, variables
   inside `{{` from `apic env` and the session with built-ins and
   response references, selectors after `# @assert` and `# @capture x =`

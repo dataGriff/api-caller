@@ -70,7 +70,7 @@ flowchart LR
 | Contract | Where it is enforced |
 |---|---|
 | **The `.http` dialect** stays what VS Code REST Client and JetBrains send. Everything apic adds is a `# @directive` comment. | `internal/httpfile/testdata/sample.http` (the golden parse), `TestGrammarMatchesKnownDirectives` (the VS Code grammar lists every directive the parser knows), `apic validate` warning on unknown directives rather than failing. |
-| **`--json` and exit codes** are stable: keys are only added, and 0/1/2/3 keep their meanings. | `runner.ExitCode` uses `errors.As`, so a wrapped `TransportError` cannot turn a 3 into a 2 (`errorlint` is on for this); `TestExitCodeUnwraps`; the JSON shapes in `internal/runner` are typed and the VS Code extension reads them from `types.ts`. |
+| **`--json` and exit codes** are stable: keys are only added, and 0/1/2/3 keep their meanings. | `runner.ExitCode` uses `errors.As`, so a wrapped `TransportError` cannot turn a 3 into a 2 (`errorlint` is on for this); `TestExitCodeUnwraps`; the JSON shapes in `internal/runner` are typed and the VS Code extension reads them from `types.ts`. Error codes (E101…) come from `runner.Catalogue`, which also generates [errors.md](errors.md); `TestEveryCodeIsProduced` runs a real command for each. |
 | **Every command is non-interactive** and honours `--json`; `apic ui` is the one exception and exits 2 without a terminal. | `apic test` and the CLI tests run with no TTY; device-code and exec prompts write to stderr and never block on stdin. |
 
 ## Packages

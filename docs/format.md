@@ -143,6 +143,8 @@ X-Request-Id: {{login.response.headers.x-request-id}}
 ```
 
 `@capture` is the same idea with a short name that also persists between runs.
+A reference to a request that has not run is a missing variable; a
+[`# @ref`](#dependencies) to that request runs it first.
 
 ## Saving a response
 
@@ -363,6 +365,11 @@ first every time, for a token that must be fresh. The target is any run
 target (`login`, `auth.http#login`) that names exactly one request; a target
 that does not, or a chain that leads back to itself, is an error `apic
 validate` reports as `bad-ref` or `ref-cycle`.
+
+A [response reference](#response-references) counts as a missing value
+too, which is how httpyac files use `# @ref`: with `# @ref login`,
+`{{login.response.body.$.access_token}}` runs `login` first and reads its
+response.
 
 A dependency that fails (an assertion, a capture, the network) stops the
 request that depends on it: the run reports the dependency's result, then

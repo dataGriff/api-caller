@@ -33,7 +33,7 @@ unless --force is given.`,
 				dir = args[0]
 			}
 			if envName == "" {
-				return &runner.UsageError{Msg: "--env must not be empty"}
+				return runner.Usage(runner.CodeFlag, "--env must not be empty")
 			}
 			written, skipped, err := writeInitProject(dir, baseURL, envName, force)
 			if err != nil {

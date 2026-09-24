@@ -41,7 +41,7 @@ to stdout, which is what editors use.`,
 			if len(args) == 1 && args[0] == "-" {
 				data, err := io.ReadAll(a.Stdin)
 				if err != nil {
-					return &runner.UsageError{Msg: "reading stdin: " + err.Error()}
+					return runner.Usage(runner.CodeFile, "reading stdin: "+err.Error())
 				}
 				_, err = io.WriteString(a.Stdout, httpfile.Format(string(data)))
 				return err
@@ -55,7 +55,7 @@ to stdout, which is what editors use.`,
 			for _, file := range files {
 				data, err := os.ReadFile(file) //nolint:gosec // a request file of the project, or one the user named
 				if err != nil {
-					return &runner.UsageError{Msg: err.Error()}
+					return runner.Usage(runner.CodeFile, err.Error())
 				}
 				formatted := httpfile.Format(string(data))
 				if formatted == string(data) {
@@ -121,10 +121,10 @@ to stdout, which is what editors use.`,
 func writeFormatted(file, formatted string) error {
 	info, err := os.Stat(file)
 	if err != nil {
-		return &runner.UsageError{Msg: err.Error()}
+		return runner.Usage(runner.CodeFile, err.Error())
 	}
 	if err := os.WriteFile(file, []byte(formatted), info.Mode().Perm()); err != nil {
-		return &runner.UsageError{Msg: err.Error()}
+		return runner.Usage(runner.CodeFile, err.Error())
 	}
 	return nil
 }
@@ -152,7 +152,7 @@ func (a *App) fmtTargets(args []string) ([]string, error) {
 		}
 		info, err := os.Stat(path)
 		if err != nil {
-			return nil, &runner.UsageError{Msg: err.Error()}
+			return nil, runner.Usage(runner.CodeFile, err.Error())
 		}
 		if !info.IsDir() {
 			files = append(files, path)
@@ -160,7 +160,7 @@ func (a *App) fmtTargets(args []string) ([]string, error) {
 		}
 		found, err := project.Discover(path)
 		if err != nil {
-			return nil, &runner.UsageError{Msg: err.Error()}
+			return nil, runner.Usage(runner.CodeFile, err.Error())
 		}
 		files = append(files, found...)
 	}
