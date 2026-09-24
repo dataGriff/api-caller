@@ -165,4 +165,6 @@ uses them still parses (pass prompted values with `--var`).
 
 No scripting, no GraphQL schema tooling (a query is sent as the editors write it), no gRPC
 beyond plain HTTP. The honest full list is in
-[the comparison](comparison.md#what-apic-does-not-do).
+[the comparison](comparison.md#what-apic-does-not-do-yet), and what will
+not be added, with the reason and the escape hatch for each, is under
+[deliberately not planned](comparison.md#deliberately-not-planned).

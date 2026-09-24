@@ -46,6 +46,10 @@ publishing), `task docs` (preview the documentation site).
   or changed flag needs `task docs:cli`, which regenerates the reference at
   the end of `docs/cli.md` (a test fails when it is stale); a new `.http`
   feature needs `docs/format.md`.
+- **The comparison kept honest.** A change that closes a gap another tool
+  covers (a parity issue) updates its row in the table in
+  [docs/comparison.md](docs/comparison.md), and the "does not do yet" list
+  under it, in the same pull request.
 - **Example request files in canonical form.** `apic fmt --check` runs in CI
   over the example projects; `apic fmt -C examples/<name>` rewrites one.
 - **A commit message that says why.** What changed is in the diff; the reason is
