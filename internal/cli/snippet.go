@@ -62,7 +62,7 @@ func (a *App) snippet(target, lang string) (id, code string, err error) {
 		known = known || l == lang
 	}
 	if !known {
-		return "", "", &runner.UsageError{Msg: fmt.Sprintf("unknown language %q: one of %s", lang, strings.Join(snippet.Languages, ", "))}
+		return "", "", runner.Usage(runner.CodeFlag, fmt.Sprintf("unknown language %q: one of %s", lang, strings.Join(snippet.Languages, ", ")))
 	}
 	r, req, err := a.single(target)
 	if err != nil {

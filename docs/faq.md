@@ -1,7 +1,8 @@
 # FAQ
 
 Short answers to the things that come up. Anything longer lives in the
-guides these link to.
+guides these link to. Every error apic prints has a code (`E101`, `E301`,
+…); the [error catalogue](errors.md) lists them all with what to do.
 
 ## Why does it say a variable is missing?
 
@@ -16,7 +17,8 @@ error: users.http:14: missing variable
 one resolved from, and whether the request is ready to send. The
 [precedence order](cheatsheet.md#variable-precedence) decides which source
 wins. Put `# @ref login` on the request and apic runs `login` itself when
-the token is missing; see [dependencies](format.md#dependencies).
+the token is missing; see [dependencies](format.md#dependencies). The code
+is [E101](errors.md#e101).
 
 ## Why does a variable have the wrong value?
 
@@ -84,6 +86,8 @@ the URL (`http://user:pass@proxy:3128`) and are shown as `***` wherever
 apic reports the proxy: `describe`, `env --json`, `run -v` and
 `run --json`. Debugging a TLS API through an intercepting proxy also
 needs its CA: `--cacert mitmproxy-ca.pem`, or `--insecure` for a one-off.
+A proxy URL apic cannot use is [E207](errors.md#e207); an untrusted
+certificate is [E303](errors.md#e303).
 
 ## Can apic do the OAuth2 authorization code flow?
 
@@ -94,8 +98,8 @@ token is then cached and refreshed like every other grant, so the browser
 is needed once per refresh-token lifetime. It is a human flow: under
 `--json`, over MCP or without a terminal apic never opens a browser, and
 with no cached token the request fails with exit 2 asking you to run it
-once interactively. Providers that offer it may prefer
-`grant=device_code`, which needs no redirect. See
+once interactively ([E105](errors.md#e105)). Providers that offer it may
+prefer `grant=device_code`, which needs no redirect. See
 [authentication](auth.md#authorization-code-with-pkce).
 
 ## A Gherkin step comes out undefined
@@ -121,7 +125,8 @@ for credentials that come from a tool.
 
 ## `apic ui` will not start
 
-It needs an interactive terminal, and says which condition failed:
+It needs an interactive terminal, and says which condition failed
+([E213](errors.md#e213)):
 
 - stdout is a pipe or file: use `apic run` or `apic list --json` instead.
 - `--json` was given: the UI has no machine output by design.

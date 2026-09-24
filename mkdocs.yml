@@ -39,6 +39,7 @@ nav:
       - Taskfile: taskfile.md
   - Reference:
       - CLI reference: cli.md
+      - Errors: errors.md
       - Architecture: architecture.md
       - FAQ: faq.md
       - Verifying a release: verifying.md

@@ -40,10 +40,10 @@ opens the UI on the example project that targets it.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if a.g.json {
-				return &runner.UsageError{Msg: "apic ui is interactive and does not support --json; use apic run or apic list --json"}
+				return runner.Usage(runner.CodeTerminal, "apic ui is interactive and does not support --json; use apic run or apic list --json")
 			}
 			if !isTerminal(a.Stdout) {
-				return &runner.UsageError{Msg: "apic ui needs an interactive terminal (stdout is not a TTY); use apic run or apic list"}
+				return runner.Usage(runner.CodeTerminal, "apic ui needs an interactive terminal (stdout is not a TTY); use apic run or apic list")
 			}
 			if demo {
 				root, stop, err := startDemo()
@@ -81,10 +81,10 @@ opens the UI on the example project that targets it.`,
 			}
 			stdin, ok := a.Stdin.(*os.File)
 			if !ok {
-				return &runner.UsageError{Msg: "apic ui needs an interactive terminal"}
+				return runner.Usage(runner.CodeTerminal, "apic ui needs an interactive terminal")
 			}
 			if err := ui.Run(cmd.Context(), ui.New(cfg), stdin, a.Stdout); err != nil {
-				return &runner.UsageError{Msg: "ui: " + err.Error()}
+				return runner.Usage(runner.CodeTerminal, "ui: "+err.Error())
 			}
 			return nil
 		},

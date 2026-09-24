@@ -42,7 +42,25 @@ set, when `--no-color` is given, or when `--json` is used.
 | 3 | Transport error: DNS, connection refused, TLS failure, timeout. |
 
 Errors are printed to stderr prefixed with `error:`; stdout stays clean for
-piping.
+piping. Every error has a stable code, and on a terminal a second line gives
+it and where the [error catalogue](errors.md) explains it:
+
+```text
+error: me.http:1: missing variable
+  {{token}}: pass --var token=... or add it to http-client.env.json
+  E101 missing variable · see https://datagriff.github.io/api-caller/errors/#e101
+```
+
+Under `--json` the error is instead one JSON object on stderr, so a script
+branches on `error.code` rather than the wording:
+
+```json
+{"error":{"code":"E101","title":"missing variable","message":"me.http:1: missing variable\n  {{token}}: …","hint":"Pass it with --var name=value, …","exit":2,"url":"https://datagriff.github.io/api-caller/errors/#e101"}}
+```
+
+A `run` result for a request that could not be sent carries the same object
+as `error`, beside the `errors` list of messages. The exit status follows
+from the code: E1xx and E2xx exit 2, E3xx exit 3.
 
 ## Request targets
 

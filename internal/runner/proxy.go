@@ -68,12 +68,12 @@ func parseProxy(raw, source string) (*url.URL, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
-		return nil, usagef("%s: bad proxy URL %q", source, raw)
+		return nil, usagef(CodeProxy, "%s: bad proxy URL %q", source, raw)
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "http", "https", "socks5", "socks5h":
 	default:
-		return nil, usagef("%s: proxy scheme %q not supported (http, https, socks5 or socks5h)", source, u.Scheme)
+		return nil, usagef(CodeProxy, "%s: proxy scheme %q not supported (http, https, socks5 or socks5h)", source, u.Scheme)
 	}
 	return u, nil
 }

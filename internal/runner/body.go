@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
@@ -28,13 +29,16 @@ func (r *Runner) maxBodyBytes() int64 {
 // readBody reads at most max bytes, and reports an error rather than silently
 // truncating: a half-read body would produce assertions and captures that
 // quietly disagree with what the server actually sent.
+// errBodyTooLarge marks a response larger than apic reads.
+var errBodyTooLarge = errors.New("response body too large")
+
 func readBody(rc io.Reader, max int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(rc, max+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > max {
-		return nil, fmt.Errorf("response body exceeds %d bytes; raise maxBodyBytes in apic.yaml to read it", max)
+		return nil, fmt.Errorf("%w: it exceeds %d bytes; raise maxBodyBytes in apic.yaml to read it", errBodyTooLarge, max)
 	}
 	return data, nil
 }

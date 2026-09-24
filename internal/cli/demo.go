@@ -33,7 +33,7 @@ project this command just wrote unless you cd into it or pass -C.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if port < 1 || port > 65535 {
-				return &runner.UsageError{Msg: "--port must be between 1 and 65535"}
+				return runner.Usage(runner.CodeFlag, "--port must be between 1 and 65535")
 			}
 			written, skipped, err := demoapi.WriteProject(out, port, force)
 			if err != nil {

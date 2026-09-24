@@ -78,9 +78,9 @@ seconds apart; each failed attempt prints a line as it happens.`,
 			if outputPath != "" {
 				switch {
 				case flow:
-					return &runner.UsageError{Msg: fmt.Sprintf("--output saves one response; the targets name %d requests (add `>> file` lines to the requests instead)", len(reqs))}
+					return runner.Usage(runner.CodeFlag, fmt.Sprintf("--output saves one response; the targets name %d requests (add `>> file` lines to the requests instead)", len(reqs)))
 				case len(rows) > 0:
-					return &runner.UsageError{Msg: fmt.Sprintf("--output saves one response; --data runs the request %d times (add a `>> file` line with a {{placeholder}} in the path instead)", len(rows))}
+					return runner.Usage(runner.CodeFlag, fmt.Sprintf("--output saves one response; --data runs the request %d times (add a `>> file` line with a {{placeholder}} in the path instead)", len(rows)))
 				}
 				if err := outputOverlapsSources(outputPath, r.Project, nil); err != nil {
 					return err
@@ -179,10 +179,10 @@ seconds apart; each failed attempt prints a line as it happens.`,
 				var buf bytes.Buffer
 				meta := report.Meta{Version: Version, Env: r.Opts.Env, Time: started, Redacted: a.g.redact, Project: r.Project.Root}
 				if err := report.Run(&buf, meta, results); err != nil {
-					return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v", reportPath, err)}
+					return runner.Usage(runner.CodeFile, fmt.Sprintf("write report %s: %v", reportPath, err))
 				}
 				if err := os.WriteFile(reportPath, buf.Bytes(), 0o644); err != nil { //nolint:gosec // a report the user asked for, at the path they named
-					return &runner.UsageError{Msg: fmt.Sprintf("write report %s: %v (run result: %v)", reportPath, err, describeOutcome(runErr))}
+					return runner.Usage(runner.CodeFile, fmt.Sprintf("write report %s: %v (run result: %v)", reportPath, err, describeOutcome(runErr)))
 				}
 			}
 			if runErr != nil {
@@ -213,7 +213,7 @@ func targets(r *runner.Runner, args []string) ([]*httpfile.Request, error) {
 	for _, t := range args {
 		rs, err := r.Target(t)
 		if err != nil {
-			return nil, &runner.UsageError{Msg: err.Error()}
+			return nil, runner.Usage(runner.CodeUnknownRequest, err.Error())
 		}
 		reqs = append(reqs, rs...)
 	}
@@ -230,14 +230,14 @@ func (a *App) readRows(path string) ([]datafile.Row, error) {
 		data, err = os.ReadFile(path) //nolint:gosec // the data file the user named
 	}
 	if err != nil {
-		return nil, &runner.UsageError{Msg: fmt.Sprintf("--data: %v", err)}
+		return nil, runner.Usage(runner.CodeFile, fmt.Sprintf("--data: %v", err))
 	}
 	rows, err := datafile.Read(data, path)
 	if err != nil {
-		return nil, &runner.UsageError{Msg: fmt.Sprintf("--data %s: %v", path, err)}
+		return nil, runner.Usage(runner.CodeData, fmt.Sprintf("--data %s: %v", path, err))
 	}
 	if len(rows) == 0 {
-		return nil, &runner.UsageError{Msg: fmt.Sprintf("--data %s has no rows to run", path)}
+		return nil, runner.Usage(runner.CodeData, fmt.Sprintf("--data %s has no rows to run", path))
 	}
 	return rows, nil
 }

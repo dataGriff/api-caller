@@ -2,7 +2,7 @@
 import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { byteToCharColumn, directivesFromGrammar, levenshtein, nearestDirective, parseUsageError, parseValidateOutput, problemsByPath, toProblem, LINE_END } from "../../validate";
+import { byteToCharColumn, directivesFromGrammar, levenshtein, nearestDirective, parseStderrError, parseUsageError, parseValidateOutput, problemsByPath, toProblem, LINE_END } from "../../validate";
 
 const fixture = JSON.stringify({
   ok: false,
@@ -75,6 +75,22 @@ suite("validate output", () => {
     assert.deepStrictEqual(parseUsageError("error: environment \"prod\" not found"), { path: "apic.yaml", line: 0, message: 'environment "prod" not found' });
     assert.strictEqual(parseUsageError(""), undefined);
     assert.strictEqual(parseUsageError("some warning"), undefined);
+  });
+
+  test("reads the --json error object apic writes on stderr", () => {
+    const obj = JSON.stringify({ error: { code: "E205", title: "project configuration problem", message: "apic.yaml: yaml: line 1: bad", hint: "Fix apic.yaml", exit: 2, url: "https://datagriff.github.io/api-caller/errors/#e205" } });
+    assert.deepStrictEqual(parseUsageError(obj + "\n"), { path: "apic.yaml", line: 0, message: "yaml: line 1: bad" });
+    assert.deepStrictEqual(parseStderrError("apic mcp listening\n" + obj), {
+      message: "apic.yaml: yaml: line 1: bad",
+      code: "E205",
+      title: "project configuration problem",
+      hint: "Fix apic.yaml",
+      url: "https://datagriff.github.io/api-caller/errors/#e205",
+    });
+    assert.deepStrictEqual(parseStderrError("error: a.http:1: missing variable\n  {{token}}: pass --var token=...\n"), {
+      message: "a.http:1: missing variable\n{{token}}: pass --var token=...",
+    });
+    assert.strictEqual(parseStderrError('{"not": "an error"}'), undefined);
   });
 
   test("rejects output that is not the validate shape", () => {

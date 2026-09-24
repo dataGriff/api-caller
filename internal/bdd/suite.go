@@ -257,7 +257,7 @@ func (o *Options) resolvePaths() ([]string, error) {
 func checkGherkin(o Options) error {
 	parse := func(name string, data []byte) error {
 		if _, err := gherkin.ParseGherkinDocument(bytes.NewReader(data), func() string { return "" }); err != nil {
-			return &runner.UsageError{Msg: fmt.Sprintf("%s: %v", name, err)}
+			return runner.Usage(runner.CodeFeatures, fmt.Sprintf("%s: %v", name, err))
 		}
 		return nil
 	}
@@ -276,7 +276,7 @@ func checkGherkin(o Options) error {
 	for _, f := range files {
 		data, err := os.ReadFile(f) //nolint:gosec // a .feature file discovered inside the project
 		if err != nil {
-			return &runner.UsageError{Msg: err.Error()}
+			return runner.Usage(runner.CodeFeatures, err.Error())
 		}
 		if err := parse(f, data); err != nil {
 			return err
@@ -294,7 +294,7 @@ func checkTags(expr string) error {
 		return nil
 	}
 	bad := func() error {
-		return &runner.UsageError{Msg: fmt.Sprintf("invalid tag expression %q: use tags joined by `,` (or) and `&&` (and), `~` to negate, e.g. \"@smoke && ~@slow\"", expr)}
+		return runner.Usage(runner.CodeFeatures, fmt.Sprintf("invalid tag expression %q: use tags joined by `,` (or) and `&&` (and), `~` to negate, e.g. \"@smoke && ~@slow\"", expr))
 	}
 	for _, or := range strings.Split(expr, ",") {
 		for _, operand := range strings.Split(or, "&&") {

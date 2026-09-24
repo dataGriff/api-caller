@@ -24,6 +24,9 @@ Requests live in `api/*.http` and are run with `apic` (install: see README).
 - `apic validate --json`: parse every file and report problems before running anything
 
 Exit codes: 0 ok, 1 assertion failed, 2 usage/parse/missing variable, 3 network.
+On exit 2 or 3 with --json, stderr holds one object `{"error": {"code", "message", "hint", ...}}`:
+branch on `error.code` (E101 missing variable, E201 unknown request, E301 could not connect, ...),
+not on the message; https://datagriff.github.io/api-caller/errors/ explains each code.
 Values captured with `# @capture` (like a login token) persist in `.apic/session.json`,
 so run `login` once and dependent requests will find the token. A request that declares
 `# @ref login` runs login by itself when the token is missing. If a request reports a
@@ -114,7 +117,30 @@ way: any other path is refused, so `http-client.private.env.json`, `.env` and
 the project. The readable set is checked against the project on each read, so a
 file added after the server started can be read (it is not listed until the
 server restarts). Assertion failures return `ok: false` rather than a tool error;
-transport and usage problems return an error message the agent can act on.
+transport and usage problems return an error the agent can act on: the text
+is the message followed by `(E101 missing variable: <hint>)`, and the
+structured content is the same `{"error": {…}}` object the CLI writes.
+
+## Errors
+
+Every error has a stable code from the [error catalogue](errors.md), and
+an agent should read the code rather than parse the message, whose
+wording may improve between releases:
+
+| Where | What |
+|---|---|
+| `apic … --json`, exit 2 or 3 | one `{"error": {"code", "title", "message", "hint", "exit", "url"}}` object on stderr; stdout carries only results |
+| `apic run --json`, a request that could not be sent | its result has `"ok": false` and the same object as `error`, beside `errors` |
+| MCP tool error | the object as structured content; the text ends with `(code title: hint)` |
+
+The codes an agent meets most, and what to do:
+
+| Code | Do |
+|---|---|
+| [E101](errors.md#e101) missing variable | the message names the request that captures it: run that, or pass `vars` |
+| [E201](errors.md#e201) unknown request | `list_requests` (or `apic list --json`) and pick an id |
+| [E103](errors.md#e103) request file has errors | `validate_project` and fix what it reports |
+| [E301](errors.md#e301)–[E303](errors.md#e303) network | report to the user; the server is down, slow or untrusted, and retrying the same thing will not help |
 
 ### Over HTTP
 

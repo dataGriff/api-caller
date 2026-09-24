@@ -138,6 +138,11 @@ tasks:
     cmds:
       - go run ./scripts/clidocs
 
+  docs:errors:
+    desc: Regenerate docs/errors.md from the error catalogue in internal/runner/errors.go (a test fails when it is stale)
+    cmds:
+      - go run ./scripts/errdocs
+
   man:
     desc: Write the man pages into man/ (goreleaser does this before packaging)
     cmds:

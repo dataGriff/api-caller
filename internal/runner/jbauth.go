@@ -23,7 +23,7 @@ var reAuthBuiltin = regexp.MustCompile(`^\$auth\.(token|idToken)\(\s*"([^"]+)"\s
 func (r *Runner) authBuiltin(req *httpfile.Request, expr string) (string, bool, bool, error) {
 	m := reAuthBuiltin.FindStringSubmatch(expr)
 	if m == nil {
-		return "", false, true, fmt.Errorf(`%s: write $auth.token("name") or $auth.idToken("name"), the name of a Security.Auth configuration in %s`, expr, env.PublicFile)
+		return "", false, true, Usagef(CodeAuth, `%s: write $auth.token("name") or $auth.idToken("name"), the name of a Security.Auth configuration in %s`, expr, env.PublicFile)
 	}
 	jb, err := r.jetBrainsAuth(req, m[2])
 	if err != nil {
@@ -38,7 +38,7 @@ func (r *Runner) authBuiltin(req *httpfile.Request, expr string) (string, bool, 
 	// request timeout, and a device or browser sign-in its own.
 	toks, err := auth.OAuth2Tokens(context.Background(), jb.Spec, authEnv, wantID)
 	if err != nil {
-		return "", false, true, fmt.Errorf("$auth %q: %w", m[2], err)
+		return "", false, true, Usagef(CodeAuth, "$auth %q: %v", m[2], err)
 	}
 	if wantID {
 		return toks.ID, true, true, nil
@@ -54,7 +54,7 @@ func (r *Runner) jetBrainsAuth(req *httpfile.Request, name string) (*auth.JetBra
 		c = r.Envs.Auth(r.Opts.Env)[name]
 	}
 	if c == nil {
-		return nil, fmt.Errorf("$auth %q: no Security.Auth configuration of that name for environment %q%s", name, r.Opts.Env, r.authNamesHint())
+		return nil, Usagef(CodeAuth, "$auth %q: no Security.Auth configuration of that name for environment %q%s", name, r.Opts.Env, r.authNamesHint())
 	}
 	jb, err := auth.FromJetBrains(c.Fields, func(s string) (string, error) {
 		return template.Render(s, func(e string) (string, bool, error) {
@@ -65,7 +65,7 @@ func (r *Runner) jetBrainsAuth(req *httpfile.Request, name string) (*auth.JetBra
 		})
 	})
 	if err != nil {
-		return nil, fmt.Errorf("$auth %q (Security.Auth in %s): %w", name, strings.Join(c.Files, ", "), err)
+		return nil, Usagef(CodeAuth, "$auth %q (Security.Auth in %s): %v", name, strings.Join(c.Files, ", "), err)
 	}
 	return jb, nil
 }

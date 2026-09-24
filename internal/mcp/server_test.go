@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 func TestServerEndToEnd(t *testing.T) {
@@ -99,6 +101,21 @@ Authorization: Bearer {{token}}
 	}
 	if e := call("run_request", map[string]any{"name": "me"}); !strings.Contains(e["_error"].(string), "login") {
 		t.Fatalf("want missing-variable hint, got %v", e)
+	}
+	// A failed call carries the catalogue entry as structured content, and
+	// its text ends with the code.
+	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "run_request", Arguments: map[string]any{"name": "me"}})
+	must(t, err)
+	var structuredErr struct {
+		Error runner.ErrorInfo `json:"error"`
+	}
+	raw, _ := json.Marshal(res.StructuredContent)
+	must(t, json.Unmarshal(raw, &structuredErr))
+	if !res.IsError || structuredErr.Error.Code != runner.CodeMissingVariable || structuredErr.Error.Exit != 2 || structuredErr.Error.Hint == "" {
+		t.Fatalf("structured error: %s", raw)
+	}
+	if text := res.Content[0].(*sdk.TextContent).Text; !strings.Contains(text, "(E101 missing variable: ") {
+		t.Fatalf("text should end with the code: %s", text)
 	}
 	login := call("run_request", map[string]any{"name": "login"})
 	if login["ok"] != true || login["captures"].(map[string]any)["token"] != "t-1" {

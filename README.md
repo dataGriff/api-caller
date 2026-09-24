@@ -186,6 +186,8 @@ is the one exception, and it refuses to start without a terminal. Colour is
 disabled when output is not a terminal or `NO_COLOR` is set.
 
 **Exit codes:** `0` ok · `1` assertion or capture failed · `2` usage, parse error or missing variable · `3` network error.
+Every error also has a stable code (`E101 missing variable`, `E301 could not connect`, …), explained in the
+[error catalogue](docs/errors.md).
 
 ## Documentation
 
@@ -204,6 +206,7 @@ Published at **[datagriff.github.io/api-caller](https://datagriff.github.io/api-
 | [Agents](docs/agents.md) | Shell and MCP integration, JSON contract |
 | [Editors](docs/editors.md) | VS Code (REST Client plus the apic extension), JetBrains, Neovim |
 | [Architecture](docs/architecture.md) | The request lifecycle, the packages, the three contracts, how to add a directive |
+| [Errors](docs/errors.md) | Every error code, its exit status and what to do about it |
 | [FAQ](docs/faq.md) | Missing variables, 403s, secrets in logs, Windows |
 | [Taskfile](docs/taskfile.md) | Keep `task` as the front door |
 | [Comparison](docs/comparison.md) | apic against Bruno, Hurl, Postman, curl |
@@ -217,8 +220,11 @@ paste into your project's `AGENTS.md`. The contract only grows: a body
 that is not text now comes as base64 with `body_encoding` beside it,
 `saved_to` names the file a `>> file` line wrote, a `# @disabled`
 request a flow skipped prints `"skipped": "disabled"` with no response,
-`response.proto` says whether it came over HTTP/1.1 or HTTP/2, and under
-`run --data` each object carries its `iteration`.
+`response.proto` says whether it came over HTTP/1.1 or HTTP/2, under
+`run --data` each object carries its `iteration`, and an error comes with
+its catalogue code: as `error` beside `errors` on a result, and as one
+`{"error": {"code", "title", "message", "hint", "exit", "url"}}` object on
+stderr (stdout is unchanged).
 
 ## The format
 

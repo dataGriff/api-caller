@@ -27,7 +27,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				return err
 			}
 			if r.Session == nil {
-				return &runner.UsageError{Msg: "session disabled by --no-session"}
+				return runner.Usage(runner.CodeSession, "session disabled by --no-session")
 			}
 			if a.g.json {
 				return a.writeJSON(maskSessionEnvs(r.Session.Envs, time.Now()))
@@ -38,7 +38,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				// Cookies are listed whether or not this command switched
 				// the jar on: they are in the session directory either way.
 				if jar, err = session.OpenJar(r.Project.Root); err != nil {
-					return &runner.UsageError{Msg: "cookies: " + err.Error()}
+					return runner.Usage(runner.CodeSession, "cookies: "+err.Error())
 				}
 			}
 			for _, e := range jar.EnvNames() {
@@ -83,7 +83,7 @@ func (a *App) sessionCmd() *cobra.Command {
 			}
 			jar, err := session.OpenJar(p.Root)
 			if err != nil {
-				return &runner.UsageError{Msg: "cookies: " + err.Error()}
+				return runner.Usage(runner.CodeSession, "cookies: "+err.Error())
 			}
 			out := map[string][]cookieInfo{}
 			for _, e := range jar.EnvNames() {
@@ -118,7 +118,7 @@ func (a *App) sessionCmd() *cobra.Command {
 				return err
 			}
 			if r.Session == nil {
-				return &runner.UsageError{Msg: "session disabled by --no-session"}
+				return runner.Usage(runner.CodeSession, "session disabled by --no-session")
 			}
 			target := r.Opts.Env
 			if all {
@@ -131,7 +131,7 @@ func (a *App) sessionCmd() *cobra.Command {
 			// Cookies go with the captures, switched on or not.
 			jar, err := session.OpenJar(r.Project.Root)
 			if err != nil {
-				return &runner.UsageError{Msg: "cookies: " + err.Error()}
+				return runner.Usage(runner.CodeSession, "cookies: "+err.Error())
 			}
 			jar.Clear(target)
 			if err := jar.Save(); err != nil {
