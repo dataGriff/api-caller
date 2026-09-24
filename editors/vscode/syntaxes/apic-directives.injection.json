@@ -19,7 +19,7 @@
             },
             {
               "name": "keyword.operator.assertion.apic",
-              "match": "\\s(==|!=|<=|>=|<|>|contains|startsWith|endsWith|matches|not exists|exists)\\s"
+              "match": "\\s(==|!=|<=|>=|<|>|contains|startsWith|endsWith|matchesSchema|matches|not exists|exists|(?:not )?is(?:String|Number|Integer|Boolean|Array|Object|Null|Empty)|length)(?=\\s|$)"
             },
             {
               "name": "support.function.selector.apic",

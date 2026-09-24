@@ -1,6 +1,7 @@
 package assert
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -108,5 +109,165 @@ func TestCompareNumbersExactly(t *testing.T) {
 	}
 	if _, ok := ParseNumber("1e-0000000"); !ok {
 		t.Error("an all-zero exponent is fine")
+	}
+}
+
+// A selector with spaces inside a bracket is one selector.
+func TestParseFilterSelector(t *testing.T) {
+	e, err := Parse(`body.$.items[?(@.name == "a b")].length == 2`)
+	if err != nil || e.Selector != `body.$.items[?(@.name == "a b")].length` || e.Op != "==" || e.Value != "2" {
+		t.Fatalf("%+v %v", e, err)
+	}
+	e, err = Parse(`body.$.items[?(@.x =~ /a ]b/)] exists`)
+	if err != nil || e.Selector != `body.$.items[?(@.x =~ /a ]b/)]` || e.Op != "exists" {
+		t.Fatalf("%+v %v", e, err)
+	}
+}
+
+func TestPredicatesAndLength(t *testing.T) {
+	resp := &selector.Response{Status: 200, StatusText: "OK", Body: []byte(`{"id": 7, "ratio": 0.5, "big": 1e3, "name": "zoë", "blank": "", "ok": true, "none": null, "items": [1, 2, 3], "empty": [], "obj": {"a": 1}, "nothing": {}}`)}
+	cases := []struct {
+		expr   string
+		pass   bool
+		errHas string
+		actual string
+	}{
+		{"body.$.id isInteger", true, "", "number"},
+		{"body.$.id isNumber", true, "", "number"},
+		{"body.$.ratio isInteger", false, "", "number"},
+		{"body.$.ratio not isInteger", true, "", "number"},
+		{"body.$.big isInteger", true, "", "number"},
+		{"body.$.name isString", true, "", "string"},
+		{"body.$.id isString", false, "", "number"},
+		{"body.$.ok isBoolean", true, "", "boolean"},
+		{"body.$.none isNull", true, "", "null"},
+		{"body.$.none not isNull", false, "", "null"},
+		{"body.$.items isArray", true, "", "array"},
+		{"body.$.obj isObject", true, "", "object"},
+		{"body.$.items not isObject", true, "", "array"},
+		{"status isNumber", true, "", "number"},
+		{"statusText isString", true, "", "string"},
+		{"body.$.blank isEmpty", true, "", ""},
+		{"body.$.empty isEmpty", true, "", "[]"},
+		{"body.$.nothing isEmpty", true, "", "{}"},
+		{"body.$.items not isEmpty", true, "", "[1, 2, 3]"},
+		{"body.$.id isEmpty", false, "isEmpty needs a string, an array or an object, got number 7", "7"},
+		{"body.$.missing isString", false, "no value at body.$.missing", ""},
+		{"body.$.items length == 3", true, "", "3"},
+		{"body.$.items length >= 4", false, "", "3"},
+		{"body.$.name length == 3", true, "", "3"},
+		{"body.$.obj length == 1", true, "", "1"},
+		{"body.$.empty length == 0", true, "", "0"},
+		{"body.$.id length == 1", false, "length needs a string, an array or an object, got number 7", "7"},
+		{"body.$.items[?(@ > 1)] length == 2", true, "", "2"},
+	}
+	for _, c := range cases {
+		e, err := Parse(c.expr)
+		if err != nil {
+			t.Errorf("%s: %v", c.expr, err)
+			continue
+		}
+		r := Eval(e, e.Value, resp)
+		if r.Pass != c.pass || (c.errHas == "" && r.Error != "") || (c.errHas != "" && !strings.Contains(r.Error, c.errHas)) || r.Actual != c.actual {
+			t.Errorf("%s: pass=%v err=%q actual=%q; want pass=%v err~%q actual=%q", c.expr, r.Pass, r.Error, r.Actual, c.pass, c.errHas, c.actual)
+		}
+		if r.Expr != c.expr {
+			t.Errorf("%s: displayed as %q", c.expr, r.Expr)
+		}
+	}
+	for expr, want := range map[string]string{
+		"body.$.id isString 1":     "does not take a value",
+		"body.$.id not isString x": "does not take a value",
+		"body.$.items length":      "length <op> <number>",
+		"body.$.items length ~= 3": "length takes one of",
+		"body.$.items isnt":        "unknown operator",
+		"body.$ matchesSchema":     "expected `<selector> <op> <value>`",
+	} {
+		if _, err := Parse(expr); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v; want %q", expr, err, want)
+		}
+	}
+	// Redaction keeps the operator words and a filter whole.
+	for expr, want := range map[string]string{
+		"body.$.items length == 3":                "body.$.items length == ***",
+		"body.$.id not isString":                  "body.$.id not isString",
+		`body.$.items[?(@.a == "x y")].id == abc`: `body.$.items[?(@.a == "x y")].id == ***`,
+		"body.$ matchesSchema ./s.json":           "body.$ matchesSchema ***",
+		// What Parse cannot read is masked after two words, never shown.
+		"body.$.user name == s3cret": "body.$.user name ***",
+		"body.$.items[0 == s3cret":   "body.$.items[0 == ***",
+		"body.$.x s3cret":            "body.$.x ***",
+		"body.$.x":                   "body.$.x",
+	} {
+		if got := Redact(expr, "***"); got != want {
+			t.Errorf("Redact(%s) = %q; want %q", expr, got, want)
+		}
+	}
+}
+
+func TestMatchesSchema(t *testing.T) {
+	schema := `{
+	  "$schema": "https://json-schema.org/draft/2020-12/schema",
+	  "type": "object",
+	  "required": ["id", "name"],
+	  "properties": {
+	    "id": {"type": "integer"},
+	    "name": {"type": "string", "minLength": 1},
+	    "tags": {"type": "array", "items": {"$ref": "#/$defs/tag"}}
+	  },
+	  "$defs": {"tag": {"type": "string"}}
+	}`
+	load := func(path string) ([]byte, error) {
+		switch path {
+		case "user.json":
+			return []byte(schema), nil
+		case "broken.json":
+			return []byte("{nope"), nil
+		}
+		return nil, fmt.Errorf("%s: no such file", path)
+	}
+	reads := 0
+	opts := Options{Schema: Schemas(func(path string) ([]byte, error) { reads++; return load(path) })}
+	eval := func(body, expr string) Result {
+		e, err := Parse(expr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return EvalWith(e, e.Value, &selector.Response{Body: []byte(body)}, opts)
+	}
+	if r := eval(`{"id": 1, "name": "a", "tags": ["x"]}`, "body.$ matchesSchema user.json"); !r.Pass || r.Error != "" {
+		t.Fatalf("valid: %+v", r)
+	}
+	r := eval(`{"id": "1", "name": "a"}`, "body.$ matchesSchema user.json")
+	if r.Pass || r.Error != "" || !strings.Contains(r.Actual, "id") {
+		t.Fatalf("wrong type: %+v", r)
+	}
+	r = eval(`{"id": 1, "name": "a", "tags": [3]}`, "body.$ matchesSchema user.json")
+	if r.Pass || !strings.Contains(r.Actual, "tags") {
+		t.Fatalf("$ref: %+v", r)
+	}
+	if r := eval(`{"user": {"id": 1, "name": "a"}}`, "body.$.user matchesSchema user.json"); !r.Pass {
+		t.Fatalf("a path into the body: %+v", r)
+	}
+	if r := eval(`{"id": 1, "name": "a"}`, "body matchesSchema user.json"); !r.Pass {
+		t.Fatalf("the raw body is read as JSON: %+v", r)
+	}
+	if reads != 1 {
+		t.Fatalf("user.json was read %d times; a loader resolves each file once", reads)
+	}
+	if r := eval(`{}`, "body.$ matchesSchema missing.json"); r.Error == "" || !strings.Contains(r.Error, "no such file") {
+		t.Fatalf("missing: %+v", r)
+	}
+	for range 2 {
+		if r := eval(`{}`, "body.$ matchesSchema broken.json"); r.Error == "" || !strings.Contains(r.Error, "schema broken.json") {
+			t.Fatalf("broken: %+v", r)
+		}
+	}
+	if reads != 3 {
+		t.Fatalf("%d reads; a file that fails is not read again either", reads)
+	}
+	e, _ := Parse("body.$ matchesSchema user.json")
+	if r := Eval(e, e.Value, &selector.Response{Body: []byte(`{}`)}); r.Error == "" {
+		t.Fatal("without a loader the operator refuses")
 	}
 }

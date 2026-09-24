@@ -95,7 +95,7 @@ flowchart LR
 - `examples/`: static sample projects, each `apic validate`-checked and `apic fmt --check`-ed in CI. `httpbin` (basic/bearer auth, needs network but no keys), `github` (bearer auth against a real token), `spotify` (`oauth2` client-credentials against a real app); the last two need the reader's own credentials in their `http-client.private.env.json`
 - `editors/vscode/`: the VS Code extension, TypeScript bundled with esbuild, a thin client over the binary's `--json` contract (it never parses `.http` files itself). It injects a grammar for `# @directive` lines into the `http` language REST Client provides rather than owning the language, and bundles the JSON schemas. Released on its own `vscode-v*` tags
 - `setup-apic/`: the composite GitHub Action (`uses: dataGriff/api-caller/setup-apic@v0`) that installs a release with the same checksum verification as `install.sh`, on all three runner OSes
-- `docs/`: this site (MkDocs Material). The screenshots under `assets/` are generated from real output by `scripts/shot`; the course under `learn/` is one page per lesson whose marked blocks `scripts/learncheck` runs in CI; `scripts/schemas` generates the JSON schemas for `apic.yaml`, the env files and the session file into `docs/schemas` and `editors/vscode/schemas`
+- `docs/`: this site (MkDocs Material). The screenshots under `assets/` are generated from real output by `scripts/shot`; the course under `learn/` is one page per lesson whose marked blocks `scripts/learncheck` runs in CI; `scripts/schemas` generates the JSON schemas for `apic.yaml`, the env files and the session file into `docs/schemas` and `editors/vscode/schemas`; `scripts/clidocs` generates the "Commands and flags" section of `cli.md` and the man pages from the command tree
 
 ## How to add things
 
@@ -123,9 +123,11 @@ a handler bound by name in `internal/bdd/steps.go`, a row in
 `bdd.Vocabulary`, a scenario in `bdd_test.go`, and the table in
 `testing.md`.
 
-**A command**: a cobra command in `internal/cli` that respects `--json`,
-a row in the README table, a section in `cli.md` and a line in
-`cheatsheet.md`.
+**A command**: a cobra command in `internal/cli` (one file per command)
+that respects `--json`, a row in the README table, a section in `cli.md`,
+a line in `cheatsheet.md`, and `task docs:cli` to regenerate the flags
+reference at the end of `cli.md` and the man pages (`scripts/clidocs`;
+its staleness test fails otherwise).
 
 **An `apic.yaml` key**: a field on `project.Config`, a description in
 `scripts/schemas/main.go`, and `task schemas` to regenerate the schemas

@@ -13,7 +13,7 @@ both; keep it current when a package's job changes. The short version:
 asserts, with `env`, `template`, `session`, `auth`, `selector` and
 `assert` beneath it; `internal/output` renders for the CLI, the UI and
 MCP; `internal/bdd` and `internal/phrase` are `apic test`; `internal/cli`
-holds the commands and `internal/ui` the terminal UI; `internal/demoapi`
+holds the commands (one file per command) and `internal/ui` the terminal UI; `internal/demoapi`
 is the offline API and project behind `apic demo`; `examples/` are the
 static sample projects CI validates and format-checks; `editors/vscode/`
 is the extension, released on its own `vscode-v*` tags; `setup-apic/` the
@@ -40,7 +40,8 @@ never parses `.http` files itself (it reads `--json`).
 - `task notices`: regenerate THIRD_PARTY_NOTICES.md (goreleaser runs this before packaging)
 - `task shots`: regenerate `docs/assets/apic-ui.svg` and `apic-run.svg` from real output (needs port 8089 free)
 - `task docs` / `task docs:build`: preview or strictly build the docs site (`pip install "mkdocs<2" "mkdocs-material<10"`)
-- New commands need a row in the README table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`
+- `task docs:cli`: regenerate the "Commands and flags" section at the end of `docs/cli.md` from the command tree (`scripts/clidocs`; a test fails when it is stale); `task man` writes the man pages goreleaser ships
+- New commands need a row in the README table, a section in `docs/cli.md` and a line in `docs/cheatsheet.md`; a new or changed flag needs `task docs:cli`. A flag's usage text must not contain backticks: cobra reads the first backticked word as the value's name (a test checks)
 
 ## Conventions
 

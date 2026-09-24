@@ -199,3 +199,27 @@ func TestValidateRejectsTooManyPhraseParams(t *testing.T) {
 		t.Fatalf("arity not reported: %v", p.Validate())
 	}
 }
+
+// A body path apic cannot read is caught by validate, with the construct
+// named; the JSONPath forms it can read pass.
+func TestValidateReadsBodyPaths(t *testing.T) {
+	dir := t.TempDir()
+	src := "### a\n# @name a\n# @assert body.$.items[?(@.done == true)].length == 2\n# @assert body.$..id exists\n# @assert header.set-cookie.# == 2\n# @capture last = body.$.items[-1].id\n# @assert body.$.items[0,1] exists\n# @capture bad = body.$.items[?(@.a ~= 1)]\nGET https://example.com\n"
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte(src), 0o644); err != nil { //nolint:gosec // test fixture
+		t.Fatal(err)
+	}
+	p, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := p.Validate()
+	if len(diags) != 2 {
+		t.Fatalf("diagnostics: %+v", diags)
+	}
+	if d := diags[0]; d.Code != "unknown-selector" || d.Line != 7 || !strings.Contains(d.Message, "unions are not supported") {
+		t.Errorf("union: %+v", d)
+	}
+	if d := diags[1]; d.Code != "unknown-selector" || d.Line != 8 || !strings.Contains(d.Message, "unsupported filter") {
+		t.Errorf("filter: %+v", d)
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/phrase"
+	"github.com/dataGriff/api-caller/internal/selector"
 )
 
 // ConfigFile is the optional per-project configuration file name.
@@ -263,7 +264,6 @@ func diag(path, severity, code string, line, col, end int, msg string) httpfile.
 	return d
 }
 
-// Validate returns parse diagnostics plus project-level checks.
 // Within reports whether path (existing or not) lies under root, lexically:
 // both are cleaned and the relative path must not start with `..`. It
 // returns that relative path. Callers that must see through symlinks
@@ -276,6 +276,7 @@ func Within(root, path string) (string, bool) {
 	return rel, true
 }
 
+// Validate returns parse diagnostics plus project-level checks.
 func (p *Project) Validate() []httpfile.Diagnostic {
 	diags := append([]httpfile.Diagnostic(nil), p.Diagnostics...)
 	for name, rs := range p.byName {
@@ -374,17 +375,34 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 				diags = append(diags, diag(r.File.Path, "error", "bad-assert", a.Line, a.Column, a.Column+len(a.Expr), err.Error()))
 				continue
 			}
-			if !validSelector(expr.Selector) {
+			if err := selector.Check(expr.Selector); err != nil {
 				// The selector opens the expression, so its span starts where
 				// the expression does.
 				diags = append(diags, diag(r.File.Path, "error", "unknown-selector", a.Line, a.Column, a.Column+len(expr.Selector),
-					fmt.Sprintf("assert %q: unknown selector %q", a.Expr, expr.Selector)))
+					fmt.Sprintf("assert %q: %s", a.Expr, selectorProblem(err))))
+			}
+			if expr.Op == "matchesSchema" && !strings.Contains(expr.Value, "{{") {
+				// Resolved as the runner reads it: relative to the file or
+				// absolute, through symlinks, confined to the root.
+				schema, err := Confine(p.Root, filepath.Join(p.Root, filepath.Dir(r.File.Path)), expr.Value)
+				if err == nil {
+					_, err = os.Stat(schema)
+				}
+				if err != nil {
+					col := a.Column + strings.LastIndex(a.Expr, expr.Value)
+					why := "not found"
+					if errors.Is(err, ErrOutsideRoot) {
+						why = "resolves outside the project root"
+					}
+					diags = append(diags, diag(r.File.Path, "error", "missing-schema-file", a.Line, col, col+len(expr.Value),
+						fmt.Sprintf("schema file %s %s", expr.Value, why)))
+				}
 			}
 		}
 		for _, c := range r.Captures {
-			if !validSelector(c.Selector) {
+			if err := selector.Check(c.Selector); err != nil {
 				diags = append(diags, diag(r.File.Path, "error", "unknown-selector", c.Line, c.Column, c.Column+len(c.Selector),
-					fmt.Sprintf("capture %q: unknown selector %q", c.Name, c.Selector)))
+					fmt.Sprintf("capture %q: %s", c.Name, selectorProblem(err))))
 			}
 		}
 		if _, err := r.Multipart(); err != nil {
@@ -436,14 +454,15 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 	return diags
 }
 
-func validSelector(s string) bool {
-	switch {
-	case s == "status", s == "statusText", s == "duration", s == "body", s == "body.$":
-		return true
-	case strings.HasPrefix(s, "header."), strings.HasPrefix(s, "headers."), strings.HasPrefix(s, "cookie."), strings.HasPrefix(s, "body.$."), strings.HasPrefix(s, "body.$["):
-		return len(s) > strings.Index(s, ".")+1
+// selectorProblem is how validate words a selector it cannot read: the
+// short `unknown selector "x"` for a form apic does not know, and the
+// parser's own message (naming the part) for a body path.
+func selectorProblem(err error) string {
+	var unknown *selector.UnknownError
+	if errors.As(err, &unknown) {
+		return fmt.Sprintf("unknown selector %q", unknown.Selector)
 	}
-	return false
+	return err.Error()
 }
 
 // refTarget resolves a `# @ref` target to the one request it names. A

@@ -229,8 +229,8 @@ func (r *Runner) tlsPath(p, what string, fromFlag bool) (string, error) {
 	if fromFlag {
 		return p, nil
 	}
-	real, err := confine(r.Project.Root, r.Project.Root, p)
-	if errors.Is(err, errOutsideRoot) {
+	real, err := project.Confine(r.Project.Root, r.Project.Root, p)
+	if errors.Is(err, project.ErrOutsideRoot) {
 		return "", usagef("tls: %s %s: resolves outside the project root", what, p)
 	}
 	if err != nil {

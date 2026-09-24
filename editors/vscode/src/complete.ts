@@ -72,7 +72,11 @@ export function contextAt(line: string, column: number, after = ""): Context | u
 }
 
 /** The assertion operators, in the order the docs list them. */
-export const OPERATORS = ["==", "!=", "<", "<=", ">", ">=", "contains", "startsWith", "endsWith", "matches", "exists", "not exists"];
+export const OPERATORS = [
+  "==", "!=", "<", "<=", ">", ">=", "contains", "startsWith", "endsWith", "matches", "exists", "not exists",
+  "isString", "isNumber", "isInteger", "isBoolean", "isArray", "isObject", "isNull", "isEmpty", "not isEmpty",
+  "length ==", "matchesSchema",
+];
 
 /** The auth types `# @auth` takes, with the options each starts with. */
 export const AUTH_TYPES: Record<string, string> = {

@@ -4,6 +4,9 @@ project_name: apic
 before:
   hooks:
     - sh scripts/notices.sh THIRD_PARTY_NOTICES.md
+    # man/apic.1, man/apic-run.1 and the rest, from the command tree; the
+    # packages and the Homebrew formula install them from the archive.
+    - go run ./scripts/clidocs -man man
 
 builds:
   - main: ./cmd/apic
@@ -20,7 +23,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [README.md, LICENSE, THIRD_PARTY_NOTICES.md, docs/*]
+    files: [README.md, LICENSE, THIRD_PARTY_NOTICES.md, docs/*, man/*]
 
 checksum:
   name_template: checksums.txt

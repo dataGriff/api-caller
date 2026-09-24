@@ -23,10 +23,14 @@ var Vocabulary = []struct{ Pattern, Purpose string }{
 	{`I run the file "<file.http>"`, "send every request in a file, stopping at the first failure"},
 	{`the response status is <n>` + " / is not <n>", "status code"},
 	{`the response is successful` + " / a client error / a server error", "2xx / 4xx / 5xx"},
-	{`the response body "<path>" is "<value>"`, `also: is not, contains, starts with, ends with, matches; <path> like $.items[0].id`},
+	{`the response body "<path>" is "<value>"`, `also: is not, contains, starts with, ends with, matches; <path> like $.items[0].id, $..id or $.items[?(@.done == true)].id`},
 	{`the response header "<name>" is "<value>"`, "same operators as for the body"},
 	{`the response cookie "<name>" is "<value>"`, "a cookie the response set; same operators, also exists / does not exist"},
 	{`the response body "<path>" exists` + " / does not exist", "presence of a value"},
+	{`the response body "<path>" has length <n>`, "characters of a string, elements of an array, keys of an object"},
+	{`the response body "<path>" is a number`, "also: a string, an integer, a boolean, an array, an object, null"},
+	{`the response body "<path>" is empty` + " / is not empty", "an empty string, array or object"},
+	{`the response body matches the schema "<file.json>"`, `JSON Schema (2020-12 or draft-07), path from the project root; also: the response body "<path>" matches the schema "<file.json>"`},
 	{`the response body is:` + " (doc string)", "semantic JSON equality"},
 	{`the response body contains:` + " (doc string)", "JSON subset match"},
 	{`the response time is under <n> ms`, "round-trip time"},
@@ -52,6 +56,10 @@ var handlers = map[string]any{
 	"status-class":  stepStatusClass,
 	"compare":       stepCompare,
 	"exists":        stepExists,
+	"length":        stepLength,
+	"type":          stepType,
+	"empty":         stepEmpty,
+	"schema":        stepSchema,
 	"body-equals":   stepBodyEquals,
 	"body-contains": stepBodyContains,
 	"duration":      stepDuration,
@@ -271,6 +279,62 @@ func stepExists(ctx context.Context, where, sel, word string) error {
 	return check(ctx, selector(where, sel), op, "")
 }
 
+func stepLength(ctx context.Context, sel string, n int) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
+	return checkExpr(ctx, assert.Expr{Selector: selector("body", sel), Op: "==", Length: true}, strconv.Itoa(n))
+}
+
+var typePredicates = map[string]string{
+	"a string": "isString", "a number": "isNumber", "an integer": "isInteger", "a boolean": "isBoolean",
+	"an array": "isArray", "an object": "isObject", "null": "isNull",
+}
+
+func stepType(ctx context.Context, sel, kind string) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
+	return checkExpr(ctx, assert.Expr{Selector: selector("body", sel), Op: typePredicates[kind]}, "")
+}
+
+func stepEmpty(ctx context.Context, sel, word string) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
+	op := "isEmpty"
+	if word == "is not empty" {
+		op = "not isEmpty"
+	}
+	return checkExpr(ctx, assert.Expr{Selector: selector("body", sel), Op: op}, "")
+}
+
+func stepSchema(ctx context.Context, sel, file string) error {
+	sc, err := from(ctx)
+	if err != nil {
+		return err
+	}
+	if sel, err = sc.render(sel); err != nil {
+		return err
+	}
+	if file, err = sc.render(file); err != nil {
+		return err
+	}
+	return checkExpr(ctx, assert.Expr{Selector: selector("body", sel), Op: "matchesSchema", Value: file}, file)
+}
+
 func stepDuration(ctx context.Context, ms int) error {
 	return check(ctx, "duration", "<", strconv.Itoa(ms))
 }
@@ -348,6 +412,12 @@ func bodyMatch(ctx context.Context, doc *godog.DocString, exact bool) error {
 
 // check evaluates one assertion against the last response.
 func check(ctx context.Context, sel, op, expected string) error {
+	return checkExpr(ctx, assert.Expr{Selector: sel, Op: op, Value: expected}, expected)
+}
+
+// checkExpr evaluates a parsed assertion against the last response; a
+// schema it names is read from the project root.
+func checkExpr(ctx context.Context, e assert.Expr, expected string) error {
 	sc, err := from(ctx)
 	if err != nil {
 		return err
@@ -356,7 +426,7 @@ func check(ctx context.Context, sel, op, expected string) error {
 	if err != nil {
 		return err
 	}
-	r := assert.Eval(assert.Expr{Selector: sel, Op: op, Value: expected}, expected, res.Raw())
+	r := assert.EvalWith(e, expected, res.Raw(), assert.Options{Schema: assert.Schemas(sc.r.ProjectFile)})
 	if res.Redact {
 		if r.Error != "" || !r.Pass {
 			return sc.cfg.fail(fmt.Errorf("assertion failed: %s (values hidden by --redact)\n%s", redactExpr(r.Expr), sc.cfg.describeFailure(res)))
@@ -382,7 +452,7 @@ func selector(where, sel string) string {
 		return "body.$"
 	case strings.HasPrefix(sel, "$.") || strings.HasPrefix(sel, "$["):
 		return "body." + sel
-	case strings.HasPrefix(sel, "["):
+	case strings.HasPrefix(sel, "[") || strings.HasPrefix(sel, ".."):
 		return "body.$" + sel
 	default:
 		return "body.$." + sel

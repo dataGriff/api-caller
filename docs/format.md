@@ -205,11 +205,49 @@ Used by `@capture` and `@assert`:
 | `status` | status code, e.g. `200` |
 | `statusText` | e.g. `OK` |
 | `header.<name>` | first value of a response header, case-insensitive |
+| `header.<name>.#` / `header.<name>[1]` | how many values a header has, and the n-th (from 0; `[-1]` is the last), for `Set-Cookie`, `Link` and the like |
 | `cookie.<name>` | value of a cookie the response set (`Set-Cookie`), whether or not the jar is on |
 | `body` | raw body |
 | `body.$` | whole body (must be JSON) |
-| `body.$.<path>` | JSON path such as `body.$.items[0].id`, `body.$.items.#` (count), `body.$["key with dots"]` |
+| `body.$.<path>` | a JSONPath into the body; see [Body paths](#body-paths) |
 | `duration` | round-trip time in milliseconds |
+
+### Body paths
+
+The path after `body.$` is JSONPath, as Hurl, Postman and Bruno write it:
+
+| Path | Selects |
+|---|---|
+| `body.$.items[0].id`, `body.$["key with dots"]` | a key or an index; a bare key runs to the next `.` or `[` |
+| `body.$.items[-1]` | an index counted from the end |
+| `body.$.items[1:3]`, `[:2]`, `[-2:]` | a slice, end exclusive |
+| `body.$.items[*].id`, `body.$.meta.*` | every element or value |
+| `body.$..id` | every `id` at any depth (recursive descent) |
+| `body.$.items[?(@.done == true)].id` | the elements a filter keeps: `==`, `!=`, `<`, `<=`, `>`, `>=` against a number, a quoted string, `true`, `false` or `null`; `=~ /^a/` (add `i` after the closing slash to ignore case); `@.owner` alone for presence and `!@.owner` for absence; `&&` and `||` between terms; the `@` path can hold brackets of its own, as in `@.tags[0] == "red"` |
+| `body.$.items.#`, `body.$.items.length` | at the end, how many: an array's elements, an object's keys, a string's characters, or the matches of a wildcard, slice, filter or `..`; a number, boolean or null has no count |
+
+A path through a wildcard, slice, filter or `..` selects every match, and
+its value is a JSON array of them (`["a","c"]`); no matches means nothing
+is there, so `exists` fails and `.length` is `0`. A single value is the
+text itself for a string and JSON for anything else, exactly as the
+server sent it. An object with a real `length` key keeps it:
+`body.$.length` reads that key, and inside a filter `@.length` on an
+object is only ever that key, so `[?(@.length)]` asks whether it is
+there.
+
+A filter's `!=` also keeps the elements that lack the key, as RFC 9535
+says: `[?(@.status != "done")]` keeps an element with no `status`. Every
+other comparison needs the value to be there.
+
+Paths written for gjson, which apic used before filters existed, still
+select what they did: a numeric key on an array is an index
+(`body.$.items.0.id`), and `#` in the middle of a path maps over an array
+(`body.$.items.#.id`), so a count after it is each element's own
+(`body.$.items.#.tags.#` is `[2,0]`). gjson's `#(...)` queries are not
+supported; write them as filters, `body.$.items[?(@.id == 2)].name`.
+Parentheses inside a filter, unions (`[0,1]`) and slice steps
+(`[0:9:2]`) are not supported either; `apic validate` names the part it
+cannot read.
 
 ## Assertion operators
 
@@ -224,6 +262,40 @@ and may be quoted.
 # @assert header.content-type contains json
 # @assert body.$.email matches ^[^@]+@example\.com$
 # @assert body.$.error not exists
+# @assert body.$.items[?(@.done == true)].length == 2
+# @assert header.set-cookie.# >= 1
+```
+
+### The shape of a response
+
+These say what a value is rather than what it equals:
+
+| Assertion | Passes when |
+|---|---|
+| `body.$.id isInteger` | the value is a whole number; also `isNumber`, `isString`, `isBoolean`, `isArray`, `isObject`, `isNull` |
+| `body.$.id not isString` | the `not` form of any of them |
+| `body.$.items isEmpty` / `not isEmpty` | an empty (or non-empty) string, array or object |
+| `body.$.items length == 3` | its length compares: a string's characters, an array's elements, an object's keys; any of `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| `body.$ matchesSchema ./schemas/user.json` | it validates against a JSON Schema |
+
+Types are JSON types: a status, a duration and a count are numbers;
+headers, cookies, `statusText` and the raw `body` are strings. A failed
+type check reports what the value is (`actual: number`).
+
+`matchesSchema` reads a JSON Schema file (draft 2020-12 or draft-07,
+`$ref` within the file) relative to the `.http` file and inside the
+project; a failure reports the path in the document and the rule it
+broke. `apic validate` reports a schema file that does not exist as
+`missing-schema-file`.
+
+```
+### Get a user, checked for shape
+# @name get-user
+# @assert status == 200
+# @assert body.$ matchesSchema ./schemas/user.json
+# @assert body.$.id isInteger
+# @assert body.$.roles not isEmpty
+GET {{baseUrl}}/users/{{userId}}
 ```
 
 ## Flows

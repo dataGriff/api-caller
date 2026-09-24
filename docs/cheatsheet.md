@@ -119,18 +119,20 @@ First match wins:
 |---|---|
 | `status` | status code |
 | `statusText` | e.g. `OK` |
-| `header.<name>` | first value of a response header |
+| `header.<name>` | first value of a response header; `.#` counts its values, `[1]` picks one |
 | `cookie.<name>` | value of a cookie the response set |
 | `body` | raw body |
 | `body.$` | whole JSON body |
-| `body.$.<path>` | `body.$.items[0].id`, `body.$.items.#` (count), `body.$["key.with.dots"]` |
+| `body.$.<path>` | `body.$.items[0].id`, `[-1]`, `[1:3]`, `[*]`, `body.$..id`, `body.$.items[?(@.done == true)].id`, `.#` or `.length` (count), `body.$["key.with.dots"]`; see [format](format.md#body-paths) |
 | `duration` | round-trip time in milliseconds |
 
 ## Assertion operators
 
 `==` `!=` `<` `<=` `>` `>=` (numeric when both sides are numbers) ·
 `contains` · `startsWith` · `endsWith` · `matches` (Go regexp) · `exists` ·
-`not exists`
+`not exists` · `isString` `isNumber` `isInteger` `isBoolean` `isArray`
+`isObject` `isNull` `isEmpty` (and `not …`) · `length <op> <n>` ·
+`matchesSchema <file.json>`
 
 ```
 # @assert status < 300
@@ -138,6 +140,9 @@ First match wins:
 # @assert header.content-type contains json
 # @assert body.$.email matches ^[^@]+@example\.com$
 # @assert body.$.error not exists
+# @assert body.$.id isInteger
+# @assert body.$.items length == 3
+# @assert body.$ matchesSchema ./schemas/user.json
 ```
 
 ## Gherkin steps

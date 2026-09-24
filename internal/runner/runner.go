@@ -872,7 +872,7 @@ func (r *Runner) saveBody(req *httpfile.Request, path string, overwrite, fromCwd
 	// Reported relative to the project when inside it; the root may be
 	// reached through a symlink while target is the real path.
 	result.SavedTo = target
-	for _, root := range []string{r.Project.Root, realPrefix(r.Project.Root)} {
+	for _, root := range []string{r.Project.Root, project.RealPrefix(r.Project.Root)} {
 		if rel, ok := project.Within(root, target); ok {
 			result.SavedTo = filepath.ToSlash(rel)
 			break
@@ -979,7 +979,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			return nil, usagef("%s:%d: %v", req.File.Path, a.Line, err)
 		}
 		expected := expr.Value
-		if expr.Op != "exists" && expr.Op != "not exists" {
+		if !expr.Unary() {
 			expected, err = template.Render(expr.Value, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
 			if err != nil {
 				var me *template.MissingError
@@ -1004,9 +1004,11 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	if err != nil {
 		return nil, err
 	}
+	// Each schema is read and resolved once for all the attempts.
+	schemas := assert.Options{Schema: assert.Schemas(func(path string) ([]byte, error) { return r.readBodyFile(req, path, "schema") })}
 
 	for attempt := 1; ; attempt++ {
-		res, err := r.attempt(ctx, req, resolved, preparedAsserts, timeout)
+		res, err := r.attempt(ctx, req, resolved, preparedAsserts, schemas, timeout)
 		if err != nil {
 			var ue *UsageError
 			if errors.As(err, &ue) || attempt >= policy.n {
@@ -1073,7 +1075,7 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 // assertions into a fresh Result, without committing anything to the
 // runner or the session. It has its own timeout, so a retry loop gives
 // every attempt the full time.
-func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *Resolved, asserts []preparedAssert, timeout time.Duration) (*Result, error) {
+func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *Resolved, asserts []preparedAssert, schemas assert.Options, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var trace traceTimes
@@ -1169,7 +1171,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		result.Captures[c.Name] = v
 	}
 	for _, a := range asserts {
-		ar := assert.Eval(a.expr, a.expected, raw)
+		ar := assert.EvalWith(a.expr, a.expected, raw, schemas)
 		if !ar.Pass {
 			result.OK = false
 		}
@@ -1643,66 +1645,35 @@ func (r *Runner) multipartBody(req *httpfile.Request, m *httpfile.Multipart, ren
 	return buf.Bytes(), parts, nil
 }
 
+// ProjectFile reads a file named relative to the project root, confined to
+// it: a schema a feature step names, which has no .http file to be
+// relative to.
+func (r *Runner) ProjectFile(rel string) ([]byte, error) {
+	real, err := project.Confine(r.Project.Root, r.Project.Root, rel)
+	if errors.Is(err, project.ErrOutsideRoot) {
+		return nil, usagef("%q resolves outside project root", rel)
+	}
+	if err != nil {
+		return nil, usagef("%s: %v", rel, err)
+	}
+	data, err := os.ReadFile(real) //nolint:gosec // a project file, confined above
+	if err != nil {
+		return nil, usagef("%s: %v", rel, err)
+	}
+	return data, nil
+}
+
 // filePath resolves a `< file` reference relative to the request's file and
 // confines it to the project root.
 func (r *Runner) filePath(req *httpfile.Request, rel, what string) (string, error) {
-	real, err := confine(r.Project.Root, filepath.Join(r.Project.Root, filepath.Dir(req.File.Path)), rel)
-	if errors.Is(err, errOutsideRoot) {
+	real, err := project.Confine(r.Project.Root, filepath.Join(r.Project.Root, filepath.Dir(req.File.Path)), rel)
+	if errors.Is(err, project.ErrOutsideRoot) {
 		return "", usagef("%s:%d: %s %q resolves outside project root", req.File.Path, req.Line, what, rel)
 	}
 	if err != nil {
 		return "", usagef("%s:%d: %s: %v", req.File.Path, req.Line, what, err)
 	}
 	return real, nil
-}
-
-var errOutsideRoot = errors.New("resolves outside project root")
-
-// confine resolves rel against dir, follows symlinks, and returns the real
-// path if it lies under root, else errOutsideRoot.
-func confine(root, dir, rel string) (string, error) {
-	rootReal, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", err
-	}
-	joined := rel
-	if !filepath.IsAbs(rel) {
-		joined = filepath.Join(dir, rel)
-	}
-	abs, err := filepath.Abs(joined)
-	if err != nil {
-		return "", err
-	}
-	real, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			return "", err
-		}
-		real = realPrefix(abs)
-	}
-	if _, ok := project.Within(rootReal, real); !ok {
-		return "", errOutsideRoot
-	}
-	return real, nil
-}
-
-// realPrefix resolves the symlinks of the longest existing ancestor of a
-// path that does not exist yet (a `>> file` into a new directory) and
-// keeps the rest as written, so a root under a symlink (macOS's /var is
-// /private/var) still contains what it should.
-func realPrefix(abs string) string {
-	rest := ""
-	for cur := abs; ; {
-		if real, err := filepath.EvalSymlinks(cur); err == nil {
-			return filepath.Join(real, rest)
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			return abs
-		}
-		rest = filepath.Join(filepath.Base(cur), rest)
-		cur = parent
-	}
 }
 
 func dedupe(in []string) []string {
