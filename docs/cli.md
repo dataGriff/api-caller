@@ -944,9 +944,9 @@ apic run <request|file.http|file.http#name>... [flags]
 | `--body-only` | print only the response body (for piping) |
 | `--keep-going` | in a flow, continue after a failure |
 | `--no-retry` | send every request once, ignoring # @retry, --retry and apic.yaml |
-| `--output <string>` | save the response body to this file (one request only; like a ">>! file" line in the request) |
+| `--output <string>` | save the response body to this file (one request only; like a "&gt;&gt;! file" line in the request) |
 | `--report <string>` | also write a self-contained HTML report of the run to this file |
-| `--retry <string>` | re-send until the assertions pass: "<attempts> [interval]", e.g. "10 2s" (requests with # @retry keep their own) |
+| `--retry <string>` | re-send until the assertions pass: "&lt;attempts&gt; [interval]", e.g. "10 2s" (requests with # @retry keep their own) |
 | `-v, --verbose` | show request and response headers |
 
 ### apic session
@@ -995,7 +995,7 @@ apic test [path|file.feature]... [flags]
 | `-o, --output <string>` | write the report to a file instead of stdout |
 | `--steps` | print the built-in step vocabulary and declared phrases, then exit |
 | `--stop-on-failure` | stop after the first failed scenario |
-| `-t, --tags <string>` | tag expression, e.g. "@smoke && ~@slow" |
+| `-t, --tags <string>` | tag expression, e.g. "@smoke &amp;&amp; ~@slow" |
 | `--use-session` | read and write .apic/session.json instead of an isolated session per scenario |
 
 ### apic ui

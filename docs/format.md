@@ -223,19 +223,31 @@ The path after `body.$` is JSONPath, as Hurl, Postman and Bruno write it:
 | `body.$.items[1:3]`, `[:2]`, `[-2:]` | a slice, end exclusive |
 | `body.$.items[*].id`, `body.$.meta.*` | every element or value |
 | `body.$..id` | every `id` at any depth (recursive descent) |
-| `body.$.items[?(@.done == true)].id` | the elements a filter keeps: `==`, `!=`, `<`, `<=`, `>`, `>=` against a number, a quoted string, `true`, `false` or `null`; `=~ /^a/` (add `i` after the closing slash to ignore case); `@.owner` alone for presence and `!@.owner` for absence; `&&` and `||` between terms |
-| `body.$.items.#`, `body.$.items.length` | at the end, how many: an array's elements, an object's keys, a string's characters, or the matches of a wildcard, slice, filter or `..` |
+| `body.$.items[?(@.done == true)].id` | the elements a filter keeps: `==`, `!=`, `<`, `<=`, `>`, `>=` against a number, a quoted string, `true`, `false` or `null`; `=~ /^a/` (add `i` after the closing slash to ignore case); `@.owner` alone for presence and `!@.owner` for absence; `&&` and `||` between terms; the `@` path can hold brackets of its own, as in `@.tags[0] == "red"` |
+| `body.$.items.#`, `body.$.items.length` | at the end, how many: an array's elements, an object's keys, a string's characters, or the matches of a wildcard, slice, filter or `..`; a number, boolean or null has no count |
 
 A path through a wildcard, slice, filter or `..` selects every match, and
 its value is a JSON array of them (`["a","c"]`); no matches means nothing
 is there, so `exists` fails and `.length` is `0`. A single value is the
 text itself for a string and JSON for anything else, exactly as the
 server sent it. An object with a real `length` key keeps it:
-`body.$.length` reads that key. `#` in the middle of a path maps over an
-array (`body.$.items.#.id`), as it did before filters existed.
+`body.$.length` reads that key, and inside a filter `@.length` on an
+object is only ever that key, so `[?(@.length)]` asks whether it is
+there.
+
+A filter's `!=` also keeps the elements that lack the key, as RFC 9535
+says: `[?(@.status != "done")]` keeps an element with no `status`. Every
+other comparison needs the value to be there.
+
+Paths written for gjson, which apic used before filters existed, still
+select what they did: a numeric key on an array is an index
+(`body.$.items.0.id`), and `#` in the middle of a path maps over an array
+(`body.$.items.#.id`), so a count after it is each element's own
+(`body.$.items.#.tags.#` is `[2,0]`). gjson's `#(...)` queries are not
+supported; write them as filters, `body.$.items[?(@.id == 2)].name`.
 Parentheses inside a filter, unions (`[0,1]`) and slice steps
-(`[0:9:2]`) are not supported; `apic validate` names the part it cannot
-read.
+(`[0:9:2]`) are not supported either; `apic validate` names the part it
+cannot read.
 
 ## Assertion operators
 

@@ -114,3 +114,13 @@ func TestUpdate(t *testing.T) {
 		t.Fatal("markers out of order")
 	}
 }
+
+// Usage text reaches a Markdown table, where <word> is an HTML tag.
+func TestCellEscapesHTML(t *testing.T) {
+	if got, want := cell("send \"<attempts> [interval]\" | a & b\nnext"), `send "&lt;attempts&gt; [interval]" \| a &amp; b next`; got != want {
+		t.Fatalf("cell = %q; want %q", got, want)
+	}
+	if !strings.Contains(Markdown(Tree()), "&lt;attempts&gt;") {
+		t.Fatal("run --retry's usage is not escaped in the reference")
+	}
+}

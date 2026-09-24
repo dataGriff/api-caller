@@ -177,8 +177,12 @@ func flagUsage(f *pflag.Flag) string {
 	return usage
 }
 
+// cell makes usage text safe in a table cell: a | would end the cell, and
+// <attempts> would be read as an HTML tag and vanish from the page.
+var cellEscaper = strings.NewReplacer("|", `\|`, "\n", " ", "&", "&amp;", "<", "&lt;", ">", "&gt;")
+
 func cell(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, "|", `\|`), "\n", " ")
+	return cellEscaper.Replace(s)
 }
 
 func sentence(s string) string {

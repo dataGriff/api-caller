@@ -98,3 +98,67 @@ GET ` + srv.URL + `/u
 		t.Errorf("validate: %v", codes)
 	}
 }
+
+// validate resolves a schema path the way the runner reads it: an
+// absolute path inside the project is fine, and a symlink out of it is
+// refused by both.
+func TestSchemaPathsAgreeWithValidate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id": 7}`))
+	}))
+	t.Cleanup(srv.Close)
+	dir, outside := t.TempDir(), t.TempDir()
+	schema := `{"type": "object", "required": ["id"]}`
+	if err := os.WriteFile(filepath.Join(dir, "user.json"), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "user.json"), []byte(schema), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	linked := os.Symlink(filepath.Join(outside, "user.json"), filepath.Join(dir, "linked.json")) == nil
+	text := "### abs\n# @name abs\n# @assert body.$ matchesSchema " + filepath.Join(dir, "user.json") + "\nGET " + srv.URL + "\n"
+	if linked {
+		text += "\n### linked\n# @name linked\n# @assert body.$ matchesSchema linked.json\nGET " + srv.URL + "\n"
+	}
+	if err := os.WriteFile(filepath.Join(dir, "api.http"), []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := project.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := New(p, Options{NoSession: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(name string) *Result {
+		req, err := p.Lookup(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := r.Run(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := run("abs"); !res.OK {
+		t.Fatalf("abs: %+v", res.Asserts)
+	}
+	var got []string
+	for _, d := range p.Validate() {
+		got = append(got, d.Code+": "+d.Message)
+	}
+	if !linked {
+		if len(got) != 0 {
+			t.Fatalf("validate: %v", got)
+		}
+		t.Skip("no symlinks here")
+	}
+	if res := run("linked"); res.OK || !strings.Contains(res.Asserts[0].Error, "outside project root") {
+		t.Fatalf("linked: %+v", res.Asserts)
+	}
+	if len(got) != 1 || !strings.Contains(got[0], "missing-schema-file: schema file linked.json resolves outside the project root") {
+		t.Fatalf("validate: %v", got)
+	}
+}

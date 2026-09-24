@@ -27,8 +27,12 @@ import (
 //	.# .length                at the end: how many (an array's elements,
 //	                          an object's keys, a string's characters, or
 //	                          the matches of a wildcard, slice, filter or
-//	                          descent); in the middle, # maps over an array
-//	                          as gjson did
+//	                          descent); a number, boolean or null has no
+//	                          count; in the middle, # maps over an array
+//	                          as gjson did, so items.#.tags.# is each
+//	                          item's count
+//	.0                        a numeric key on an array is an index, as
+//	                          in gjson
 //
 // A path that goes through a wildcard, slice, filter or descent selects
 // every match; the value is then a JSON array of them, and no matches
@@ -60,6 +64,9 @@ type segment struct {
 // Path is a parsed body path.
 type Path struct {
 	segs []segment
+	// relative is a filter's @ path, where .length on an object is only
+	// its own key: [?(@.length)] asks whether the key is there.
+	relative bool
 }
 
 // ParsePath parses the tail of a `body.$` selector: `.items[0].id`,
@@ -125,6 +132,9 @@ func parseStep(s string) (segment, int, error) {
 		return segment{kind: segHash, text: "#"}, end, nil
 	case "length":
 		return segment{kind: segLength, name: name, text: name}, end, nil
+	}
+	if strings.HasPrefix(name, "#(") {
+		return segment{}, 0, fmt.Errorf("unsupported selector part %q: gjson queries are not supported; use a filter such as [?(@.id == 2)]", s)
 	}
 	return segment{kind: segChild, name: name, text: name}, end, nil
 }
@@ -196,27 +206,41 @@ func parseBracket(s string) (segment, int, error) {
 // bracket (a filter, a quoted key) stay part of the selector.
 func Leading(s string) (sel, rest string) {
 	s = strings.TrimLeft(s, " \t")
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '[':
-			end := closingBracket(s[i:])
-			if end < 0 {
-				return s, ""
-			}
-			i += end
-		case ' ', '\t':
-			return s[:i], strings.TrimLeft(s[i:], " \t")
+	sel = s
+	scan(s, false, func(i, depth int) bool {
+		if depth == 0 && (s[i] == ' ' || s[i] == '\t') {
+			sel, rest = s[:i], strings.TrimLeft(s[i:], " \t")
+			return false
 		}
-	}
-	return s, ""
+		return true
+	})
+	return sel, rest
 }
 
-// closingBracket finds the `]` closing the `[` at s[0], skipping quoted
-// strings and the `/regex/` of a filter's =~.
+// closingBracket finds the `]` closing the `[` at s[0], skipping nested
+// brackets, quoted strings and the `/regex/` of a filter's =~.
 func closingBracket(s string) int {
+	end := -1
+	scan(s, true, func(i, depth int) bool {
+		if s[i] == ']' && depth == 1 {
+			end = i
+			return false
+		}
+		return true
+	})
+	return end
+}
+
+// scan calls visit with each byte of s that is not inside a quoted string
+// or the `/regex/` of an =~, and the bracket depth before it; visit
+// returns false to stop. Quotes and regexes count only inside a bracket
+// unless top is set (a filter's text, whose brackets were stripped), so a
+// bare key such as it's stays a key.
+func scan(s string, top bool, visit func(i, depth int) bool) {
 	var quote byte
 	inRegex := false
-	for i := 1; i < len(s); i++ {
+	depth := 0
+	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
 		case quote != 0:
@@ -226,6 +250,7 @@ func closingBracket(s string) int {
 			case quote:
 				quote = 0
 			}
+			continue
 		case inRegex:
 			switch c {
 			case '\\':
@@ -233,15 +258,24 @@ func closingBracket(s string) int {
 			case '/':
 				inRegex = false
 			}
-		case c == '"' || c == '\'':
+			continue
+		case (depth > 0 || top) && (c == '"' || c == '\''):
 			quote = c
-		case c == '/' && strings.HasSuffix(strings.TrimRight(s[:i], " "), "=~"):
+			continue
+		case (depth > 0 || top) && c == '/' && strings.HasSuffix(strings.TrimRight(s[:i], " "), "=~"):
 			inRegex = true
-		case c == ']':
-			return i
+			continue
+		}
+		if !visit(i, depth) {
+			return
+		}
+		switch c {
+		case '[':
+			depth++
+		case ']':
+			depth--
 		}
 	}
-	return -1
 }
 
 func unquote(s string) (string, bool) {
@@ -263,21 +297,21 @@ func unquote(s string) (string, bool) {
 // through a wildcard, slice, filter or descent, so the matches are a set.
 func (p *Path) Eval(doc gjson.Result) (nodes []gjson.Result, count *int, many bool) {
 	nodes = []gjson.Result{doc}
+	mapped := false // through a # in the middle, gjson's items.#.id
 	for i, seg := range p.segs {
 		last := i == len(p.segs)-1
 		switch seg.kind {
 		case segHash:
 			if last {
-				n := countOf(nodes, many)
-				return nil, &n, many
+				return p.count(nodes, many, mapped)
 			}
-			// In the middle, # maps over an array (gjson's items.#.id).
-			nodes, many = flatMap(nodes, elements), true
+			nodes, many, mapped = flatMap(nodes, elements), true, true
 		case segLength:
-			ownKey := len(nodes) == 1 && !many && len(child(nodes[0], "length")) == 1
-			if last && !ownKey {
-				n := countOf(nodes, many)
-				return nil, &n, many
+			// An object's own length key wins, and in a filter an object's
+			// .length is only ever that key.
+			key := len(nodes) == 1 && !many && (len(child(nodes[0], "length")) == 1 || p.relative && nodes[0].IsObject())
+			if last && !key {
+				return p.count(nodes, many, mapped)
 			}
 			nodes = flatMap(nodes, func(r gjson.Result) []gjson.Result { return child(r, "length") })
 		case segChild:
@@ -291,11 +325,14 @@ func (p *Path) Eval(doc gjson.Result) (nodes []gjson.Result, count *int, many bo
 		case segFilter:
 			nodes, many = flatMap(nodes, func(r gjson.Result) []gjson.Result { return filter(r, seg.filter) }), true
 		case segDescend:
-			all := flatMap(nodes, descendants)
-			nodes, many = flatMap(all, func(r gjson.Result) []gjson.Result { return step(r, *seg.inner) }), true
+			nodes, many = flatMap(nodes, func(r gjson.Result) []gjson.Result {
+				var out []gjson.Result
+				descend(r, func(d gjson.Result) { out = append(out, step(d, *seg.inner)...) })
+				return out
+			}), true
 		}
 		if len(nodes) == 0 {
-			if i+1 < len(p.segs) && isCount(p.segs[len(p.segs)-1]) && many {
+			if i+1 < len(p.segs) && isCount(p.segs[len(p.segs)-1]) && many && !mapped {
 				// Counting matches that turned out empty is 0, not absent.
 				zero := 0
 				return nil, &zero, many
@@ -304,6 +341,48 @@ func (p *Path) Eval(doc gjson.Result) (nodes []gjson.Result, count *int, many bo
 		}
 	}
 	return nodes, nil, many
+}
+
+// count ends a path with # or .length: the number of matches of a set,
+// each node's own count after a mapping #, or the one node's count.
+func (p *Path) count(nodes []gjson.Result, many, mapped bool) ([]gjson.Result, *int, bool) {
+	switch {
+	case mapped:
+		var out []gjson.Result
+		for _, n := range nodes {
+			if c, ok := p.countOne(n); ok {
+				out = append(out, gjson.Result{Type: gjson.Number, Raw: strconv.Itoa(c), Num: float64(c)})
+			}
+		}
+		if len(out) == 0 {
+			return nil, nil, true
+		}
+		return out, nil, true
+	case many:
+		n := len(nodes)
+		return nil, &n, true
+	}
+	c, ok := p.countOne(nodes[0])
+	if !ok {
+		return nil, nil, false
+	}
+	return nil, &c, false
+}
+
+// countOne is an array's elements, an object's keys or a string's
+// characters; a number, boolean or null has no count. In a filter an
+// object's keys are not counted, so @.length is the key alone.
+func (p *Path) countOne(r gjson.Result) (int, bool) {
+	n := 0
+	switch {
+	case r.IsArray() || r.IsObject() && !p.relative:
+		r.ForEach(func(_, _ gjson.Result) bool { n++; return true })
+	case r.Type == gjson.String:
+		n = utf8.RuneCountInString(r.Str)
+	default:
+		return 0, false
+	}
+	return n, true
 }
 
 func isCount(s segment) bool { return s.kind == segHash || s.kind == segLength }
@@ -325,24 +404,6 @@ func step(r gjson.Result, seg segment) []gjson.Result {
 	return nil
 }
 
-func countOf(nodes []gjson.Result, many bool) int {
-	if many {
-		return len(nodes)
-	}
-	r := nodes[0]
-	switch {
-	case r.IsArray():
-		return len(r.Array())
-	case r.IsObject():
-		n := 0
-		r.ForEach(func(_, _ gjson.Result) bool { n++; return true })
-		return n
-	case r.Type == gjson.String:
-		return utf8.RuneCountInString(r.Str)
-	}
-	return 0
-}
-
 func flatMap(nodes []gjson.Result, f func(gjson.Result) []gjson.Result) []gjson.Result {
 	var out []gjson.Result
 	for _, n := range nodes {
@@ -352,8 +413,15 @@ func flatMap(nodes []gjson.Result, f func(gjson.Result) []gjson.Result) []gjson.
 }
 
 // child is the value under key in an object, compared exactly (no gjson
-// path syntax, so dots and stars in keys are literal).
+// path syntax, so dots and stars in keys are literal). On an array a key
+// of digits is an index, as gjson's items.0 was.
 func child(r gjson.Result, key string) []gjson.Result {
+	if r.IsArray() {
+		if i, err := strconv.Atoi(key); err == nil && i >= 0 && key[0] != '+' {
+			return index(r, i)
+		}
+		return nil
+	}
 	if !r.IsObject() {
 		return nil
 	}
@@ -368,71 +436,106 @@ func child(r gjson.Result, key string) []gjson.Result {
 	return out
 }
 
+// size is how many elements an array has, without building them.
+func size(r gjson.Result) int {
+	n := 0
+	r.ForEach(func(_, _ gjson.Result) bool { n++; return true })
+	return n
+}
+
+// index walks to element i and stops there; a negative i counts first.
 func index(r gjson.Result, i int) []gjson.Result {
 	if !r.IsArray() {
 		return nil
 	}
-	arr := r.Array()
 	if i < 0 {
-		i += len(arr)
+		i += size(r)
+		if i < 0 {
+			return nil
+		}
 	}
-	if i < 0 || i >= len(arr) {
-		return nil
-	}
-	return []gjson.Result{arr[i]}
+	var out []gjson.Result
+	n := 0
+	r.ForEach(func(_, v gjson.Result) bool {
+		if n == i {
+			out = []gjson.Result{v}
+			return false
+		}
+		n++
+		return true
+	})
+	return out
 }
 
+// slice walks elements a to b and stops at b; only negative or omitted
+// bounds that need the length count first.
 func slice(r gjson.Result, lo, hi *int) []gjson.Result {
 	if !r.IsArray() {
 		return nil
 	}
-	arr := r.Array()
-	n := len(arr)
-	bound := func(p *int, def int) int {
+	n := -1
+	length := func() int {
+		if n < 0 {
+			n = size(r)
+		}
+		return n
+	}
+	bound := func(p *int, def func() int) int {
 		if p == nil {
-			return def
+			return def()
 		}
 		v := *p
 		if v < 0 {
-			v += n
+			v = max(0, v+length())
 		}
-		return max(0, min(n, v))
+		return v
 	}
-	a, b := bound(lo, 0), bound(hi, n)
+	a := bound(lo, func() int { return 0 })
+	b := bound(hi, length)
 	if a >= b {
 		return nil
 	}
-	return arr[a:b]
-}
-
-func elements(r gjson.Result) []gjson.Result {
-	switch {
-	case r.IsArray():
-		return r.Array()
-	case r.IsObject():
-		var out []gjson.Result
-		r.ForEach(func(_, v gjson.Result) bool { out = append(out, v); return true })
-		return out
-	}
-	return nil
-}
-
-// descendants is r and everything under it, in document order.
-func descendants(r gjson.Result) []gjson.Result {
-	out := []gjson.Result{r}
-	for _, c := range elements(r) {
-		out = append(out, descendants(c)...)
-	}
+	var out []gjson.Result
+	i := 0
+	r.ForEach(func(_, v gjson.Result) bool {
+		if i >= a {
+			out = append(out, v)
+		}
+		i++
+		return i < b
+	})
 	return out
 }
 
-func filter(r gjson.Result, f orExpr) []gjson.Result {
+func elements(r gjson.Result) []gjson.Result {
+	if !r.IsArray() && !r.IsObject() {
+		return nil
+	}
 	var out []gjson.Result
-	for _, e := range elements(r) {
+	r.ForEach(func(_, v gjson.Result) bool { out = append(out, v); return true })
+	return out
+}
+
+// descend visits r and everything under it, in document order, without
+// collecting the whole tree first.
+func descend(r gjson.Result, visit func(gjson.Result)) {
+	visit(r)
+	if r.IsArray() || r.IsObject() {
+		r.ForEach(func(_, v gjson.Result) bool { descend(v, visit); return true })
+	}
+}
+
+func filter(r gjson.Result, f orExpr) []gjson.Result {
+	if !r.IsArray() && !r.IsObject() {
+		return nil
+	}
+	var out []gjson.Result
+	r.ForEach(func(_, e gjson.Result) bool {
 		if f.match(e) {
 			out = append(out, e)
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -477,9 +580,14 @@ func (t term) match(r gjson.Result) bool {
 		nodes = []gjson.Result{{Type: gjson.Number, Raw: strconv.Itoa(*count), Num: float64(*count)}}
 	}
 	var ok bool
-	if t.op == "" {
+	switch {
+	case t.op == "":
 		ok = len(nodes) > 0
-	} else {
+	case len(nodes) == 0:
+		// Nothing there is not equal to anything (RFC 9535), and no other
+		// comparison holds for it.
+		ok = t.op == "!="
+	default:
 		for _, n := range nodes {
 			if compareLiteral(n, t.op, t.value) {
 				ok = true
@@ -505,19 +613,21 @@ func compareLiteral(n gjson.Result, op string, lit literal) bool {
 	case lit.kind == n.Type: // true, false, null
 		cmp, comparable = 0, true
 	}
+	// Only numbers and strings have an order.
+	ordered := comparable && (lit.kind == gjson.Number || lit.kind == gjson.String)
 	switch op {
 	case "==":
 		return comparable && cmp == 0
 	case "!=":
 		return !comparable || cmp != 0
 	case "<":
-		return comparable && lit.kind != gjson.True && lit.kind != gjson.False && lit.kind != gjson.Null && cmp < 0
+		return ordered && cmp < 0
 	case "<=":
-		return comparable && lit.kind != gjson.True && lit.kind != gjson.False && lit.kind != gjson.Null && cmp <= 0
+		return ordered && cmp <= 0
 	case ">":
-		return comparable && lit.kind != gjson.True && lit.kind != gjson.False && lit.kind != gjson.Null && cmp > 0
+		return ordered && cmp > 0
 	case ">=":
-		return comparable && lit.kind != gjson.True && lit.kind != gjson.False && lit.kind != gjson.Null && cmp >= 0
+		return ordered && cmp >= 0
 	}
 	return false
 }
@@ -543,39 +653,18 @@ func parseFilter(s string) (orExpr, error) {
 	return or, nil
 }
 
-// splitOutside splits s on sep where sep is not inside quotes or a regex.
+// splitOutside splits s on sep where sep is not inside a bracket, quotes
+// or a regex.
 func splitOutside(s, sep string) []string {
 	var parts []string
-	var quote byte
-	inRegex := false
 	start := 0
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case quote != 0:
-			switch c {
-			case '\\':
-				i++
-			case quote:
-				quote = 0
-			}
-		case inRegex:
-			switch c {
-			case '\\':
-				i++
-			case '/':
-				inRegex = false
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == '/' && strings.HasSuffix(strings.TrimRight(s[:i], " "), "=~"):
-			inRegex = true
-		case strings.HasPrefix(s[i:], sep):
+	scan(s, true, func(i, depth int) bool {
+		if depth == 0 && i >= start && strings.HasPrefix(s[i:], sep) {
 			parts = append(parts, s[start:i])
 			start = i + len(sep)
-			i += len(sep) - 1
 		}
-	}
+		return true
+	})
 	return append(parts, s[start:])
 }
 
@@ -592,34 +681,29 @@ func parseTerm(s string) (term, error) {
 		return t, fmt.Errorf("a term must start with @, got %q", s)
 	}
 	// The path runs to the first operator outside a bracket.
-	pathEnd, op := len(s), ""
-	depth := 0
-	for i := 1; i < len(s) && op == ""; i++ {
-		switch s[i] {
-		case '[':
-			depth++
-		case ']':
-			depth--
-		case ' ', '=', '!', '<', '>':
-			if depth > 0 {
-				continue
-			}
-			rest := strings.TrimLeft(s[i:], " ")
-			for _, o := range filterOps {
-				if strings.HasPrefix(rest, o) {
-					pathEnd, op = i, o
-					break
-				}
-			}
-			if op == "" && s[i] != ' ' {
-				return t, fmt.Errorf("unknown operator in %q", s)
+	pathEnd, op, bad := len(s), "", false
+	scan(s, true, func(i, depth int) bool {
+		if i == 0 || depth > 0 || !strings.ContainsRune(" =!<>", rune(s[i])) {
+			return true
+		}
+		rest := strings.TrimLeft(s[i:], " ")
+		for _, o := range filterOps {
+			if strings.HasPrefix(rest, o) {
+				pathEnd, op = i, o
+				return false
 			}
 		}
+		bad = s[i] != ' '
+		return !bad
+	})
+	if bad {
+		return t, fmt.Errorf("unknown operator in %q", s)
 	}
 	path, err := ParsePath(strings.TrimSpace(s[1:pathEnd]))
 	if err != nil {
 		return t, err
 	}
+	path.relative = true
 	t.path = path
 	if op == "" {
 		if strings.TrimSpace(s[1:]) != strings.TrimSpace(s[1:pathEnd]) {

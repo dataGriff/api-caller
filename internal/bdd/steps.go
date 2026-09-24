@@ -426,7 +426,7 @@ func checkExpr(ctx context.Context, e assert.Expr, expected string) error {
 	if err != nil {
 		return err
 	}
-	r := assert.EvalWith(e, expected, res.Raw(), assert.Options{Schema: sc.r.ProjectFile})
+	r := assert.EvalWith(e, expected, res.Raw(), assert.Options{Schema: assert.Schemas(sc.r.ProjectFile)})
 	if res.Redact {
 		if r.Error != "" || !r.Pass {
 			return sc.cfg.fail(fmt.Errorf("assertion failed: %s (values hidden by --redact)\n%s", redactExpr(r.Expr), sc.cfg.describeFailure(res)))

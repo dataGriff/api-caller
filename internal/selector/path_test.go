@@ -49,6 +49,17 @@ func TestPaths(t *testing.T) {
 		{"body.$.items[:2].id", `["a","b"]`, KindArray, true},
 		{"body.$.items[-2:].id", `["b","c"]`, KindArray, true},
 		{"body.$.items[5:9]", "", KindString, false},
+		{"body.$.items[1:99].id", `["b","c"]`, KindArray, true},
+		{"body.$.items[-99:1].id", `["a"]`, KindArray, true},
+		// gjson's forms: a numeric key on an array is an index, and a #
+		// in the middle maps, so a count after it is each item's own.
+		{"body.$.items.0.id", "a", KindString, true},
+		{"body.$.items.2.owner.id", "u1", KindString, true},
+		{"body.$.items.3.id", "", KindString, false},
+		{"body.$.meta.0", "", KindString, false},
+		{"body.$.items.#.tags.#", "[2,0]", KindArray, true},
+		{"body.$.items.#.name.length", "[5,6,7]", KindArray, true},
+		{"body.$.items.#.nope.#", "", KindString, false},
 		// Wildcards.
 		{"body.$.items[*].name", `["apple","banana","Avocado"]`, KindArray, true},
 		{"body.$.items.*.id", `["a","b","c"]`, KindArray, true},
@@ -73,6 +84,19 @@ func TestPaths(t *testing.T) {
 		{"body.$.items[?(@.tags.length == 2)].id", `["a"]`, KindArray, true},
 		{"body.$.items[?@.done == true].id", `["a","c"]`, KindArray, true},
 		{"body.$.items[?(@.price == 9)]", "", KindString, false},
+		// Brackets inside a filter nest, and a ] in quotes is text.
+		{`body.$.items[?(@.tags[0] == "red")].id`, `["a"]`, KindArray, true},
+		{`body.$.items[?(@['id'] == "b")].name`, `["banana"]`, KindArray, true},
+		{`body.$.items[?(@.tags[?(@ == "fruit")])].id`, `["a"]`, KindArray, true},
+		{`body.$.items[?(@.name == "a]")]`, "", KindString, false},
+		// != holds where the key is missing (RFC 9535); nothing else does.
+		{`body.$.items[?(@.owner.id != "u1")].id`, `["a","b"]`, KindArray, true},
+		{`body.$.items[?(@.owner.id == "u2")]`, "", KindString, false},
+		{`body.$.items[?(@.owner.id < "z")].id`, `["c"]`, KindArray, true},
+		// In a filter @.length on an object is its key, never a key count.
+		{"body.$.items[?(@.length)]", "", KindString, false},
+		{"body.$.items[?(!@.length)].id", `["a","b","c"]`, KindArray, true},
+		{"body.$.items[?(@.name.length > 5)].id", `["b","c"]`, KindArray, true},
 		// Counting: an array, an object, a string, and a set of matches.
 		{"body.$.items.length", "3", KindNumber, true},
 		{"body.$.meta.#", "5", KindNumber, true},
@@ -81,6 +105,10 @@ func TestPaths(t *testing.T) {
 		{"body.$.items[?(@.price == 9)].#", "0", KindNumber, true},
 		{"body.$..id.#", "5", KindNumber, true},
 		{"body.$.meta.empty.length", "0", KindNumber, true},
+		// A number, boolean or null has no count.
+		{"body.$.id.#", "", KindString, false},
+		{"body.$.items[0].done.length", "", KindString, false},
+		{"body.$.meta.nothing.#", "", KindString, false},
 		// An object with a real "length" key keeps it.
 		{"body.$.length", "99", KindNumber, true},
 		{"body.$.nope.length", "", KindString, false},
@@ -122,6 +150,8 @@ func TestPathErrors(t *testing.T) {
 		"body.$.items[?(!@.a == 1)]":   "only negates a presence test",
 		"body.$.items[?()]":            "empty",
 		"body.$.items[\"a]":            "no closing ]",
+		"body.$.items[?(@.a[0 == 1)]":  "no closing ]",
+		`body.$.items.#(id=="a").name`: "gjson queries are not supported",
 		"header.x[1":                   "",
 		"header.":                      "needs a name",
 		"cookie.":                      "needs a name",
@@ -170,6 +200,45 @@ func TestMultiValueHeaders(t *testing.T) {
 		got, ok, err := Select(resp, c.sel)
 		if err != nil || ok != c.ok || got != c.want {
 			t.Errorf("%s: %q %v %v; want %q %v", c.sel, got, ok, err, c.want, c.ok)
+		}
+	}
+}
+
+// The selector of an assertion runs to the first space outside a bracket,
+// however deep, so a filter keeps its spaces and nested brackets.
+func TestLeading(t *testing.T) {
+	cases := []struct{ in, sel, rest string }{
+		{`body.$.id == 2`, "body.$.id", "== 2"},
+		{`body.$.items[?(@.tags[0] == "a b")].id == 1`, `body.$.items[?(@.tags[0] == "a b")].id`, "== 1"},
+		{`body.$.items[?(@['x y'] == 1)] exists`, `body.$.items[?(@['x y'] == 1)]`, "exists"},
+		{`body.$.items[?(@.n =~ /] x/)] exists`, `body.$.items[?(@.n =~ /] x/)]`, "exists"},
+		{`body.$.it's == 1`, `body.$.it's`, "== 1"},
+		{`body.$.items[0 == 1`, `body.$.items[0 == 1`, ""},
+		{`  status   ==  200`, "status", "==  200"},
+	}
+	for _, c := range cases {
+		sel, rest := Leading(c.in)
+		if sel != c.sel || rest != c.rest {
+			t.Errorf("Leading(%q) = %q, %q; want %q, %q", c.in, sel, rest, c.sel, c.rest)
+		}
+	}
+}
+
+// A single index or slice stops walking the array where it can.
+func BenchmarkIndex(b *testing.B) {
+	var sb strings.Builder
+	sb.WriteString(`{"items":[`)
+	for i := range 100000 {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(`{"id":1}`)
+	}
+	sb.WriteString(`]}`)
+	resp := &Response{Body: []byte(sb.String())}
+	for b.Loop() {
+		if _, ok, _ := Select(resp, "body.$.items[0].id"); !ok {
+			b.Fatal("nothing at items[0].id")
 		}
 	}
 }

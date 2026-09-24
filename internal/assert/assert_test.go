@@ -193,6 +193,11 @@ func TestPredicatesAndLength(t *testing.T) {
 		"body.$.id not isString":                  "body.$.id not isString",
 		`body.$.items[?(@.a == "x y")].id == abc`: `body.$.items[?(@.a == "x y")].id == ***`,
 		"body.$ matchesSchema ./s.json":           "body.$ matchesSchema ***",
+		// What Parse cannot read is masked after two words, never shown.
+		"body.$.user name == s3cret": "body.$.user name ***",
+		"body.$.items[0 == s3cret":   "body.$.items[0 == ***",
+		"body.$.x s3cret":            "body.$.x ***",
+		"body.$.x":                   "body.$.x",
 	} {
 		if got := Redact(expr, "***"); got != want {
 			t.Errorf("Redact(%s) = %q; want %q", expr, got, want)
@@ -221,7 +226,8 @@ func TestMatchesSchema(t *testing.T) {
 		}
 		return nil, fmt.Errorf("%s: no such file", path)
 	}
-	opts := Options{Schema: load}
+	reads := 0
+	opts := Options{Schema: Schemas(func(path string) ([]byte, error) { reads++; return load(path) })}
 	eval := func(body, expr string) Result {
 		e, err := Parse(expr)
 		if err != nil {
@@ -246,11 +252,19 @@ func TestMatchesSchema(t *testing.T) {
 	if r := eval(`{"id": 1, "name": "a"}`, "body matchesSchema user.json"); !r.Pass {
 		t.Fatalf("the raw body is read as JSON: %+v", r)
 	}
+	if reads != 1 {
+		t.Fatalf("user.json was read %d times; a loader resolves each file once", reads)
+	}
 	if r := eval(`{}`, "body.$ matchesSchema missing.json"); r.Error == "" || !strings.Contains(r.Error, "no such file") {
 		t.Fatalf("missing: %+v", r)
 	}
-	if r := eval(`{}`, "body.$ matchesSchema broken.json"); r.Error == "" || !strings.Contains(r.Error, "schema broken.json") {
-		t.Fatalf("broken: %+v", r)
+	for range 2 {
+		if r := eval(`{}`, "body.$ matchesSchema broken.json"); r.Error == "" || !strings.Contains(r.Error, "schema broken.json") {
+			t.Fatalf("broken: %+v", r)
+		}
+	}
+	if reads != 3 {
+		t.Fatalf("%d reads; a file that fails is not read again either", reads)
 	}
 	e, _ := Parse("body.$ matchesSchema user.json")
 	if r := Eval(e, e.Value, &selector.Response{Body: []byte(`{}`)}); r.Error == "" {

@@ -264,7 +264,6 @@ func diag(path, severity, code string, line, col, end int, msg string) httpfile.
 	return d
 }
 
-// Validate returns parse diagnostics plus project-level checks.
 // Within reports whether path (existing or not) lies under root, lexically:
 // both are cleaned and the relative path must not start with `..`. It
 // returns that relative path. Callers that must see through symlinks
@@ -277,6 +276,7 @@ func Within(root, path string) (string, bool) {
 	return rel, true
 }
 
+// Validate returns parse diagnostics plus project-level checks.
 func (p *Project) Validate() []httpfile.Diagnostic {
 	diags := append([]httpfile.Diagnostic(nil), p.Diagnostics...)
 	for name, rs := range p.byName {
@@ -382,12 +382,16 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 					fmt.Sprintf("assert %q: %s", a.Expr, selectorProblem(err))))
 			}
 			if expr.Op == "matchesSchema" && !strings.Contains(expr.Value, "{{") {
-				schema := filepath.Join(p.Root, filepath.Dir(r.File.Path), expr.Value)
-				_, inside := Within(p.Root, schema)
-				if _, err := os.Stat(schema); !inside || err != nil {
+				// Resolved as the runner reads it: relative to the file or
+				// absolute, through symlinks, confined to the root.
+				schema, err := Confine(p.Root, filepath.Join(p.Root, filepath.Dir(r.File.Path)), expr.Value)
+				if err == nil {
+					_, err = os.Stat(schema)
+				}
+				if err != nil {
 					col := a.Column + strings.LastIndex(a.Expr, expr.Value)
 					why := "not found"
-					if !inside {
+					if errors.Is(err, ErrOutsideRoot) {
 						why = "resolves outside the project root"
 					}
 					diags = append(diags, diag(r.File.Path, "error", "missing-schema-file", a.Line, col, col+len(expr.Value),

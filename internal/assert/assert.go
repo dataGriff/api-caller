@@ -56,10 +56,46 @@ func isPredicate(op string) bool {
 
 // Options carries what evaluation may need beyond the response.
 type Options struct {
-	// Schema reads a JSON Schema file named by `matchesSchema`, resolved
-	// and confined the way the caller's files are. Nil refuses the
-	// operator.
-	Schema func(path string) ([]byte, error)
+	// Schema returns the JSON Schema named by `matchesSchema`, read from
+	// a file resolved and confined the way the caller's files are; build
+	// it with Schemas. Nil refuses the operator.
+	Schema func(path string) (*jsonschema.Resolved, error)
+}
+
+// Schemas returns a Schema loader that reads each file with read, then
+// parses and resolves it once: every later assertion naming the same
+// file, and every retry of the request, gets the resolved schema (or the
+// same error) without reading it again. It is not safe for concurrent use.
+func Schemas(read func(path string) ([]byte, error)) func(path string) (*jsonschema.Resolved, error) {
+	type entry struct {
+		schema *jsonschema.Resolved
+		err    error
+	}
+	cache := map[string]entry{}
+	return func(path string) (*jsonschema.Resolved, error) {
+		if e, ok := cache[path]; ok {
+			return e.schema, e.err
+		}
+		schema, err := loadSchema(read, path)
+		cache[path] = entry{schema, err}
+		return schema, err
+	}
+}
+
+func loadSchema(read func(string) ([]byte, error), path string) (*jsonschema.Resolved, error) {
+	data, err := read(path)
+	if err != nil {
+		return nil, err
+	}
+	var schema jsonschema.Schema
+	if err := json.Unmarshal(data, &schema); err != nil {
+		return nil, fmt.Errorf("schema %s: %w", path, err)
+	}
+	resolved, err := schema.Resolve(nil)
+	if err != nil {
+		return nil, fmt.Errorf("schema %s: %w", path, err)
+	}
+	return resolved, nil
 }
 
 // Result is the outcome of evaluating one assertion.
@@ -146,13 +182,25 @@ func (e Expr) Display(expected string) string {
 
 // Redact keeps an assertion's selector and operator and replaces its
 // value with mask. The selector is read the way Parse reads it, so a
-// filter with spaces stays whole.
+// filter with spaces stays whole. What Parse cannot read is masked after
+// its first two words, so a secret never shows because the expression
+// around it was malformed.
 func Redact(expr, mask string) string {
 	e, err := Parse(expr)
-	if err != nil || e.Unary() {
-		return expr
+	if err == nil {
+		if e.Unary() {
+			return expr
+		}
+		return e.Display(mask)
 	}
-	return e.Display(mask)
+	fields := strings.Fields(expr)
+	switch len(fields) {
+	case 0, 1:
+		return expr
+	case 2:
+		return fields[0] + " " + mask
+	}
+	return fields[0] + " " + fields[1] + " " + mask
 }
 
 // Eval evaluates a parsed expression against a response. expected is the
@@ -279,17 +327,9 @@ func matchesSchema(sel string, v selector.Value, path string, opts Options) (str
 	if opts.Schema == nil {
 		return "", fmt.Errorf("matchesSchema is not available here")
 	}
-	data, err := opts.Schema(path)
+	resolved, err := opts.Schema(path)
 	if err != nil {
 		return "", err
-	}
-	var schema jsonschema.Schema
-	if err := json.Unmarshal(data, &schema); err != nil {
-		return "", fmt.Errorf("schema %s: %w", path, err)
-	}
-	resolved, err := schema.Resolve(nil)
-	if err != nil {
-		return "", fmt.Errorf("schema %s: %w", path, err)
 	}
 	var instance any
 	text := v.Text
