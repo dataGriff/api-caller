@@ -22,7 +22,7 @@ lands against the tools you might otherwise use.
 | Postman import | no | no | no | yes | no | yes (`apic import`, with environments and simple tests) |
 | curl export | is curl | yes | extension | GUI | no | yes |
 | Scripting | shell | JetBrains JS | JavaScript | JavaScript | no | no |
-| Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code, authorization code with PKCE), digest, API key, basic, bearer, exec |
+| Auth helpers | via curl flags | some | OAuth2 (all flows), AWS, basic, digest | OAuth2, AWS, basic, digest | basic, AWS, digest | AWS SigV4 (no SDK), OAuth2 (client credentials, password, device code, authorization code with PKCE; JetBrains `Security.Auth` and `$auth.token`), digest, API key, basic, bearer, exec |
 | Cookie jar | via curl flags | some | yes | yes | yes | yes (opt-in, per environment) |
 | Proxy | `-x` | IDE settings | yes | yes | `-x` | yes (`--proxy`, `proxy:` and `noProxy:` in apic.yaml, `HTTP(S)_PROXY`) |
 | Client certificates, private CAs | via curl flags | JetBrains | yes | yes | yes | yes (`tls:` in apic.yaml, flags, JetBrains `SSLConfiguration`) |
@@ -56,7 +56,8 @@ and ignores what it does not know, so a file with editor-only features still
 parses: a `> {% … %}` response handler or a `< {% … %}` pre-request script is
 skipped rather than sent, and `apic validate` lists what was skipped. A
 `>> ./file` line, which both editors use to save the response, works the
-same under apic.
+same under apic, and so do JetBrains' `SSLConfiguration` and
+`Security.Auth` blocks in the env files and `{{$auth.token("name")}}`.
 
 ## Against httpyac
 

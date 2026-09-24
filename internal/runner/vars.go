@@ -118,6 +118,9 @@ func (r *Runner) resolveExpr(req *httpfile.Request, expr string) (string, bool, 
 }
 
 func (r *Runner) resolveExprMeta(req *httpfile.Request, expr string, depth int) (string, bool, bool, error) {
+	if strings.HasPrefix(expr, "$auth.") {
+		return r.authBuiltin(req, expr)
+	}
 	if strings.HasPrefix(expr, "$") {
 		return r.builtin(expr)
 	}

@@ -54,6 +54,8 @@ var Codes = map[string]string{
 	"bad-retry":           "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
 	"bad-sleep":           "a `# @sleep` whose value is not a duration such as 500ms or 2s",
 	"bad-http-version":    "a request line whose HTTP version is not HTTP/1.1 or HTTP/2",
+	"bad-auth-config":     "a JetBrains `Security.Auth` configuration in an env file that apic cannot use (not OAuth2, the Implicit grant, a missing Token URL or Client ID)",
+	"unknown-auth-key":    "a field of a `Security.Auth` configuration that apic does not act on",
 	"unknown-selector":    "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*, or a body path apic cannot read",
 	"missing-body-file":   "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":       "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",

@@ -152,6 +152,8 @@ export const BUILTINS: { name: string; insert: string; doc: string }[] = [
   { name: "$processEnv", insert: "$processEnv ${1:NAME}", doc: "shell environment variable" },
   { name: "$env", insert: "$env.${1:NAME}", doc: "shell environment variable" },
   { name: "$dotenv", insert: "$dotenv ${1:NAME}", doc: "value from .env" },
+  { name: "$auth.token", insert: '$auth.token("${1:name}")', doc: "access token of a Security.Auth configuration in the env files (JetBrains)" },
+  { name: "$auth.idToken", insert: '$auth.idToken("${1:name}")', doc: "ID token of a Security.Auth configuration in the env files (JetBrains)" },
 ];
 
 /** What the variable completion draws on. */

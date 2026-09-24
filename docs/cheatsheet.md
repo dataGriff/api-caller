@@ -114,6 +114,7 @@ First match wins:
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
 | `{{$projectRoot}}` | absolute project root |
+| `{{$auth.token("name")}}` | token of a JetBrains `Security.Auth` configuration; see [auth](auth.md#jetbrains-projects) |
 | `{{login.response.body.$.token}}` | an earlier response in the same flow |
 
 ## Selectors

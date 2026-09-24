@@ -158,6 +158,7 @@ login") is passed through.
 | `deviceUrl=` | Device authorization endpoint, for `grant=device_code`. |
 | `authUrl=` | Authorization endpoint, for `grant=authorization_code`. |
 | `redirectPort=` | Loopback port for the redirect, for `grant=authorization_code`. Default: a free one. |
+| `redirectUrl=` | The whole redirect URI instead, as the provider has it registered: `http://localhost:<port>/<path>`. apic listens on that port and path and sends the URI as written. |
 | `clientAuth=` | `body` (default: `client_id`/`client_secret` in the form) or `basic` (HTTP basic auth on the token request). |
 
 The access token is cached in the session (`.apic/session.json`) for the
@@ -218,6 +219,67 @@ stdin or stderr is not a terminal, apic never starts a browser. With no
 cached token the request then fails with exit 2 and a message saying to
 run it once interactively; after that the cached token serves every
 unattended run until the refresh token expires.
+
+### JetBrains projects
+
+A project set up for JetBrains HTTP Client keeps its OAuth2 settings in the
+env files, under `Security.Auth`, and asks for a token in the request:
+
+```json
+// http-client.env.json
+{
+  "dev": {
+    "Security": {
+      "Auth": {
+        "my-api": {
+          "Type": "OAuth2",
+          "Grant Type": "Client Credentials",
+          "Token URL": "https://login.example.com/oauth2/token",
+          "Client ID": "{{clientId}}",
+          "Scope": "api.read",
+          "Custom Request Parameters": {"audience": "api://my-api"}
+        }
+      }
+    }
+  }
+}
+
+// http-client.private.env.json
+{"dev": {"Security": {"Auth": {"my-api": {"Client Secret": "…"}}}}}
+```
+
+```http
+GET {{baseUrl}}/orders
+Authorization: Bearer {{$auth.token("my-api")}}
+```
+
+apic runs those files as they are. `{{$auth.token("name")}}` runs the
+configuration's grant through the same code and the same session cache as
+`# @auth oauth2`, so a token is fetched once and refreshed as above, and
+`{{$auth.idToken("name")}}` gives the ID token (ask for the `openid` scope).
+The private file's fields are merged over the public file's, an
+environment's over `$shared`'s, so the secret can live where it belongs.
+The value is a secret: it is masked wherever the request is shown.
+
+| JetBrains field | Maps to |
+|---|---|
+| `Type` | `OAuth2`; anything else is refused. |
+| `Grant Type` | `Client Credentials`, `Password`, `Device Authorization` or `Authorization Code`. `Implicit` is refused (OAuth 2.1 drops it); use Authorization Code, which apic always runs with PKCE. |
+| `Token URL`, `Auth URL`, `Device Auth URL` | `tokenUrl=`, `authUrl=`, `deviceUrl=` |
+| `Client ID`, `Client Secret`, `Scope` | `clientId=`, `clientSecret=`, `scope=` |
+| `Username`, `Password` | `username=`, `password=` for the Password grant |
+| `Redirect URL` | `redirectUrl=`: apic listens there for the browser's redirect |
+| `Client Credentials` | `basic` is `clientAuth=basic`; `in body` (the default) and `none` send the client id in the form |
+| `Custom Request Parameters` | `audience` is sent; other parameters are reported by `apic validate` and not sent |
+| `Use ID Token` | `$auth.token` gives the ID token |
+| `PKCE`, `Acquire Automatically` | Accepted: apic always uses PKCE and fetches a token when a request needs one |
+
+String fields may use `{{placeholders}}`. `apic env` lists the
+configurations of the current environment with the spec each maps to
+(secrets masked); `apic describe` names the configuration a placeholder
+uses without fetching a token; `apic validate` reports a configuration apic
+cannot use as `bad-auth-config` and each field it ignores as
+`unknown-auth-key`.
 
 ## exec
 

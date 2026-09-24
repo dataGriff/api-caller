@@ -232,3 +232,39 @@ func TestSSLConfigurationIsReadNotAVariable(t *testing.T) {
 		t.Errorf("bad block: %v", err)
 	}
 }
+
+// A Security.Auth block is lifted out of the variables; the private file's
+// fields win over the public file's, an environment's over $shared's.
+func TestSecurityAuthIsReadNotAVariable(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, PublicFile, `{
+  "$shared": {"Security": {"Auth": {"api": {"Type": "OAuth2", "Grant Type": "Client Credentials", "Token URL": "https://idp/token", "Client ID": "shared-id"}}}},
+  "dev": {"baseUrl": "https://dev", "Security": {"Auth": {"api": {"Client ID": "dev-id"}, "other": {"Type": "OAuth2"}}}}
+}`)
+	write(t, dir, PrivateFile, `{"dev": {"Security": {"Auth": {"api": {"Client Secret": "s3cret"}}}}}`)
+	e, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.PublicVars("dev")["Security"]; ok {
+		t.Fatal("Security is not a variable")
+	}
+	dev := e.Auth("dev")
+	api := dev["api"]
+	if api == nil || api.Fields["Client ID"] != "dev-id" || api.Fields["Client Secret"] != "s3cret" || api.Fields["Token URL"] != "https://idp/token" {
+		t.Fatalf("dev api: %+v", api)
+	}
+	if strings.Join(api.Files, ",") != PublicFile+","+PrivateFile || dev["other"] == nil {
+		t.Fatalf("files %v, other %v", api.Files, dev["other"])
+	}
+	if shared := e.Auth("prod")["api"]; shared == nil || shared.Fields["Client ID"] != "shared-id" || shared.Fields["Client Secret"] != nil {
+		t.Fatalf("prod sees only $shared: %+v", shared)
+	}
+	if got := strings.Join(e.AuthNames(), ","); got != "api,other" {
+		t.Fatalf("names %s", got)
+	}
+	write(t, dir, PublicFile, `{"dev": {"Security": {"Auth": {"api": "nope"}}}}`)
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), `auth configuration "api": expected an object`) {
+		t.Fatalf("bad block: %v", err)
+	}
+}

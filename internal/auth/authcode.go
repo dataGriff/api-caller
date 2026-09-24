@@ -45,14 +45,23 @@ func authorizationCode(ctx context.Context, s *Spec, env *Env) (*tokenResponse, 
 	if err != nil {
 		return nil, err
 	}
-	// Spec.check validated redirectPort when the spec was parsed.
+	// Spec.check validated redirectPort and redirectUrl when the spec was
+	// parsed. A redirectUrl is sent as written, since the provider matches
+	// it exactly; apic listens on its port and path.
 	port, _ := strconv.Atoi(s.Options["redirectPort"])
+	path := "/callback"
+	if u := s.Options["redirectUrl"]; u != "" {
+		port, path, _ = redirectTarget(u)
+	}
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		return nil, fmt.Errorf("oauth2: listening for the redirect: %w", err)
 	}
 	defer func() { _ = ln.Close() }()
-	redirectURI := "http://" + ln.Addr().String() + "/callback"
+	redirectURI := "http://" + ln.Addr().String() + path
+	if u := s.Options["redirectUrl"]; u != "" {
+		redirectURI = u
+	}
 
 	q := url.Values{
 		"response_type":         {"code"},
@@ -84,7 +93,7 @@ func authorizationCode(ctx context.Context, s *Spec, env *Env) (*tokenResponse, 
 	}
 	done := make(chan outcome, 1)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
 		var out outcome
 		switch {
@@ -185,4 +194,28 @@ func OpenBrowser(u string) error {
 		cmd = exec.Command("xdg-open", u)
 	}
 	return cmd.Start()
+}
+
+// redirectTarget reads a redirectUrl: plain http on this machine
+// (localhost, 127.0.0.1 or [::1]) with a port, since apic is the one
+// listening. It returns the port and the path to answer on.
+func redirectTarget(raw string) (port int, path string, err error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" {
+		return 0, "", fmt.Errorf("redirectUrl %q must be an http:// URL on this machine", raw)
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return 0, "", fmt.Errorf("redirectUrl %q must point at localhost, where apic listens for the sign-in", raw)
+	}
+	port, err = strconv.Atoi(u.Port())
+	if err != nil || port < 1 || port > 65535 {
+		return 0, "", fmt.Errorf("redirectUrl %q needs a port", raw)
+	}
+	path = u.Path
+	if path == "" {
+		path = "/"
+	}
+	return port, path, nil
 }

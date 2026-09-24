@@ -29,7 +29,7 @@ var Types = map[string]string{
 	"apikey": "apikey <key> [header=X-Api-Key] [query=name] [prefix=..]: send the key as a header (default X-Api-Key, no prefix) or a query parameter",
 	"digest": "digest <user> <password>: HTTP digest auth (RFC 7616), answering the server's challenge",
 	"aws":    "aws [service=execute-api] [region=..] [profile=..]: AWS Signature V4 using the SDK credential chain",
-	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code|authorization_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [authUrl=..] [redirectPort=..] [clientAuth=body|basic]",
+	"oauth2": "oauth2 tokenUrl=.. clientId=.. [clientSecret=..] [grant=client_credentials|password|device_code|authorization_code] [scope=..] [username=..] [password=..] [audience=..] [deviceUrl=..] [authUrl=..] [redirectPort=..] [redirectUrl=http://localhost:<port>/<path>] [clientAuth=body|basic]",
 	"exec":   "exec <command> [args..] [header=Authorization] [prefix=Bearer] [ttl=10m]: use a command's stdout as the token (needs auth.allowExec in apic.yaml)",
 }
 
@@ -126,12 +126,20 @@ func (s *Spec) check() error {
 					return fmt.Errorf("@auth oauth2: redirectPort must be a port number, not %q", p)
 				}
 			}
+			if u := s.Options["redirectUrl"]; u != "" {
+				if _, _, err := redirectTarget(u); err != nil {
+					return fmt.Errorf("@auth oauth2: %w", err)
+				}
+				if s.Options["redirectPort"] != "" {
+					return fmt.Errorf("@auth oauth2: redirectUrl and redirectPort are alternatives; give one")
+				}
+			}
 		default:
 			return fmt.Errorf("@auth oauth2: unknown grant %q (client_credentials, password, device_code or authorization_code)", g)
 		}
 		for k := range s.Options {
 			switch k {
-			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "authUrl", "redirectPort", "clientAuth":
+			case "tokenUrl", "clientId", "clientSecret", "grant", "scope", "username", "password", "audience", "deviceUrl", "authUrl", "redirectPort", "redirectUrl", "clientAuth":
 			default:
 				return fmt.Errorf("@auth oauth2: unknown option %q", k)
 			}

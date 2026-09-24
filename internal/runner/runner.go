@@ -1477,6 +1477,16 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 				continue
 			}
 			seen[e] = true
+			if strings.HasPrefix(e, "$auth.") {
+				// Say which configuration runs; fetching a token is for
+				// sending, not describing.
+				info := r.describeAuth(e)
+				if info.Missing {
+					d.Ready = false
+				}
+				d.Variables = append(d.Variables, info)
+				continue
+			}
 			if strings.HasPrefix(e, "$") || strings.Contains(e, ".response.") {
 				v, ok, secret, err := r.resolveExprMeta(req, e, 0)
 				info := VarInfo{Name: e, Source: "built-in", Value: v, Secret: secret, Missing: !ok || err != nil}

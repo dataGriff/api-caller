@@ -103,7 +103,9 @@ Keep secrets in `http-client.private.env.json` and gitignore it; apic masks
 values from that file, from `.env` and from the session in `describe`, `env`
 and MCP output. A JetBrains `SSLConfiguration` entry in either file is not
 a variable: it configures a client certificate, see
-[auth.md](auth.md#tls-and-client-certificates).
+[auth.md](auth.md#tls-and-client-certificates). Neither is a `Security`
+block, whose `Auth` configurations requests use as
+`{{$auth.token("name")}}`; see [JetBrains projects](auth.md#jetbrains-projects).
 
 ### Built-ins
 
@@ -121,6 +123,7 @@ a variable: it configures a client certificate, see
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
 | `{{$projectRoot}}` | the project root, absolute, for `< {{$projectRoot}}/fixtures/x.json` |
+| `{{$auth.token("name")}}`, `{{$auth.idToken("name")}}` | the access or ID token of a JetBrains `Security.Auth` configuration in the env files; see [JetBrains projects](auth.md#jetbrains-projects) |
 
 An offset is `<n> <unit>`, as REST Client writes it: `-1 d`, `2 h`,
 `30 m`, `-10 s`, `500 ms`, `1 w`, `1 M` (months), `1 Q` (quarters),

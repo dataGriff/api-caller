@@ -304,8 +304,10 @@ session) are shown as `***`.
 apic env
 ```
 
-Environments found, which env files exist, the current environment, and
-every variable in effect with its source. Secrets are masked.
+Environments found, which env files exist, the current environment,
+every variable in effect with its source, and the JetBrains
+[`Security.Auth`](auth.md#jetbrains-projects) configurations with the
+oauth2 spec each maps to. Secrets are masked.
 
 `--json`:
 
@@ -318,9 +320,17 @@ every variable in effect with its source. Secrets are masked.
   "variables": [
     {"name": "baseUrl", "value": "https://dev.example.com", "source": "http-client.env.json [dev]"},
     {"name": "password", "value": "***", "source": "http-client.private.env.json [dev]", "secret": true}
+  ],
+  "auth": [
+    {"name": "my-api", "spec": "oauth2 clientId={{clientId}} clientSecret=*** grant=client_credentials tokenUrl=https://login.example.com/oauth2/token",
+     "files": ["http-client.env.json", "http-client.private.env.json"]}
   ]
 }
 ```
+
+`auth` is omitted when the env files declare no configurations. An entry
+apic cannot use has `error` instead of `spec`; `ignored` lists fields it
+does not act on.
 
 ## apic session
 
@@ -478,6 +488,8 @@ Codes:
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
 | `bad-sleep` | A `# @sleep` whose value is not a duration such as `500ms` or `2s`. |
 | `bad-http-version` | A request line whose HTTP version is not `HTTP/1.1` or `HTTP/2`. |
+| `bad-auth-config` | A JetBrains `Security.Auth` configuration apic cannot use: not OAuth2, the Implicit grant, a missing Token URL or Client ID. |
+| `unknown-auth-key` | A warning: a `Security.Auth` field apic does not act on. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |

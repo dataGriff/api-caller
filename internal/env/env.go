@@ -35,6 +35,26 @@ type Environments struct {
 	DotEnv  map[string]string
 	Found   []string // files that were present
 	ssl     map[string]*SSLConfig
+	// auth holds each file's Security.Auth blocks: file -> env -> name.
+	auth map[string]map[string]map[string]map[string]any
+}
+
+// AuthConfig is one entry of a JetBrains `Security.Auth` block:
+//
+//	"Security": {
+//	  "Auth": {
+//	    "my-api": {"Type": "OAuth2", "Grant Type": "Client Credentials",
+//	               "Token URL": "https://idp/token", "Client ID": "{{clientId}}"}
+//	  }
+//	}
+//
+// Requests use it as {{$auth.token("my-api")}}. Fields are as written, so
+// strings may hold {{placeholders}}; the private file's fields win over
+// the public file's, and an environment's over $shared's.
+type AuthConfig struct {
+	Name   string
+	Fields map[string]any
+	Files  []string // the env files that declare it
 }
 
 // SSLConfig is the JetBrains `SSLConfiguration` block of an environment:
@@ -71,10 +91,11 @@ func Load(root string) (*Environments, error) {
 	e := &Environments{Public: map[string]map[string]string{}, Private: map[string]map[string]string{}, DotEnv: map[string]string{}}
 	var err error
 	e.ssl = map[string]*SSLConfig{}
-	if e.Public, err = loadJSON(filepath.Join(root, PublicFile), &e.Found, e.ssl); err != nil {
+	e.auth = map[string]map[string]map[string]map[string]any{PublicFile: {}, PrivateFile: {}}
+	if e.Public, err = loadJSON(filepath.Join(root, PublicFile), &e.Found, e.ssl, e.auth[PublicFile]); err != nil {
 		return nil, err
 	}
-	if e.Private, err = loadJSON(filepath.Join(root, PrivateFile), &e.Found, e.ssl); err != nil {
+	if e.Private, err = loadJSON(filepath.Join(root, PrivateFile), &e.Found, e.ssl, e.auth[PrivateFile]); err != nil {
 		return nil, err
 	}
 	dot := filepath.Join(root, DotEnvFile)
@@ -133,11 +154,68 @@ func merge(base, over map[string]string) map[string]string {
 	return out
 }
 
-const sslKey = "SSLConfiguration"
+// Auth returns the Security.Auth configurations in effect for env, by
+// name: $shared's and env's from the public file, then the private file's
+// over them field by field.
+func (e *Environments) Auth(env string) map[string]*AuthConfig {
+	out := map[string]*AuthConfig{}
+	for _, file := range []string{PublicFile, PrivateFile} {
+		layers := []string{sharedKey}
+		if env != "" && env != sharedKey {
+			layers = append(layers, env)
+		}
+		for _, layer := range layers {
+			for name, fields := range e.auth[file][layer] {
+				c := out[name]
+				if c == nil {
+					c = &AuthConfig{Name: name, Fields: map[string]any{}}
+					out[name] = c
+				}
+				for k, v := range fields {
+					c.Fields[k] = v
+				}
+				if len(c.Files) == 0 || c.Files[len(c.Files)-1] != file {
+					c.Files = append(c.Files, file)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// AuthNames is every Security.Auth name any environment declares, sorted.
+func (e *Environments) AuthNames() []string {
+	set := map[string]bool{}
+	for _, envs := range e.auth {
+		for _, byName := range envs {
+			for name := range byName {
+				set[name] = true
+			}
+		}
+	}
+	names := make([]string, 0, len(set))
+	for n := range set {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// AllAuth is every Security.Auth entry as each file and environment
+// declares it, for validate: file -> env -> name -> fields.
+func (e *Environments) AllAuth() map[string]map[string]map[string]map[string]any {
+	return e.auth
+}
+
+const (
+	sslKey      = "SSLConfiguration"
+	securityKey = "Security"
+)
 
 // loadJSON reads one env file. An SSLConfiguration block is lifted out of
-// the variables into ssl, later files overriding earlier ones.
-func loadJSON(path string, found *[]string, ssl map[string]*SSLConfig) (map[string]map[string]string, error) {
+// the variables into ssl, and a Security block's Auth entries into auth,
+// later files overriding earlier ones.
+func loadJSON(path string, found *[]string, ssl map[string]*SSLConfig, auth map[string]map[string]map[string]any) (map[string]map[string]string, error) {
 	out := map[string]map[string]string{}
 	data, err := os.ReadFile(path) //nolint:gosec // reading the project's env file by path is the whole job
 	if errors.Is(err, fs.ErrNotExist) {
@@ -159,6 +237,14 @@ func loadJSON(path string, found *[]string, ssl map[string]*SSLConfig) (map[stri
 					return nil, fmt.Errorf("%s: %s: %s: %w", filepath.Base(path), envName, sslKey, err)
 				}
 				ssl[envName] = c
+				continue
+			}
+			if k == securityKey {
+				entries, err := parseSecurity(v)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %s: %s: %w", filepath.Base(path), envName, securityKey, err)
+				}
+				auth[envName] = entries
 				continue
 			}
 			m[k] = stringify(v)
@@ -197,6 +283,30 @@ func parseSSL(v any) (*SSLConfig, error) {
 		c.VerifyHost = &b
 	}
 	return c, nil
+}
+
+// parseSecurity reads a JetBrains Security block: {"Auth": {"<name>":
+// {...}}}. Only Auth is read.
+func parseSecurity(v any) (map[string]map[string]any, error) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return nil, errors.New("expected an object")
+	}
+	out := map[string]map[string]any{}
+	switch a := obj["Auth"].(type) {
+	case nil:
+	case map[string]any:
+		for name, fields := range a {
+			f, ok := fields.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("auth configuration %q: expected an object", name)
+			}
+			out[name] = f
+		}
+	default:
+		return nil, errors.New("Auth: expected an object of named configurations")
+	}
+	return out, nil
 }
 
 func stringify(v any) string {

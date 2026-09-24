@@ -16,6 +16,7 @@ import (
 
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/auth"
+	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/phrase"
 	"github.com/dataGriff/api-caller/internal/selector"
@@ -288,6 +289,7 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 		}
 	}
+	diags = append(diags, validateAuthConfigs(p.Root)...)
 	if p.Config.Auth.Default != "" {
 		if spec, err := auth.Parse(p.Config.Auth.Default); err != nil {
 			diags = append(diags, diag(ConfigFile, "error", "bad-config-auth", 0, 0, 0, "auth.default: "+err.Error()))
@@ -522,4 +524,44 @@ func (p *Project) CapturedBy(name string) *httpfile.Request {
 		}
 	}
 	return nil
+}
+
+// validateAuthConfigs checks the env files' JetBrains Security.Auth
+// configurations as each environment sees them (the private file's fields
+// merged over the public file's): one that cannot be used is an error,
+// a field apic does not act on a warning. Each is reported once.
+func validateAuthConfigs(root string) []httpfile.Diagnostic {
+	envs, err := env.Load(root)
+	if err != nil {
+		return nil // the env files' own errors are reported when they are loaded
+	}
+	var diags []httpfile.Diagnostic
+	seen := map[string]bool{}
+	for _, name := range append([]string{""}, envs.Names()...) {
+		configs := envs.Auth(name)
+		names := make([]string, 0, len(configs))
+		for n := range configs {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			c := configs[n]
+			file := c.Files[len(c.Files)-1]
+			jb, err := auth.FromJetBrains(c.Fields, func(s string) (string, error) { return s, nil })
+			if err != nil {
+				if msg := fmt.Sprintf("Security.Auth %q: %v", n, err); !seen[msg] {
+					seen[msg] = true
+					diags = append(diags, diag(file, "error", "bad-auth-config", 0, 0, 0, msg))
+				}
+				continue
+			}
+			for _, field := range jb.Ignored {
+				if msg := fmt.Sprintf("Security.Auth %q: %q is not used by apic (ignored)", n, field); !seen[msg] {
+					seen[msg] = true
+					diags = append(diags, diag(file, "warning", "unknown-auth-key", 0, 0, 0, msg))
+				}
+			}
+		}
+	}
+	return diags
 }

@@ -15,6 +15,7 @@ import (
 type cachedToken struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
+	IDToken      string    `json:"id_token,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
@@ -67,15 +68,39 @@ func CacheKey(s *Spec) string {
 
 const skew = 60 * time.Second
 
+// Tokens are what an OAuth2 grant returned: the access token, and the ID
+// token when the provider sent one (an OpenID Connect scope).
+type Tokens struct {
+	Access string
+	ID     string
+}
+
+// OAuth2Tokens runs a rendered oauth2 spec's grant, or reuses the cached
+// result, as `# @auth oauth2` does. JetBrains' {{$auth.token("name")}}
+// and {{$auth.idToken("name")}} read it. needID says the caller wants the
+// ID token, so a cached entry without one is not enough.
+func OAuth2Tokens(ctx context.Context, s *Spec, env *Env, needID bool) (Tokens, error) {
+	t, err := oauth2Tokens(ctx, s, env, needID)
+	if err != nil {
+		return Tokens{}, err
+	}
+	return Tokens{Access: t.AccessToken, ID: t.IDToken}, nil
+}
+
 func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
+	t, err := oauth2Tokens(ctx, s, env, false)
+	return t.AccessToken, err
+}
+
+func oauth2Tokens(ctx context.Context, s *Spec, env *Env, needID bool) (cachedToken, error) {
 	key := CacheKey(s)
 	var cached cachedToken
 	if env.Cache != nil {
 		if raw, ok := env.Cache.Get(key); ok {
 			if c, err := decodeToken(raw); err == nil {
 				cached = c
-				if c.AccessToken != "" && c.ExpiresAt.After(env.now().Add(skew)) {
-					return c.AccessToken, nil
+				if c.AccessToken != "" && c.ExpiresAt.After(env.now().Add(skew)) && (!needID || c.IDToken != "") {
+					return c, nil
 				}
 			}
 		}
@@ -84,7 +109,7 @@ func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
 	var err error
 	if cached.RefreshToken != "" {
 		tok, err = tokenRequest(ctx, s, env, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {cached.RefreshToken}})
-		if err != nil {
+		if err != nil || needID && tok.IDToken == "" {
 			tok = nil // fall through to a fresh grant
 		}
 	}
@@ -102,10 +127,10 @@ func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
 			tok, err = authorizationCode(ctx, s, env)
 		}
 		if err != nil {
-			return "", err
+			return cachedToken{}, err
 		}
 	}
-	entry := cachedToken{AccessToken: tok.AccessToken, RefreshToken: tok.RefreshToken, ExpiresAt: env.now().Add(time.Duration(tok.ExpiresIn) * time.Second)}
+	entry := cachedToken{AccessToken: tok.AccessToken, RefreshToken: tok.RefreshToken, IDToken: tok.IDToken, ExpiresAt: env.now().Add(time.Duration(tok.ExpiresIn) * time.Second)}
 	if tok.ExpiresIn == 0 {
 		entry.ExpiresAt = env.now().Add(time.Hour)
 	}
@@ -114,15 +139,19 @@ func oauth2Token(ctx context.Context, s *Spec, env *Env) (string, error) {
 	}
 	if env.Cache != nil {
 		if err := env.Cache.Set(key, encodeToken(entry)); err != nil {
-			return "", err
+			return cachedToken{}, err
 		}
 	}
-	return tok.AccessToken, nil
+	if needID && entry.IDToken == "" {
+		return cachedToken{}, fmt.Errorf("oauth2: %s returned no id_token (ask for the openid scope)", s.Options["tokenUrl"])
+	}
+	return entry, nil
 }
 
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	IDToken      string `json:"id_token"`
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
 	Error        string `json:"error"`
