@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dataGriff/api-caller/internal/auth"
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
@@ -41,6 +42,12 @@ func Command(r *runner.Resolved, redact bool) string {
 		parts = append(parts, "--data-raw "+quote(body))
 	}
 	parts = append(parts, authFlags(r.AuthSpec, redact)...)
+	switch r.HTTPVersion {
+	case httpfile.HTTP1:
+		parts = append(parts, "--http1.1")
+	case httpfile.HTTP2:
+		parts = append(parts, "--http2")
+	}
 	parts = append(parts, tlsFlags(r.TLS)...)
 	parts = append(parts, proxyFlags(r.Proxy, redact)...)
 	parts = append(parts, quote(r.DisplayURL(redact)))

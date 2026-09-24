@@ -214,8 +214,9 @@ MCP: `claude mcp add api -- apic mcp --dir ./api --env dev`.
 See [docs/agents.md](docs/agents.md) for the JSON contract and a snippet to
 paste into your project's `AGENTS.md`. The contract only grows: a body
 that is not text now comes as base64 with `body_encoding` beside it,
-`saved_to` names the file a `>> file` line wrote, and a `# @disabled`
-request a flow skipped prints `"skipped": "disabled"` with no response.
+`saved_to` names the file a `>> file` line wrote, a `# @disabled`
+request a flow skipped prints `"skipped": "disabled"` with no response,
+and `response.proto` says whether it came over HTTP/1.1 or HTTP/2.
 
 ## The format
 

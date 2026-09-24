@@ -213,6 +213,9 @@ type Resolved struct {
 	Headers []httpfile.Header `json:"-"`
 	Body    string            `json:"-"`
 	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
+	// HTTPVersion is the version the request line asks for, HTTP/1.1 or
+	// HTTP/2; empty when it names none and the protocol is negotiated.
+	HTTPVersion string `json:"http_version,omitempty"`
 	// TLS is the non-default TLS setup for this request's host: a private
 	// CA, a client certificate or no verification.
 	TLS *TLSInfo `json:"tls,omitempty"`
@@ -348,6 +351,8 @@ type Response struct {
 	BodyEncoding string `json:"body_encoding,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
 	Size         int    `json:"size"`
+	// Proto is the protocol the response came over: "HTTP/1.1", "HTTP/2.0".
+	Proto string `json:"proto,omitempty"`
 	// Timings is where the round trip went, from net/http/httptrace.
 	Timings *Timings `json:"timings,omitempty"`
 }
@@ -519,6 +524,7 @@ func (r *Result) Raw() *selector.Response { return r.raw }
 // Resolve substitutes variables in a request without sending it.
 func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res := &Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method}
+	res.HTTPVersion, _ = req.Protocol() // an unsupported version is refused when sending
 	var missing []string
 	render := func(s string) (string, error) {
 		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
@@ -696,7 +702,7 @@ func (c sessionCache) Set(key, value string) error {
 
 func (r *Runner) authEnv() (*auth.Env, error) {
 	// Token endpoints get the project-wide settings, not a host override.
-	tr, err := r.transport("")
+	tr, err := r.transport("", protoAny)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,7 +1129,14 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		}
 	}
 
-	client, err := r.client(req, httpReq.URL.Host)
+	want, err := wantFor(req)
+	if err != nil {
+		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+	}
+	if want == protoHTTP2 && httpReq.URL.Scheme != "https" {
+		return nil, usagef("%s:%d: HTTP/2 needs an https:// URL; apic does not send cleartext HTTP/2 (h2c). Write HTTP/1.1 or leave the version out", req.File.Path, req.Line)
+	}
+	client, err := r.client(req, httpReq.URL.Host, want)
 	if err != nil {
 		return nil, err
 	}
@@ -1141,9 +1154,15 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	trace.mu.Unlock()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
+		if want == protoHTTP2 {
+			err = fmt.Errorf("%w (the request line asks for HTTP/2; the server may not offer it)", err)
+		}
 		return nil, r.transportError(err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
+	if want == protoHTTP2 && httpResp.ProtoMajor != 2 {
+		return nil, r.transportError(fmt.Errorf("the request line asks for HTTP/2, but %s answered with %s", httpReq.URL.Host, httpResp.Proto))
+	}
 	// Bounded: an unbounded ReadAll lets one hostile or oversized response take
 	// the process down, and the body is held more than once while it is parsed
 	// and rendered.
@@ -1166,7 +1185,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		}
 	}
 	view, encoding := jsonOrString(data)
-	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: view, BodyEncoding: encoding, DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
+	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: view, BodyEncoding: encoding, DurationMs: dur.Milliseconds(), Size: len(data), Proto: httpResp.Proto, Timings: trace.timings(dur)}
 
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)
@@ -1374,15 +1393,16 @@ type Description struct {
 	Variables   []VarInfo         `json:"variables"`
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
-	Steps       []string          `json:"steps,omitempty"`       // # @step phrases
-	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
-	Sleep       string            `json:"sleep,omitempty"`       // # @sleep: the wait before sending
-	Disabled    bool              `json:"disabled,omitempty"`    // # @disabled: skipped by flows
-	Auth        string            `json:"auth,omitempty"`        // auth spec template
-	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
-	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
-	Proxy       *ProxyInfo        `json:"proxy,omitempty"`       // the proxy in effect, when one is configured
-	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
+	Steps       []string          `json:"steps,omitempty"`        // # @step phrases
+	Refs        []string          `json:"refs,omitempty"`         // # @ref and # @forceRef targets
+	Sleep       string            `json:"sleep,omitempty"`        // # @sleep: the wait before sending
+	Disabled    bool              `json:"disabled,omitempty"`     // # @disabled: skipped by flows
+	HTTPVersion string            `json:"http_version,omitempty"` // HTTP/1.1 or HTTP/2 from the request line
+	Auth        string            `json:"auth,omitempty"`         // auth spec template
+	AuthSource  string            `json:"auth_source,omitempty"`  // "request" or "apic.yaml"
+	TLS         *TLSInfo          `json:"tls,omitempty"`          // non-default TLS setup for the request's host
+	Proxy       *ProxyInfo        `json:"proxy,omitempty"`        // the proxy in effect, when one is configured
+	Ready       bool              `json:"ready"`                  // every variable resolves, or a # @ref supplies it
 }
 
 // Describe reports a request's variables and where each comes from.
@@ -1390,6 +1410,7 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 	d := &Description{Name: req.Name, ID: req.ID(), File: req.File.Path, Line: req.Line, Description: req.Description,
 		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true,
 		Disabled: req.Disabled()}
+	d.HTTPVersion, _ = req.Protocol()
 	if v, ok := req.Directive("sleep"); ok {
 		d.Sleep = strings.TrimSpace(v)
 	}
@@ -1537,8 +1558,8 @@ func (r *Runner) EnvVars() []VarInfo {
 }
 
 // client builds the HTTP client for one request to host.
-func (r *Runner) client(req *httpfile.Request, host string) (*http.Client, error) {
-	tr, err := r.transport(host)
+func (r *Runner) client(req *httpfile.Request, host string, want protoWant) (*http.Client, error) {
+	tr, err := r.transport(host, want)
 	if err != nil {
 		return nil, err
 	}

@@ -142,6 +142,19 @@ func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
 	}
 }
 
+// The version a request line pins is curl's --http1.1 or --http2.
+func TestCommandKeepsTheHTTPVersion(t *testing.T) {
+	for version, flag := range map[string]string{"HTTP/1.1": "--http1.1", "HTTP/2": "--http2"} {
+		r := &runner.Resolved{Method: "GET", URL: "https://x/", HTTPVersion: version}
+		if got, want := Command(r, false), "curl -sS \\\n  "+flag+" \\\n  'https://x/'"; got != want {
+			t.Errorf("%s: got\n%s\nwant\n%s", version, got, want)
+		}
+	}
+	if got := Command(&runner.Resolved{Method: "GET", URL: "https://x/"}, false); strings.Contains(got, "--http") {
+		t.Errorf("no version, no flag: %s", got)
+	}
+}
+
 func TestProxyFlags(t *testing.T) {
 	base := &runner.Resolved{Method: "GET", URL: "https://a.b"}
 	if got := Command(base, false); strings.Contains(got, "proxy") {

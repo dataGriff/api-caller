@@ -44,6 +44,16 @@ func TestParseAndRender(t *testing.T) {
 			want:    "### GET /a\n# @name get-a\n# @assert status == 200\nGET http://example.com/a\nX-Note: line1 line2\n",
 		},
 		{
+			name:    "the HTTP version flags go on the request line",
+			command: "curl --http2 https://api.example.com/h2",
+			want:    "### GET /h2\n# @name get-h2\n# @assert status == 200\nGET {{baseUrl}}/h2 HTTP/2\n",
+		},
+		{
+			name:    "http1.1",
+			command: "curl -s --http1.1 https://api.example.com/h1",
+			want:    "### GET /h1\n# @name get-h1\n# @assert status == 200\nGET {{baseUrl}}/h1 HTTP/1.1\n",
+		},
+		{
 			name:    "long option with =, empty header and a cookie file",
 			command: "curl --request=PUT https://api.example.com/x -H 'X-Empty;' -b cookies.txt --data-raw @literal",
 			want:    "### PUT /x\n# @name put-x\n# @assert status == 200\nPUT {{baseUrl}}/x\nX-Empty: \nContent-Type: application/x-www-form-urlencoded\n\n@literal\n",

@@ -27,6 +27,7 @@ Content-Type: application/json
 | Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
 | GraphQL | `GRAPHQL {{baseUrl}}/graphql` (or `X-REQUEST-TYPE: GraphQL`), the query as the body, variables as a JSON object after a blank line; sent as a JSON POST; see [format](format.md#graphql) |
 | Save the response | `>> ./out.json` (create) or `>>! ./out.json` (overwrite) after the body; `apic run --output file` for one run; see [format](format.md#saving-a-response) |
+| HTTP version | `GET https://x/ HTTP/1.1` never uses HTTP/2; `HTTP/2` requires it; none negotiates; see [format](format.md#http-version) |
 
 ## Commands
 

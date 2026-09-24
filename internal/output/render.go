@@ -165,6 +165,10 @@ func Result(t Theme, res *runner.Result, o Options) string {
 		b.WriteString(RequestDetail(t, res))
 		b.WriteString("\n")
 	}
+	if o.Verbose && res.Response != nil && res.Response.Proto != "" {
+		// Which protocol the server answered over, in front of the status.
+		b.WriteString(t.Dim.Render(res.Response.Proto) + " ")
+	}
 	b.WriteString(StatusLine(t, res))
 	if res.Response == nil {
 		return b.String()
@@ -296,6 +300,9 @@ func Describe(t Theme, d *runner.Description, headers []httpfile.Header) string 
 	}
 	if d.Sleep != "" {
 		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("sleep:"), d.Sleep+" before sending")
+	}
+	if d.HTTPVersion != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("http: "), d.HTTPVersion+" only")
 	}
 	if len(headers) > 0 {
 		b.WriteString(Section(t, "headers"))

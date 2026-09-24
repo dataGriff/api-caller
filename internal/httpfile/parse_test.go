@@ -1,6 +1,7 @@
 package httpfile
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -403,5 +404,22 @@ func TestSaveTo(t *testing.T) {
 		if dg.Code == "editor-script" {
 			t.Errorf("redirect reported as a script: %+v", dg)
 		}
+	}
+}
+
+// The version on a request line is HTTP/1.1 or HTTP/2; anything else is an
+// error at the version's span.
+func TestHTTPVersion(t *testing.T) {
+	f, diags := Parse("v.http", "GET http://x/ HTTP/1.0\n\n###\nGET http://x/ HTTP/2.0\n\n###\n  POST http://x/HTTP/3 HTTP/3\n\n###\nhttp://x/ HTTP/1.1\n")
+	var got []string
+	for _, r := range f.Requests {
+		v, err := r.Protocol()
+		got = append(got, fmt.Sprintf("%s:%v", v, err != nil))
+	}
+	if strings.Join(got, ",") != "HTTP/1.1:false,HTTP/2:false,:true,HTTP/1.1:false" {
+		t.Fatalf("protocols: %v", got)
+	}
+	if len(diags) != 1 || diags[0].Code != "bad-http-version" || diags[0].Line != 7 || diags[0].Column != 24 || diags[0].EndColumn != 30 {
+		t.Fatalf("diags: %+v", diags)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 )
 
@@ -262,15 +263,16 @@ func refuseWorldReadable(path, shown string) error {
 // One transport serves every request with the same TLS settings in an
 // invocation, so a flow's requests reuse their connections (which the
 // timings report as reused).
-func (r *Runner) transport(host string) (*http.Transport, error) {
+func (r *Runner) transport(host string, want protoWant) (*http.Transport, error) {
 	s := r.tlsFor(host)
 	cfg, err := r.tlsConfig(s)
 	if err != nil {
 		return nil, err
 	}
+	key := s.key() + "|" + want.String()
 	r.tlsMu.Lock()
 	defer r.tlsMu.Unlock()
-	if tr, ok := r.transports[s.key()]; ok {
+	if tr, ok := r.transports[key]; ok {
 		return tr, nil
 	}
 	tr := cloneDefaultTransport()
@@ -278,9 +280,63 @@ func (r *Runner) transport(host string) (*http.Transport, error) {
 	if cfg != nil {
 		tr.TLSClientConfig = cfg
 	}
+	// A version on the request line pins the protocol; without one, TLS
+	// negotiates HTTP/2 when the server offers it.
+	// ALPN has to match: a TLS config the default transport already
+	// set up for HTTP/2 would still offer h2 to the server.
+	switch want {
+	case protoHTTP1:
+		p := new(http.Protocols)
+		p.SetHTTP1(true)
+		tr.Protocols = p
+		tr.TLSClientConfig = alpn(tr.TLSClientConfig, "http/1.1")
+	case protoHTTP2:
+		p := new(http.Protocols)
+		p.SetHTTP2(true)
+		tr.Protocols = p
+		tr.TLSClientConfig = alpn(tr.TLSClientConfig, "h2")
+	}
 	if r.transports == nil {
 		r.transports = map[string]*http.Transport{}
 	}
-	r.transports[s.key()] = tr
+	r.transports[key] = tr
 	return tr, nil
+}
+
+// alpn is cfg (or an empty config) offering only proto.
+func alpn(cfg *tls.Config, proto string) *tls.Config {
+	if cfg == nil {
+		cfg = &tls.Config{MinVersion: tls.VersionTLS12}
+	} else {
+		cfg = cfg.Clone()
+	}
+	cfg.NextProtos = []string{proto}
+	return cfg
+}
+
+// protoWant is what the HTTP version on a request line asks for.
+type protoWant int
+
+const (
+	protoAny   protoWant = iota // no version: HTTP/2 when TLS negotiates it, else HTTP/1.1
+	protoHTTP1                  // HTTP/1.1 (or 1.0): never HTTP/2
+	protoHTTP2                  // HTTP/2: required, over TLS
+)
+
+func (p protoWant) String() string {
+	return [...]string{"any", "HTTP/1.1", "HTTP/2"}[p]
+}
+
+// wantFor maps a request's HTTP version to what the transport must do.
+func wantFor(req *httpfile.Request) (protoWant, error) {
+	v, err := req.Protocol()
+	switch {
+	case err != nil:
+		return protoAny, err
+	case v == httpfile.HTTP1:
+		return protoHTTP1, nil
+	case v == httpfile.HTTP2:
+		return protoHTTP2, nil
+	}
+	return protoAny, nil
 }

@@ -120,7 +120,7 @@ apic run get-user --body-only | jq .email
     "status": 200, "status_text": "OK",
     "headers": {"content-type": "application/json"},
     "body": {"id": 42, "email": "alice@example.com"},
-    "duration_ms": 87, "size": 412,
+    "duration_ms": 87, "size": 412, "proto": "HTTP/2.0",
     "timings": {"dns_ms": 12, "connect_ms": 18, "tls_ms": 41, "ttfb_ms": 60, "total_ms": 87, "reused": false}
   },
   "captures": {"email": "alice@example.com"},
@@ -135,6 +135,10 @@ apic run get-user --body-only | jq .email
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
 - `request.body` of a [multipart upload](format.md#multipart-uploads) is the summary `<multipart: 2 parts, 1 file>` rather than the assembled bytes.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string. A body that is not text (not valid UTF-8) is its base64 with `"body_encoding": "base64"` beside it, so a download survives `--json` intact. Under `--redact` it is the string `"***"`.
+- `response.proto` is the protocol the response came over, `HTTP/1.1` or
+  `HTTP/2.0`. `request.http_version` (omitted otherwise) is the version the
+  request line pins, `HTTP/1.1` or `HTTP/2`; see
+  [HTTP version](format.md#http-version).
 - `saved_to` (omitted otherwise) is where a `>> file` line or `--output` wrote the body, relative to the project root when inside it.
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
@@ -473,6 +477,7 @@ Codes:
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
 | `bad-sleep` | A `# @sleep` whose value is not a duration such as `500ms` or `2s`. |
+| `bad-http-version` | A request line whose HTTP version is not `HTTP/1.1` or `HTTP/2`. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |

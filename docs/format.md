@@ -37,7 +37,7 @@ Accept: application/json
 | Comment | `# text` or `// text` |
 | GraphQL request | `GRAPHQL {{baseUrl}}/graphql` (or a `X-REQUEST-TYPE: GraphQL` header): the body is the query, a JSON object after a blank line is the variables; see [GraphQL](#graphql) |
 | Directive | `# @key value` before the request line |
-| Request line | `METHOD url [HTTP/1.1]`; a bare URL means `GET` |
+| Request line | `METHOD url [version]`, the version `HTTP/1.1` or `HTTP/2`; a bare URL means `GET`. See [HTTP version](#http-version) |
 | Query continuation | indented lines starting with `?` or `&` are appended to the URL |
 | Headers | `Name: value` lines until the first blank line. Any RFC 7230 token character may appear in a name, except that a line starting with `#` is a comment |
 | Body | everything after the blank line until the next `###` |
@@ -306,6 +306,33 @@ GET {{baseUrl}}/users/{{userId}}
 the first failed assertion, failed capture or transport error (use
 `--keep-going` to continue). Exit code is 1 if anything failed. `--json`
 prints one JSON object per request (NDJSON).
+
+## HTTP version
+
+With no version on the request line, apic does what browsers do: HTTP/2
+when the server offers it over TLS, HTTP/1.1 otherwise. A version pins it:
+
+```http
+### A gateway whose HTTP/2 is broken
+GET https://legacy.example.com/report HTTP/1.1
+
+### Prove the API speaks HTTP/2
+GET https://api.example.com/health HTTP/2
+```
+
+- `HTTP/1.1` (or `HTTP/1.0`, sent as 1.1) never uses HTTP/2, even when
+  the server offers it.
+- `HTTP/2` requires it: over `https://` the request fails with exit code 3
+  when the server does not offer HTTP/2, and over plain `http://` it is a
+  usage error, because apic does not send cleartext HTTP/2 (h2c).
+- `HTTP/3`, or anything else, is reported by `apic validate` as
+  `bad-http-version` and refused.
+
+`run -v` puts the protocol the response came over in front of the status
+(`HTTP/2.0 200 OK`), `--json` has it as `response.proto` and the pinned
+version as `request.http_version`, and `apic curl` adds `--http1.1` or
+`--http2`. `apic import curl` reads those two flags back onto the request
+line.
 
 ## Dependencies
 

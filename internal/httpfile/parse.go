@@ -53,6 +53,7 @@ var Codes = map[string]string{
 	"ref-cycle":           "a `# @ref` chain that leads back to the request it started from",
 	"bad-retry":           "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
 	"bad-sleep":           "a `# @sleep` whose value is not a duration such as 500ms or 2s",
+	"bad-http-version":    "a request line whose HTTP version is not HTTP/1.1 or HTTP/2",
 	"unknown-selector":    "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*, or a body path apic cannot read",
 	"missing-body-file":   "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":       "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
@@ -230,6 +231,12 @@ func (p *parser) parseBlock(b *block) *Request {
 		if f := strings.Fields(line); len(f) == 2 && strings.HasPrefix(f[1], "HTTP/") {
 			req.URL, req.HTTPVersion = f[0], f[1]
 		}
+	}
+	if _, err := req.Protocol(); err != nil {
+		// The version ends the line; the URL before it may hold the same text.
+		raw := b.lines[i]
+		col, end := Span(raw, req.HTTPVersion, strings.LastIndex(raw, req.HTTPVersion))
+		p.errorf("bad-http-version", req.Line, col, end, "%v", err)
 	}
 	i++
 	// Query continuation lines: indented lines starting with ? or &.
