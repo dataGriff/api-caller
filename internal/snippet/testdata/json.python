@@ -1,0 +1,15 @@
+import requests
+
+response = requests.request(
+    "POST",
+    "https://api.example.com/todos?list=home&q=it's",
+    headers={
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Note": "say \"hi\" $HOME",
+        "Authorization": "Bearer s3cret-token",
+    },
+    data="{\"title\": \"café \\\"x\\\"\",\n \"done\": false}".encode(),
+)
+print(response.status_code)
+print(response.text)

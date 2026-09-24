@@ -95,7 +95,7 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	root.SetOut(a.Stdout)
 	root.SetErr(a.Stderr)
 
-	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(),
+	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(), a.snippetCmd(),
 		a.validateCmd(), a.fmtCmd(), a.importCmd(), a.initCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
 	_ = root.RegisterFlagCompletionFunc("env", a.completeEnvs)
 	a.Root = root
@@ -150,12 +150,22 @@ func (a *App) newRunner() (*runner.Runner, error) {
 	if err != nil {
 		return nil, err
 	}
+	return a.runnerFor(p, nil)
+}
+
+// runnerFor builds a runner on an already loaded project from the global
+// flags; mod, when set, adjusts the options first.
+func (a *App) runnerFor(p *project.Project, mod func(*runner.Options)) (*runner.Runner, error) {
 	vars, err := a.varMap()
 	if err != nil {
 		return nil, err
 	}
 	runner.Version = Version
-	r, err := runner.New(p, runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy})
+	opts := runner.Options{Env: a.g.env, Vars: vars, NoSession: a.g.noSess, Timeout: a.g.timeout, Insecure: a.g.insecure, Redact: a.g.redact, Cookies: a.g.cookies, CACert: a.g.cacert, Cert: a.g.cert, Key: a.g.key, Proxy: a.g.proxy, NoProxy: a.g.noProxy}
+	if mod != nil {
+		mod(&opts)
+	}
+	r, err := runner.New(p, opts)
 	if err != nil {
 		return nil, err
 	}

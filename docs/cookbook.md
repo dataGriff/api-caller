@@ -429,6 +429,33 @@ Each environment keeps its own captured values, so a token from `dev` is
 never sent to `staging`. In the [terminal UI](tui.md), <kbd>e</kbd> switches
 between them.
 
+## Run one request for every row
+
+```csv
+id,name
+7,alice
+8,bob
+```
+
+```http
+### Update a user
+# @name update-user
+# @assert status == 200
+# @assert body.$.name == {{name}}
+PATCH {{baseUrl}}/users/{{id}}
+Content-Type: application/json
+
+{"name": "{{name}}"}
+```
+
+```sh
+apic run update-user --data users.csv --keep-going --report users.html
+```
+
+Each row is one iteration, its columns variables, so the assertion checks
+each user against its own row. Iterations do not share captures unless
+`--data-share-session`; see [Data-driven runs](cli.md#data-driven-runs).
+
 ## Describe behaviour, then test it
 
 ```http

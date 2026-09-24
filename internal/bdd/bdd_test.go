@@ -370,6 +370,38 @@ Feature: Files
 	}
 }
 
+// "I run the file" is a flow, so it skips a # @disabled request and the
+// last response is the last one sent; running the request by name sends it.
+func TestRunFileSkipsDisabled(t *testing.T) {
+	srv := server(t)
+	p := newProject(t, srv)
+	must(t, os.WriteFile(filepath.Join(p.Root, "flow.http"), []byte(`
+### one
+# @name flow-login
+POST {{baseUrl}}/login
+
+### off
+# @name flow-off
+# @disabled
+GET {{baseUrl}}/users/0
+`), 0o644))
+	p, err := project.Load(p.Root)
+	must(t, err)
+	sum, code := run(t, p, `
+Feature: Disabled
+  Scenario: The file skips it
+    When I run the file "flow.http"
+    Then the response status is 200
+    And the response body "token" is "t-1"
+  Scenario: By name it runs
+    When I run "flow-off"
+    Then the response status is 401
+`, "dev")
+	if code != 0 || sum.Failed != 0 || sum.Passed != 2 {
+		t.Fatalf("code=%d sum=%+v", code, sum)
+	}
+}
+
 func TestTypedStepErrorsMapToExitCodes(t *testing.T) {
 	srv := server(t)
 	p := newProject(t, srv)

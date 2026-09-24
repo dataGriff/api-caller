@@ -22,6 +22,7 @@ func (a *App) envCmd() *cobra.Command {
 				return err
 			}
 			vars := r.EnvVars()
+			auths := r.AuthConfigs()
 			if a.g.json {
 				for i := range vars {
 					if vars[i].Secret {
@@ -29,13 +30,14 @@ func (a *App) envCmd() *cobra.Command {
 					}
 				}
 				return a.writeJSON(struct {
-					Root         string            `json:"root"`
-					Environments []string          `json:"environments"`
-					Current      string            `json:"current,omitempty"`
-					Files        []string          `json:"files"`
-					Proxy        *runner.ProxyInfo `json:"proxy,omitempty"`
-					Variables    []runner.VarInfo  `json:"variables"`
-				}{r.Project.Root, r.Envs.Names(), r.Opts.Env, r.Envs.Found, r.ProxyInfo(""), vars})
+					Root         string                  `json:"root"`
+					Environments []string                `json:"environments"`
+					Current      string                  `json:"current,omitempty"`
+					Files        []string                `json:"files"`
+					Proxy        *runner.ProxyInfo       `json:"proxy,omitempty"`
+					Variables    []runner.VarInfo        `json:"variables"`
+					Auth         []runner.AuthConfigInfo `json:"auth,omitempty"`
+				}{r.Project.Root, r.Envs.Names(), r.Opts.Env, r.Envs.Found, r.ProxyInfo(""), vars, auths})
 			}
 			names := r.Envs.Names()
 			if len(names) == 0 {
@@ -59,6 +61,17 @@ func (a *App) envCmd() *cobra.Command {
 			if len(vars) > 0 {
 				fmt.Fprint(a.Stdout, output.Section(theme, "variables"))
 				fmt.Fprint(a.Stdout, output.Variables(theme, vars, false))
+			}
+			if len(auths) > 0 {
+				// JetBrains Security.Auth: what {{$auth.token("name")}} runs.
+				fmt.Fprint(a.Stdout, output.Section(theme, "auth"))
+				for _, c := range auths {
+					what := c.Spec
+					if c.Error != "" {
+						what = theme.Fail.Render(c.Error)
+					}
+					fmt.Fprintf(a.Stdout, "  %s %s %s\n", theme.Bold.Render(c.Name), what, theme.Dim.Render("("+strings.Join(c.Files, ", ")+")"))
+				}
 			}
 			return nil
 		},

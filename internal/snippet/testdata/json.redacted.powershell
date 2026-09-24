@@ -1,0 +1,11 @@
+$headers = @{
+  'Accept' = '***'
+  'X-Note' = '***'
+  'Authorization' = 'Bearer ' + $env:TOKEN
+}
+$body = '***'
+Invoke-RestMethod -Method Post `
+  -Uri 'https://api.example.com/todos?list=***&q=***' `
+  -Headers $headers `
+  -Body $body `
+  -ContentType '***'

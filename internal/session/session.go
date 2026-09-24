@@ -31,6 +31,21 @@ func NewMemory() *Store {
 	return &Store{Envs: map[string]map[string]string{}}
 }
 
+// Snapshot is a memory-only copy of the session: what it held when taken,
+// changed and read without touching the original or the disk. Each
+// iteration of `apic run --data` starts from one.
+func (s *Store) Snapshot() *Store {
+	out := NewMemory()
+	for env, vars := range s.Envs {
+		m := make(map[string]string, len(vars))
+		for k, v := range vars {
+			m[k] = v
+		}
+		out.Envs[env] = m
+	}
+	return out
+}
+
 // Open loads the session for a project root, or an empty one.
 func Open(root string) (*Store, error) {
 	s := &Store{path: filepath.Join(root, Dir, File), Envs: map[string]map[string]string{}}

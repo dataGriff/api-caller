@@ -86,7 +86,7 @@ type Model struct {
 	selected    *httpfile.Request
 	tab         tab
 	showHeaders bool
-	showCurl    bool
+	codeLang    int // 0 hides the code view; n shows snippet.Languages[n-1]
 	vp          viewport
 	paneKey     string // paneID of the content in the viewport
 	paneShown   string // paneTopic of that content; a change scrolls back to the top
@@ -266,7 +266,7 @@ func (m *Model) paneReqID() string {
 // changes underneath it. Switching request, tab or overlay changes the
 // topic; a result landing on the request already shown does not.
 func (m *Model) paneTopic() string {
-	return fmt.Sprintf("%s|%d|%v|%v|%v", m.paneReqID(), m.tab, m.showCurl, m.showHelp, m.confirmClear)
+	return fmt.Sprintf("%s|%d|%v|%v|%v", m.paneReqID(), m.tab, m.codeLang, m.showHelp, m.confirmClear)
 }
 
 func (m *Model) paneID() string {
@@ -275,7 +275,7 @@ func (m *Model) paneID() string {
 		res = m.results[m.selected]
 		desc = m.descs[m.selected]
 	}
-	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.showCurl, m.showHelp, m.confirmClear, res, desc, len(m.session), len(m.cookies), m.vp.width, m.vp.height)
+	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.codeLang, m.showHelp, m.confirmClear, res, desc, len(m.session), len(m.cookies), m.vp.width, m.vp.height)
 }
 
 // renderStatus draws the bottom bar.

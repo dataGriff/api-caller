@@ -19,7 +19,7 @@ Requests live in `api/*.http` and are run with `apic` (install: see README).
 - `apic run <file>.http --json`: run a whole file in order as a flow (NDJSON)
 - `apic run <id> --var name=value`: override a variable
 - `apic run <id> --env staging`: pick an environment from http-client.env.json
-- `apic curl <id>`: the equivalent curl command
+- `apic curl <id>`: the equivalent curl command; `apic snippet <id> --lang python` the same in HTTPie, PowerShell, Python, JavaScript or Go
 - `apic test --json`: run the Gherkin features in features/; `apic test --steps --json` lists the steps you may use
 - `apic validate --json`: parse every file and report problems before running anything
 
@@ -105,7 +105,7 @@ Tools exposed:
 | `clear_session {env?, all?}` | forget captured values and cookies |
 | `run_features {paths?, tags?, env?, vars?, use_session?}` | run Gherkin features; returns pass/fail counts and the failing steps. Scenarios are isolated unless `use_session` shares `.apic/session.json` with the other tools (see [testing.md](testing.md)) |
 | `validate_project {}` | parse every `.http` file and report problems with file, line, column and code, without sending anything; the same shape as `apic validate --json`. For an agent that just edited a file |
-| `curl_request {name, env?, vars?, raw?}` | the equivalent curl command, `{"id", "command"}`, with credentials as shell placeholders and values masked unless `raw` is set; a missing variable is an error naming it, as for `apic curl` |
+| `curl_request {name, env?, vars?, raw?, lang?}` | the equivalent curl command (or with `lang`, HTTPie, PowerShell, Python, JavaScript or Go), `{"id", "lang", "command"}`, with credentials as shell placeholders and values masked unless `raw` is set; a missing variable is an error naming it, as for `apic curl` |
 
 Each `.http` file is also exposed as a resource so the agent can read the
 definitions. Only the project's own `.http` and `.rest` files can be read this

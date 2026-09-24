@@ -1,0 +1,4 @@
+# sign this request with AWS Signature V4 (service execute-api, region eu-west-2); apic does it with the AWS credential chain
+http --ignore-stdin \
+  GET \
+  'https://abc.execute-api.eu-west-2.amazonaws.com/prod/orders'

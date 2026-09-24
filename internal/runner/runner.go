@@ -112,7 +112,10 @@ type Runner struct {
 	// with its result (never nil) and the error, if any, that stopped it.
 	OnResult func(*Result, error)
 
-	sleep func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	sleep func(ctx context.Context, d time.Duration) error // between attempts and for @sleep; tests replace it
+	// named are the requests a target named directly (get-user,
+	// users.http#3): RunAll sends them even when they are # @disabled.
+	named map[*httpfile.Request]bool
 	// Now is the clock the time built-ins read; nil means time.Now.
 	// Tests set it to pin `$timestamp` and friends.
 	Now      func() time.Time
@@ -210,6 +213,9 @@ type Resolved struct {
 	Headers []httpfile.Header `json:"-"`
 	Body    string            `json:"-"`
 	Auth    string            `json:"auth,omitempty"` // auth type applied, e.g. "aws"
+	// HTTPVersion is the version the request line asks for, HTTP/1.1 or
+	// HTTP/2; empty when it names none and the protocol is negotiated.
+	HTTPVersion string `json:"http_version,omitempty"`
 	// TLS is the non-default TLS setup for this request's host: a private
 	// CA, a client certificate or no verification.
 	TLS *TLSInfo `json:"tls,omitempty"`
@@ -345,6 +351,8 @@ type Response struct {
 	BodyEncoding string `json:"body_encoding,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
 	Size         int    `json:"size"`
+	// Proto is the protocol the response came over: "HTTP/1.1", "HTTP/2.0".
+	Proto string `json:"proto,omitempty"`
 	// Timings is where the round trip went, from net/http/httptrace.
 	Timings *Timings `json:"timings,omitempty"`
 }
@@ -453,10 +461,15 @@ type Result struct {
 	SavedTo string `json:"saved_to,omitempty"`
 	// Deps are the results of the requests `# @ref` and `# @forceRef` ran
 	// first, in run order; a dependency's own dependencies nest under it.
-	Deps   []*Result `json:"ran_first,omitempty"`
-	Redact bool      `json:"-"` // set from Options.Redact
-	raw    *selector.Response
-	req    *httpfile.Request
+	Deps []*Result `json:"ran_first,omitempty"`
+	// Skipped says why a flow did not send the request: "disabled" for
+	// `# @disabled`. A skipped result is OK and has no response.
+	Skipped string `json:"skipped,omitempty"`
+	// Iteration is the row of `apic run --data` this result belongs to.
+	Iteration *Iteration `json:"iteration,omitempty"`
+	Redact    bool       `json:"-"` // set from Options.Redact
+	raw       *selector.Response
+	req       *httpfile.Request
 	// authNote says what the auth did on the wire beyond setting a header:
 	// for digest, whether a challenge was answered. Shown by run -v.
 	authNote string
@@ -482,17 +495,35 @@ func (r Result) MarshalJSON() ([]byte, error) {
 	type alias Result
 	out := struct {
 		alias
-		Request  json.RawMessage   `json:"request"`
-		Captures map[string]string `json:"captures,omitempty"`
-		Response *Response         `json:"response,omitempty"`
-		Asserts  []assert.Result   `json:"asserts,omitempty"`
-	}{alias: alias(r), Captures: r.DisplayCaptures(), Response: r.DisplayResponse(), Asserts: r.DisplayAsserts()}
+		Request   json.RawMessage   `json:"request"`
+		Captures  map[string]string `json:"captures,omitempty"`
+		Response  *Response         `json:"response,omitempty"`
+		Asserts   []assert.Result   `json:"asserts,omitempty"`
+		Iteration *Iteration        `json:"iteration,omitempty"`
+	}{alias: alias(r), Captures: r.DisplayCaptures(), Response: r.DisplayResponse(), Asserts: r.DisplayAsserts(), Iteration: r.Iteration}
+	if it := r.Iteration; it != nil && r.Redact {
+		// A row is data the caller supplied, which may hold secrets.
+		masked := *it
+		masked.Row = map[string]string{}
+		for k := range it.Row {
+			masked.Row[k] = Masked
+		}
+		out.Iteration = &masked
+	}
 	req, err := r.Request.marshal(r.Redact)
 	if err != nil {
 		return nil, err
 	}
 	out.Request = req
 	return json.Marshal(out)
+}
+
+// Iteration places a result in a data-driven run: which row of how many,
+// and the row's values (the variables it supplied).
+type Iteration struct {
+	Index int               `json:"index"` // 1-based
+	Total int               `json:"total"`
+	Row   map[string]string `json:"row"`
 }
 
 // DisplayCaptures returns captures, masked when redacting.
@@ -513,6 +544,7 @@ func (r *Result) Raw() *selector.Response { return r.raw }
 // Resolve substitutes variables in a request without sending it.
 func (r *Runner) Resolve(req *httpfile.Request) (*Resolved, error) {
 	res := &Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method}
+	res.HTTPVersion, _ = req.Protocol() // an unsupported version is refused when sending
 	var missing []string
 	render := func(s string) (string, error) {
 		out, err := template.Render(s, func(e string) (string, bool, error) { return r.resolveExpr(req, e) })
@@ -690,7 +722,7 @@ func (c sessionCache) Set(key, value string) error {
 
 func (r *Runner) authEnv() (*auth.Env, error) {
 	// Token endpoints get the project-wide settings, not a host override.
-	tr, err := r.transport("")
+	tr, err := r.transport("", protoAny)
 	if err != nil {
 		return nil, err
 	}
@@ -1006,6 +1038,15 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	}
 	// Each schema is read and resolved once for all the attempts.
 	schemas := assert.Options{Schema: assert.Schemas(func(path string) ([]byte, error) { return r.readBodyFile(req, path, "schema") })}
+	pause, err := req.Sleep()
+	if err != nil {
+		return nil, usagef("%s:%d: @sleep: %v", req.File.Path, req.Line, err)
+	}
+	if pause > 0 {
+		if err := r.sleep(ctx, pause); err != nil {
+			return nil, &TransportError{Err: err}
+		}
+	}
 
 	for attempt := 1; ; attempt++ {
 		res, err := r.attempt(ctx, req, resolved, preparedAsserts, schemas, timeout)
@@ -1108,7 +1149,14 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		}
 	}
 
-	client, err := r.client(req, httpReq.URL.Host)
+	want, err := wantFor(req)
+	if err != nil {
+		return nil, usagef("%s:%d: %v", req.File.Path, req.Line, err)
+	}
+	if want == protoHTTP2 && httpReq.URL.Scheme != "https" {
+		return nil, usagef("%s:%d: HTTP/2 needs an https:// URL; apic does not send cleartext HTTP/2 (h2c). Write HTTP/1.1 or leave the version out", req.File.Path, req.Line)
+	}
+	client, err := r.client(req, httpReq.URL.Host, want)
 	if err != nil {
 		return nil, err
 	}
@@ -1126,9 +1174,15 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 	trace.mu.Unlock()
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
+		if want == protoHTTP2 {
+			err = fmt.Errorf("%w (the request line asks for HTTP/2; the server may not offer it)", err)
+		}
 		return nil, r.transportError(err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
+	if want == protoHTTP2 && httpResp.ProtoMajor != 2 {
+		return nil, r.transportError(fmt.Errorf("the request line asks for HTTP/2, but %s answered with %s", httpReq.URL.Host, httpResp.Proto))
+	}
 	// Bounded: an unbounded ReadAll lets one hostile or oversized response take
 	// the process down, and the body is held more than once while it is parsed
 	// and rendered.
@@ -1151,7 +1205,7 @@ func (r *Runner) attempt(ctx context.Context, req *httpfile.Request, resolved *R
 		}
 	}
 	view, encoding := jsonOrString(data)
-	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: view, BodyEncoding: encoding, DurationMs: dur.Milliseconds(), Size: len(data), Timings: trace.timings(dur)}
+	result.Response = &Response{Status: raw.Status, StatusText: raw.StatusText, Headers: flatHeaders(httpResp.Header), Body: view, BodyEncoding: encoding, DurationMs: dur.Milliseconds(), Size: len(data), Proto: httpResp.Proto, Timings: trace.timings(dur)}
 
 	for _, c := range req.Captures {
 		v, ok, err := selector.Select(raw, c.Selector)
@@ -1281,12 +1335,43 @@ func (r *Runner) retryPolicy(req *httpfile.Request) (retryPolicy, error) {
 	return one, nil
 }
 
+// Target resolves a command-line target as Project.Resolve does. A target
+// that names one request (get-user, users.http#get-user, users.http#3)
+// is remembered, so RunAll sends it even when it is # @disabled: that
+// directive only keeps a request out of a file's flow.
+func (r *Runner) Target(target string) ([]*httpfile.Request, error) {
+	reqs, err := r.Project.Resolve(target)
+	if err != nil {
+		return nil, err
+	}
+	if r.Project.File(target) == nil {
+		if r.named == nil {
+			r.named = map[*httpfile.Request]bool{}
+		}
+		for _, req := range reqs {
+			r.named[req] = true
+		}
+	}
+	return reqs, nil
+}
+
 // RunAll runs requests in order as a flow, stopping at the first failure
-// unless KeepGoing is set. Results for requests that ran are always returned.
+// unless KeepGoing is set. Results for requests that ran are always
+// returned. A `# @disabled` request is skipped, with a result that says
+// so, unless Target resolved it by name.
 func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Result, error) {
 	var out []*Result
 	var firstErr error
 	for _, req := range reqs {
+		if req.Disabled() && !r.named[req] {
+			res := &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL},
+				OK: true, Skipped: "disabled", Redact: r.Opts.Redact, req: req}
+			out = append(out, res)
+			if r.OnResult != nil {
+				r.OnResult(res, nil)
+			}
+			continue
+		}
 		res, err := r.Run(ctx, req)
 		if err != nil && res == nil {
 			res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}, req: req}
@@ -1328,19 +1413,27 @@ type Description struct {
 	Variables   []VarInfo         `json:"variables"`
 	Captures    []string          `json:"captures,omitempty"`
 	Asserts     []string          `json:"asserts,omitempty"`
-	Steps       []string          `json:"steps,omitempty"`       // # @step phrases
-	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
-	Auth        string            `json:"auth,omitempty"`        // auth spec template
-	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
-	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
-	Proxy       *ProxyInfo        `json:"proxy,omitempty"`       // the proxy in effect, when one is configured
-	Ready       bool              `json:"ready"`                 // every variable resolves, or a # @ref supplies it
+	Steps       []string          `json:"steps,omitempty"`        // # @step phrases
+	Refs        []string          `json:"refs,omitempty"`         // # @ref and # @forceRef targets
+	Sleep       string            `json:"sleep,omitempty"`        // # @sleep: the wait before sending
+	Disabled    bool              `json:"disabled,omitempty"`     // # @disabled: skipped by flows
+	HTTPVersion string            `json:"http_version,omitempty"` // HTTP/1.1 or HTTP/2 from the request line
+	Auth        string            `json:"auth,omitempty"`         // auth spec template
+	AuthSource  string            `json:"auth_source,omitempty"`  // "request" or "apic.yaml"
+	TLS         *TLSInfo          `json:"tls,omitempty"`          // non-default TLS setup for the request's host
+	Proxy       *ProxyInfo        `json:"proxy,omitempty"`        // the proxy in effect, when one is configured
+	Ready       bool              `json:"ready"`                  // every variable resolves, or a # @ref supplies it
 }
 
 // Describe reports a request's variables and where each comes from.
 func (r *Runner) Describe(req *httpfile.Request) *Description {
 	d := &Description{Name: req.Name, ID: req.ID(), File: req.File.Path, Line: req.Line, Description: req.Description,
-		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true}
+		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true,
+		Disabled: req.Disabled()}
+	d.HTTPVersion, _ = req.Protocol()
+	if v, ok := req.Directive("sleep"); ok {
+		d.Sleep = strings.TrimSpace(v)
+	}
 	if req.SaveTo != nil {
 		d.SaveTo = req.SaveTo.Path
 		if req.SaveTo.Overwrite {
@@ -1404,6 +1497,16 @@ func (r *Runner) Describe(req *httpfile.Request) *Description {
 				continue
 			}
 			seen[e] = true
+			if strings.HasPrefix(e, "$auth.") {
+				// Say which configuration runs; fetching a token is for
+				// sending, not describing.
+				info := r.describeAuth(e)
+				if info.Missing {
+					d.Ready = false
+				}
+				d.Variables = append(d.Variables, info)
+				continue
+			}
 			if strings.HasPrefix(e, "$") || strings.Contains(e, ".response.") {
 				v, ok, secret, err := r.resolveExprMeta(req, e, 0)
 				info := VarInfo{Name: e, Source: "built-in", Value: v, Secret: secret, Missing: !ok || err != nil}
@@ -1485,8 +1588,8 @@ func (r *Runner) EnvVars() []VarInfo {
 }
 
 // client builds the HTTP client for one request to host.
-func (r *Runner) client(req *httpfile.Request, host string) (*http.Client, error) {
-	tr, err := r.transport(host)
+func (r *Runner) client(req *httpfile.Request, host string, want protoWant) (*http.Client, error) {
+	tr, err := r.transport(host, want)
 	if err != nil {
 		return nil, err
 	}

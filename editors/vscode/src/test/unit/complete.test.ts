@@ -187,6 +187,7 @@ suite("hover", () => {
     assert.ok(hoverText("$datetime rfc1123", {})?.startsWith("**$datetime**"));
     assert.ok(hoverText("$env.HOME", {})?.includes("shell environment"));
     assert.ok(hoverText("$nope", {})?.includes("unknown"));
+    assert.ok(hoverText('$auth.token("api")', {})?.includes("Security.Auth"));
     assert.strictEqual(hoverText("login.response.body.$.token", {}), "**login.response.body.$.token** · response reference\n\nThe body of `login` from earlier in the same run.");
   });
 });

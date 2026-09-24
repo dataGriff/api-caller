@@ -47,6 +47,9 @@ func RequestDetail(t Theme, res *runner.Result) string {
 // StatusLine renders "200 OK · 87 ms · 412 B"; when the request never got a
 // response it renders the errors instead.
 func StatusLine(t Theme, res *runner.Result) string {
+	if res.Skipped != "" {
+		return t.Dim.Render("skipped ("+res.Skipped+")") + "\n"
+	}
 	if res.Response == nil {
 		var b strings.Builder
 		for _, e := range res.Errors {
@@ -162,6 +165,10 @@ func Result(t Theme, res *runner.Result, o Options) string {
 		b.WriteString(RequestDetail(t, res))
 		b.WriteString("\n")
 	}
+	if o.Verbose && res.Response != nil && res.Response.Proto != "" {
+		// Which protocol the server answered over, in front of the status.
+		b.WriteString(t.Dim.Render(res.Response.Proto) + " ")
+	}
 	b.WriteString(StatusLine(t, res))
 	if res.Response == nil {
 		return b.String()
@@ -208,14 +215,17 @@ func SummaryTable(t Theme, results []*runner.Result) string {
 	for _, r := range results {
 		name := resultName(r)
 		pad := strings.Repeat(" ", nameW-lipgloss.Width(name))
-		status, latency := t.Dim.Render("   —"), ""
+		mark, status, latency := t.Mark(r.OK), t.Dim.Render("   —"), ""
+		if r.Skipped != "" {
+			mark, status = t.Dim.Render("-"), t.Dim.Render("skipped ("+r.Skipped+")")
+		}
 		if r.Response != nil {
 			status = t.Status(r.Response.Status, "")
 			status = strings.TrimRight(status, " ")
 			latency = t.Latency(r.Response.DurationMs)
 			total += r.Response.DurationMs
 		}
-		fmt.Fprintf(&b, "%s %s%s  %s  %s", t.Mark(r.OK), name, pad, status, latency)
+		fmt.Fprintf(&b, "%s %s%s  %s  %s", mark, name, pad, status, latency)
 		if !r.OK {
 			if why := firstProblem(r); why != "" {
 				fmt.Fprintf(&b, "  %s", t.Dim.Render(why))
@@ -227,20 +237,27 @@ func SummaryTable(t Theme, results []*runner.Result) string {
 	return b.String()
 }
 
-// SummaryLine renders "3 passed" or "1 failed, 3 passed".
+// SummaryLine renders "3 passed", "1 failed, 3 passed" or "3 passed, 1
+// skipped".
 func SummaryLine(t Theme, results []*runner.Result) string {
-	passed := 0
+	passed, skipped := 0, 0
 	for _, r := range results {
-		if r.OK {
+		switch {
+		case r.Skipped != "":
+			skipped++
+		case r.OK:
 			passed++
 		}
 	}
-	failed := len(results) - passed
-	line := fmt.Sprintf("%d passed", passed)
+	failed := len(results) - passed - skipped
+	line := t.OK.Render(fmt.Sprintf("%d passed", passed))
 	if failed > 0 {
-		return t.Fail.Render(fmt.Sprintf("%d failed", failed)) + ", " + line
+		line = t.Fail.Render(fmt.Sprintf("%d failed", failed)) + ", " + fmt.Sprintf("%d passed", passed)
 	}
-	return t.OK.Render(line)
+	if skipped > 0 {
+		line += ", " + t.Dim.Render(fmt.Sprintf("%d skipped", skipped))
+	}
+	return line
 }
 
 func resultName(r *runner.Result) string {
@@ -277,6 +294,15 @@ func Describe(t Theme, d *runner.Description, headers []httpfile.Header) string 
 	fmt.Fprintf(&b, "%s %s:%d\n", t.Dim.Render("file:"), d.File, d.Line)
 	if d.ID != d.Name {
 		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("id:  "), d.ID)
+	}
+	if d.Disabled {
+		fmt.Fprintf(&b, "%s\n", t.Dim.Render("disabled: skipped when its file runs as a flow; apic run "+d.ID+" still sends it"))
+	}
+	if d.Sleep != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("sleep:"), d.Sleep+" before sending")
+	}
+	if d.HTTPVersion != "" {
+		fmt.Fprintf(&b, "%s %s\n", t.Dim.Render("http: "), d.HTTPVersion+" only")
 	}
 	if len(headers) > 0 {
 		b.WriteString(Section(t, "headers"))

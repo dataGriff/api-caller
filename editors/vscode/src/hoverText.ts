@@ -33,7 +33,9 @@ export function hoverText(inner: string, src: HoverSources): string | undefined 
     return undefined;
   }
   if (name.startsWith("$")) {
-    const builtin = BUILTINS.find((b) => b.name === name || (b.name === "$env" && name.startsWith("$env.")));
+    // $random.integer(1, 100) and $auth.token("api") are named before the "(".
+    const base = name.split("(")[0];
+    const builtin = BUILTINS.find((b) => b.name === base || (b.name === "$env" && name.startsWith("$env.")));
     return builtin ? `**${name}** · built-in\n\n${builtin.doc}` : `**${name}** · unknown built-in`;
   }
   const ref = /^([\w-]+)\.response\.(body|headers)(.*)$/.exec(name);

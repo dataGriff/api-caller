@@ -73,6 +73,9 @@ func TestHumanRendersStatusBodyChecksAndCaptures(t *testing.T) {
 	if !strings.Contains(buf.String(), "Accept: application/json") || !strings.Contains(buf.String(), "content-type: application/json") {
 		t.Errorf("verbose output should include request and response headers:\n%s", buf.String())
 	}
+	if !strings.Contains(buf.String(), "HTTP/1.1 200 OK") || strings.Contains(got, "HTTP/1.1 200") {
+		t.Errorf("only verbose output names the protocol:\n%s", buf.String())
+	}
 }
 
 func TestFailureShowsActualAndSummaryTable(t *testing.T) {

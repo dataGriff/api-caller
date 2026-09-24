@@ -27,12 +27,14 @@ Content-Type: application/json
 | Multipart upload | `Content-Type: multipart/form-data; boundary=X`, parts between `--X` lines, `< ./report.pdf` as a part's content; see [format](format.md#multipart-uploads) |
 | GraphQL | `GRAPHQL {{baseUrl}}/graphql` (or `X-REQUEST-TYPE: GraphQL`), the query as the body, variables as a JSON object after a blank line; sent as a JSON POST; see [format](format.md#graphql) |
 | Save the response | `>> ./out.json` (create) or `>>! ./out.json` (overwrite) after the body; `apic run --output file` for one run; see [format](format.md#saving-a-response) |
+| HTTP version | `GET https://x/ HTTP/1.1` never uses HTTP/2; `HTTP/2` requires it; none negotiates; see [format](format.md#http-version) |
 
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `apic run <target>...` | Send requests; several targets run in order as a flow; `--output file` saves one response body |
+| `apic run <target> --data rows.csv` | Run once per row of a CSV file or JSON array; each row's columns are variables |
 | `apic ui` | [Terminal UI](tui.md); `--demo` needs no project |
 | `apic test [paths]` | Run [Gherkin features](testing.md) |
 | `apic list [pattern]` | Every request, filtered by id, URL, file or description |
@@ -40,6 +42,7 @@ Content-Type: application/json
 | `apic env` | Environments and the variables in effect |
 | `apic session [clear]` | Captured values; `clear --all` for every environment |
 | `apic curl <id>` | The equivalent curl command |
+| `apic snippet <id> --lang python` | The request as httpie, powershell, python, js or go code |
 | `apic init [dir]` | Scaffold a project |
 | `apic import <spec>` | `.http` files from an OpenAPI 3 document or a Postman collection (`--postman-env` for its environments) |
 | `apic import --curl '<cmd>' --into f.http` | One request block from a curl command |
@@ -77,6 +80,8 @@ Written as comments before the request line, so editors ignore them.
 | `# @no-cookies` | Send and keep no cookies for this request |
 | `# @timeout 10s` | Per-request timeout |
 | `# @retry 10 2s` | Re-send until the assertions pass, up to 10 times, 2s apart |
+| `# @sleep 2s` | Wait before sending |
+| `# @disabled` | Skipped when its file runs as a flow; `apic run <name>` still sends it |
 | `# @note text` | Free text, ignored (REST Client compatibility) |
 | `# @prompt name` | Ignored; pass the value with `--var name=...` instead |
 
@@ -111,6 +116,7 @@ First match wins:
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
 | `{{$projectRoot}}` | absolute project root |
+| `{{$auth.token("name")}}` | token of a JetBrains `Security.Auth` configuration; see [auth](auth.md#jetbrains-projects) |
 | `{{login.response.body.$.token}}` | an earlier response in the same flow |
 
 ## Selectors

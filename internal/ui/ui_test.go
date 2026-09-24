@@ -295,9 +295,22 @@ func TestHeadersAndCurlToggles(t *testing.T) {
 	if v := f.view(); !strings.Contains(v, "curl -sS") || !strings.Contains(v, "/auth/login'") {
 		t.Fatalf("c should show the curl command:\n%s", v)
 	}
+	// c again moves on through the languages, then hides the code.
 	f.press("c")
+	if v := f.view(); !strings.Contains(v, "http --ignore-stdin") || !strings.Contains(v, "httpie · 2/6") || !strings.Contains(v, "c shows powershell") {
+		t.Fatalf("c again should show HTTPie:\n%s", v)
+	}
+	f.press("c", "c", "c", "c")
+	if v := f.view(); !strings.Contains(v, "package main") || !strings.Contains(v, "c hides this") {
+		t.Fatalf("the sixth c should show Go:\n%s", v)
+	}
+	f.press("c")
+	if v := f.view(); strings.Contains(v, "package main") || strings.Contains(v, "curl -sS") {
+		t.Fatal("c after the last language should hide the code")
+	}
+	f.press("c", "esc")
 	if v := f.view(); strings.Contains(v, "curl -sS") {
-		t.Fatal("c again should hide curl")
+		t.Fatal("esc should hide the code")
 	}
 }
 
@@ -556,5 +569,26 @@ func TestShortDuration(t *testing.T) {
 		if got := shortDuration(tc.d); got != tc.want {
 			t.Errorf("shortDuration(%v) = %q, want %q", tc.d, got, tc.want)
 		}
+	}
+}
+
+// A # @disabled request is dimmed, kept out of a run of everything, and
+// still sent by enter.
+func TestDisabledStaysOutOfFlows(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	extra := "### up\n# @name up\n# @assert status == 200\nGET {{baseUrl}}/health\n\n### off\n# @name off\n# @disabled\nGET {{baseUrl}}/health\n"
+	if err := os.WriteFile(filepath.Join(f.dir, "zz.http"), []byte(extra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(f.press("r"))
+	f.drain(f.press("a"))
+	v := f.view()
+	if !strings.Contains(v, "1 failed, 24 passed") || !strings.Contains(v, "✓ GET    up") || !strings.Contains(v, "- GET    off") {
+		t.Fatalf("the run of everything should skip off:\n%s", v)
+	}
+	f.press("G")
+	f.drain(f.press("enter"))
+	if res := f.m.Result(f.m.Selected()); res == nil || f.m.Selected().Name != "off" || !res.OK {
+		t.Fatalf("enter on off should send it: %v %+v", f.m.Selected().Name, res)
 	}
 }

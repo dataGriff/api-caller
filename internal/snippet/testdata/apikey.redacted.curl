@@ -1,0 +1,6 @@
+curl -sS \
+  --url-query "api_key=$APIC_API_KEY" \
+  --http1.1 \
+  --insecure \
+  --proxy 'http://proxy.internal:3128' \
+  'https://internal.example.com/v1/items'

@@ -24,6 +24,7 @@ type listEntry struct {
 	Asserts     int      `json:"asserts,omitempty"`
 	Steps       []string `json:"steps,omitempty"`
 	Refs        []string `json:"refs,omitempty"`
+	Disabled    bool     `json:"disabled,omitempty"`
 }
 
 func (e listEntry) matches(pattern string) bool {
@@ -51,7 +52,7 @@ to requests whose id, URL, file or description contains it.`,
 			}
 			var entries []listEntry
 			for _, r := range p.Requests() {
-				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps(), Refs: refIDs(r)}
+				e := listEntry{ID: r.ID(), Name: r.Name, Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Asserts: len(r.Asserts), Steps: r.Steps(), Refs: refIDs(r), Disabled: r.Disabled()}
 				for _, c := range r.Captures {
 					e.Captures = append(e.Captures, c.Name)
 				}
@@ -109,7 +110,11 @@ to requests whose id, URL, file or description contains it.`,
 				if len(files) > 1 {
 					where = fmt.Sprintf(":%d", e.Line)
 				}
-				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", theme.Bold.Render(e.ID), theme.Method(e.Method), theme.URL.Render(e.URL), theme.Dim.Render(where), e.Description)
+				id, desc := theme.Bold.Render(e.ID), e.Description
+				if e.Disabled {
+					id, desc = theme.Dim.Render(e.ID), strings.TrimSpace(theme.Dim.Render("(disabled)")+" "+desc)
+				}
+				line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s", id, theme.Method(e.Method), theme.URL.Render(e.URL), theme.Dim.Render(where), desc)
 				if hasSteps {
 					line += "\t" + theme.Dim.Render(strings.Join(e.Steps, " | "))
 				}

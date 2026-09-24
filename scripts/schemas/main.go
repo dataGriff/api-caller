@@ -235,6 +235,8 @@ func envSchema() *jsonschema.Schema {
 	value := &jsonschema.Schema{Ref: "#/$defs/value"}
 	// The same reference twice would break the tree, so each use gets its own node.
 	sslRef := func() *jsonschema.Schema { return &jsonschema.Schema{Ref: "#/$defs/sslConfiguration"} }
+	securityRef := func() *jsonschema.Schema { return &jsonschema.Schema{Ref: "#/$defs/security"} }
+	str := func(desc string) *jsonschema.Schema { return &jsonschema.Schema{Type: "string", Description: desc} }
 	return &jsonschema.Schema{
 		Schema:      draft,
 		ID:          baseURL + "http-client.env.schema.json",
@@ -265,19 +267,51 @@ func envSchema() *jsonschema.Schema {
 					"verifyHostCertificate":    {Type: "boolean", Description: "Verify the server's certificate. Default true."},
 				},
 			},
+			"security": {
+				Type:        "object",
+				Description: "JetBrains HTTP Client's Security block. Not a variable. apic reads its Auth configurations.",
+				Properties: map[string]*jsonschema.Schema{
+					"Auth": {
+						Type:        "object",
+						Description: "OAuth2 configurations by name. A request uses one as {{$auth.token(\"name\")}} or {{$auth.idToken(\"name\")}}; the private file's fields win over the public file's.",
+						AdditionalProperties: &jsonschema.Schema{
+							Type:        "object",
+							Description: "One OAuth2 configuration. String fields may hold {{placeholders}}.",
+							Properties: map[string]*jsonschema.Schema{
+								"Type":                      {Type: "string", Enum: []any{"OAuth2"}, Description: "Only OAuth2 is read."},
+								"Grant Type":                {Type: "string", Enum: []any{"Client Credentials", "Password", "Device Authorization", "Authorization Code", "Implicit"}, Description: "The grant. Implicit is refused; Authorization Code runs with PKCE."},
+								"Token URL":                 str("The token endpoint."),
+								"Auth URL":                  str("The authorization endpoint, for Authorization Code."),
+								"Device Auth URL":           str("The device authorization endpoint, for Device Authorization."),
+								"Redirect URL":              str("Where the provider sends the browser back, for Authorization Code: http://localhost:<port>/<path>, where apic listens."),
+								"Client ID":                 str("The client ID."),
+								"Client Secret":             str("The client secret; keep it in http-client.private.env.json."),
+								"Scope":                     str("Space-separated scopes."),
+								"Username":                  str("For the Password grant."),
+								"Password":                  str("For the Password grant; keep it in http-client.private.env.json."),
+								"Client Credentials":        {Type: "string", Enum: []any{"basic", "in body", "none"}, Description: "How the client authenticates at the token endpoint. Default in body."},
+								"Use ID Token":              {Type: "boolean", Description: "$auth.token gives the ID token rather than the access token."},
+								"PKCE":                      {Description: "Accepted; apic always uses PKCE for Authorization Code."},
+								"Acquire Automatically":     {Type: "boolean", Description: "Accepted; apic fetches a token when a request needs one."},
+								"Custom Request Parameters": {Type: "object", Description: "Extra parameters. apic sends audience; others are reported by apic validate."},
+							},
+						},
+					},
+				},
+			},
 		},
 		Properties: map[string]*jsonschema.Schema{
 			"$shared": {
 				Type:                 "object",
 				Description:          "Variables that apply to every environment; an environment's own value wins.",
-				Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef()},
+				Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef(), "Security": securityRef()},
 				AdditionalProperties: value,
 			},
 		},
 		AdditionalProperties: &jsonschema.Schema{
 			Type:                 "object",
 			Description:          "The variables of one environment.",
-			Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef()},
+			Properties:           map[string]*jsonschema.Schema{"SSLConfiguration": sslRef(), "Security": securityRef()},
 			AdditionalProperties: &jsonschema.Schema{Ref: "#/$defs/value"},
 			PropertyNames:        &jsonschema.Schema{Pattern: `^[A-Za-z_$][\w.-]*$`},
 		},

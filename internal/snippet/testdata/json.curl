@@ -1,0 +1,8 @@
+curl -sS \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'X-Note: say "hi" $HOME' \
+  --data-raw '{"title": "café \"x\"",
+ "done": false}' \
+  -H 'Authorization: Bearer s3cret-token' \
+  'https://api.example.com/todos?list=home&q=it'\''s'

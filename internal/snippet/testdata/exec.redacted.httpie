@@ -1,0 +1,5 @@
+# TOKEN is the output of: gcloud auth print-access-token
+http --ignore-stdin \
+  GET \
+  'https://api.example.com/me' \
+  "X-Token:$TOKEN"

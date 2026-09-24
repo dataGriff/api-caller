@@ -1,0 +1,7 @@
+http --ignore-stdin \
+  --multipart \
+  --auth='alice:pa'\''ss' \
+  POST \
+  'http://localhost:8080/upload' \
+  'title=Q3 report' \
+  'file@docs/report.pdf;type=application/pdf;filename=q3.pdf'

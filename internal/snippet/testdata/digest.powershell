@@ -1,0 +1,5 @@
+$credential = [pscredential]::new('bob', (ConvertTo-SecureString 'hunter2' -AsPlainText -Force))
+Invoke-RestMethod -Method Delete `
+  -Uri 'https://api.example.com/items/7' `
+  -Credential $credential `
+  -AllowUnencryptedAuthentication

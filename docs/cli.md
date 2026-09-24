@@ -62,7 +62,7 @@ narrow this with `dir: api`.
 ## apic run
 
 ```
-apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry] [--output <file>] [--report <file.html>]
+apic run <target>... [-v] [--body-only] [--keep-going] [--retry "<n> [interval]"] [--no-retry] [--output <file>] [--report <file.html>] [--data rows.csv|rows.json|- [--data-share-session]]
 ```
 
 Sends requests and reports status, timing, body, captures and assertions.
@@ -94,6 +94,8 @@ shows progress.
 | `--report <file.html>` | Also write a self-contained HTML report of the run: summary, every request with its status, timing, assertions (actual against expected), captures and the request and response headers and bodies, collapsed. Honours `--redact` like the text output and shows a "redacted" badge; sensitive headers are masked either way. Refused when the path is a project file. |
 | `--no-retry` | Send every request once, ignoring `# @retry`, `--retry` and `apic.yaml`. |
 | `--output <file>` | Save the response body to this file, relative to the working directory, overwriting: what a `>>! file` line in the request does (see [format.md](format.md#saving-a-response)). One request only; a flow is refused, and so is a project input as the target. The text output says `↳ saved to <file>` and `--json` carries `saved_to`. |
+| `--data <file>` | Run the targets once per row: a CSV file whose header row names the variables, or a JSON array of objects; `-` reads stdin. See [Data-driven runs](#data-driven-runs). |
+| `--data-share-session` | With `--data`, let one iteration's captures reach the next and the session file. |
 
 Examples:
 
@@ -120,7 +122,7 @@ apic run get-user --body-only | jq .email
     "status": 200, "status_text": "OK",
     "headers": {"content-type": "application/json"},
     "body": {"id": 42, "email": "alice@example.com"},
-    "duration_ms": 87, "size": 412,
+    "duration_ms": 87, "size": 412, "proto": "HTTP/2.0",
     "timings": {"dns_ms": 12, "connect_ms": 18, "tls_ms": 41, "ttfb_ms": 60, "total_ms": 87, "reused": false}
   },
   "captures": {"email": "alice@example.com"},
@@ -135,6 +137,10 @@ apic run get-user --body-only | jq .email
 - `request.headers` are the headers written in the file, with sensitive values shown as `***` (see `--redact` above). URL, body and captures are shown in full unless `--redact` is set.
 - `request.body` of a [multipart upload](format.md#multipart-uploads) is the summary `<multipart: 2 parts, 1 file>` rather than the assembled bytes.
 - `response.body` is parsed JSON when the body is JSON, otherwise a string. A body that is not text (not valid UTF-8) is its base64 with `"body_encoding": "base64"` beside it, so a download survives `--json` intact. Under `--redact` it is the string `"***"`.
+- `response.proto` is the protocol the response came over, `HTTP/1.1` or
+  `HTTP/2.0`. `request.http_version` (omitted otherwise) is the version the
+  request line pins, `HTTP/1.1` or `HTTP/2`; see
+  [HTTP version](format.md#http-version).
 - `saved_to` (omitted otherwise) is where a `>> file` line or `--output` wrote the body, relative to the project root when inside it.
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
@@ -151,6 +157,13 @@ apic run get-user --body-only | jq .email
 - `attempts` (omitted when no retry policy applied) is how many times the
   request was sent; the object describes the last attempt. Attempt lines
   are not printed under `--json`.
+- `iteration` (only under [`--data`](#data-driven-runs)) is
+  `{"index": 3, "total": 50, "row": {"id": "7"}}`: which row the object
+  belongs to and the variables it supplied, values `***` under `--redact`.
+- `skipped` (omitted otherwise) is `"disabled"` for a
+  [`# @disabled`](format.md#pauses-and-disabled-requests) request that a
+  file's flow did not send: `ok` is true and there is no `response`.
+  Naming the request sends it.
 - Requests a `# @ref` or `# @forceRef` ran first are printed as objects of
   their own, before the request that needed them, so there is still exactly
   one object per request sent. The `ran_first` key is only present in the
@@ -159,6 +172,36 @@ apic run get-user --body-only | jq .email
 - When a request could not be sent at all (missing variable, network), the
   error goes to stderr and the exit code is 2 or 3; in a flow, the earlier
   results are still printed.
+
+### Data-driven runs
+
+```sh
+apic run get-user --data users.csv
+apic run checkout.http --data orders.json --keep-going --report orders.html
+jq -c '[.[] | {id}]' ids.json | apic run get-user --data -
+```
+
+`--data` runs the targets once per row. In a CSV file the header row names
+the variables (a spreadsheet's byte order mark is ignored); in JSON each
+object is a row, numbers written without an exponent. The row's values
+sit at `--var` precedence, over the same names from `--var`, for that
+iteration only.
+
+Each iteration starts from the session as it was when the run began and
+writes nothing back, so what one iteration captures does not reach the
+next: fifty users each get their own `{{id}}`, not the last one's.
+`--data-share-session` runs every iteration on one session instead, which
+also saves captures to `.apic/session.json` as a plain run does. A token a
+`# @ref login` fetched is fetched once per iteration without it and once
+with it.
+
+The text output heads each iteration `iteration 3/50 · id=7 name=alice`
+(the values left out under `--redact`) and ends with
+`50 of 50 iterations: 49 passed`; each `--json` object carries
+`iteration`. A failed iteration stops the run unless `--keep-going`, which
+then runs every row and, as in a flow, every request; the exit code is 1
+if any iteration failed. `--output` is refused with `--data`, since it
+would be overwritten each time; `--report` covers every iteration.
 
 ## apic test
 
@@ -233,8 +276,10 @@ requests whose id, URL, file or description contains it, case-insensitively.
 
 `name` is omitted for unnamed requests; `id` is then `file.http#N`. `steps`
 lists the request's `# @step` phrases and `refs` its `# @ref` and
-`# @forceRef` targets, when it has any. A pattern filters the `requests`
-array; the shape does not change.
+`# @forceRef` targets, when it has any. `disabled` is true for a request
+marked [`# @disabled`](format.md#pauses-and-disabled-requests), which a
+flow skips. A pattern filters the `requests` array; the shape does not
+change.
 
 ## apic describe
 
@@ -294,8 +339,10 @@ session) are shown as `***`.
 apic env
 ```
 
-Environments found, which env files exist, the current environment, and
-every variable in effect with its source. Secrets are masked.
+Environments found, which env files exist, the current environment,
+every variable in effect with its source, and the JetBrains
+[`Security.Auth`](auth.md#jetbrains-projects) configurations with the
+oauth2 spec each maps to. Secrets are masked.
 
 `--json`:
 
@@ -308,9 +355,17 @@ every variable in effect with its source. Secrets are masked.
   "variables": [
     {"name": "baseUrl", "value": "https://dev.example.com", "source": "http-client.env.json [dev]"},
     {"name": "password", "value": "***", "source": "http-client.private.env.json [dev]", "secret": true}
+  ],
+  "auth": [
+    {"name": "my-api", "spec": "oauth2 clientId={{clientId}} clientSecret=*** grant=client_credentials tokenUrl=https://login.example.com/oauth2/token",
+     "files": ["http-client.env.json", "http-client.private.env.json"]}
   ]
 }
 ```
+
+`auth` is omitted when the env files declare no configurations. An entry
+apic cannot use has `error` instead of `spec`; `ignored` lists fields it
+does not act on.
 
 ## apic session
 
@@ -359,6 +414,49 @@ masked, and `bearer`/`basic` credentials become `$TOKEN` and
 `oauth2` and `exec` exports already use. Without it, the command runs as
 printed, credentials included.
 
+`apic curl` is [`apic snippet --lang curl`](#apic-snippet), kept for its
+own `--json` shape.
+
+## apic snippet
+
+```
+apic snippet <target> [--lang curl|httpie|powershell|python|js|go]
+```
+
+The request as code in another language, every variable resolved, for a
+machine without apic, a service's README or a colleague on Windows:
+
+| `--lang` | What it prints |
+|---|---|
+| `curl` (default) | The `apic curl` command |
+| `httpie` | An [HTTPie](https://httpie.io/cli) command, `http --ignore-stdin …` |
+| `powershell` | `Invoke-RestMethod` for PowerShell 7, with `-Headers`, `-Body` or `-Form`, `-HttpVersion`, `-SkipCertificateCheck` and `-Proxy` where they apply |
+| `python` | A script using [requests](https://requests.readthedocs.io/): `requests.request(...)` with `headers`, `params`, `auth`, `data`/`files`, `verify`, `cert` and `proxies` |
+| `js` | `fetch` for Node 18+ (an ES module) or a browser, with `FormData` for a multipart body |
+| `go` | A `package main` program using `net/http`, formatted by gofmt |
+
+Auth follows the [curl export](auth.md#curl-export): bearer, basic,
+apikey and digest become what each language uses for them. The rules for
+secrets are curl's too: without `--redact` the snippet runs as printed,
+credentials included; with it the values are masked and the credentials
+come from the environment (`TOKEN`, `APIC_USER`, `APIC_PASSWORD`,
+`APIC_API_KEY`, read as `$env:TOKEN`, `os.environ["TOKEN"]`,
+`process.env.TOKEN`, `os.Getenv("TOKEN")`). What a language cannot do on
+its own is said in a comment at the top: AWS SigV4 signing, digest auth in
+`fetch` and Go, a CA file or client certificate where the snippet cannot
+point at one, a proxy for `fetch`, a required HTTP/2. A missing variable
+fails with exit code 2, as for `apic curl`.
+
+```sh
+apic snippet get-user --lang python
+apic snippet create-order --lang powershell --redact
+apic snippet login --lang go > login.go
+```
+
+`--json` wraps it as `{"id": "get-user", "lang": "python", "code": "..."}`.
+In [the UI](tui.md), <kbd>c</kbd> shows the selected request as curl and
+each press moves to the next language.
+
 ## apic fmt
 
 ```
@@ -370,8 +468,8 @@ Rewrites request files in their canonical form, so files written by
 several people (or agents) stop drifting:
 
 - one blank line between blocks, `### Title` on its own line;
-- directives in a fixed order: `name`, `description`, `step`, `auth`,
-  `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`, `no-session`,
+- directives in a fixed order: `name`, `description`, `disabled`, `step`,
+  `auth`, `ref`, `forceRef`, `sleep`, `retry`, `timeout`, `no-redirect`, `no-session`,
   `no-cookies`, `assert`, `capture`, then unknown ones as written; comments
   keep their place among them;
 - `@name = value` file variables, the request line and header names
@@ -466,6 +564,10 @@ Codes:
 | `bad-ref` | A `# @ref` or `# @forceRef` whose target is not exactly one request in the project. |
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
+| `bad-sleep` | A `# @sleep` whose value is not a duration such as `500ms` or `2s`. |
+| `bad-http-version` | A request line whose HTTP version is not `HTTP/1.1` or `HTTP/2`. |
+| `bad-auth-config` | A JetBrains `Security.Auth` configuration apic cannot use: not OAuth2, the Implicit grant, a missing Token URL or Client ID. |
+| `unknown-auth-key` | A warning: a `Security.Auth` field apic does not act on. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |
@@ -942,6 +1044,8 @@ apic run <request|file.http|file.http#name>... [flags]
 | Flag | Meaning |
 |---|---|
 | `--body-only` | print only the response body (for piping) |
+| `--data <string>` | run the targets once per row of a CSV file (header row names the variables) or JSON array of objects; - reads stdin |
+| `--data-share-session` | with --data, let captures from one iteration reach the next and the session file |
 | `--keep-going` | in a flow, continue after a failure |
 | `--no-retry` | send every request once, ignoring # @retry, --retry and apic.yaml |
 | `--output <string>` | save the response body to this file (one request only; like a "&gt;&gt;! file" line in the request) |
@@ -980,6 +1084,18 @@ apic session cookies
 ```
 
 No flags of its own.
+
+### apic snippet
+
+Print the request as code: curl, HTTPie, PowerShell, Python, JavaScript or Go.
+
+```
+apic snippet <request> [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `-l, --lang <string>` | language: curl, httpie, powershell, python, js, go (default `curl`) |
 
 ### apic test
 

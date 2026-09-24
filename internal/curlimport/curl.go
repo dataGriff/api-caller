@@ -25,7 +25,10 @@ type Request struct {
 	User     string // -u user:password, as `# @auth basic`
 	Insecure bool   // -k
 	Follow   bool   // -L
-	Warnings []string
+	// HTTPVersion is HTTP/1.1 for --http1.1 and HTTP/2 for --http2, written
+	// on the request line; empty otherwise.
+	HTTPVersion string
+	Warnings    []string
 }
 
 // Header is one -H header.
@@ -163,6 +166,10 @@ func Parse(command string) (*Request, error) {
 			r.Follow = true
 		case "compressed":
 			// apic decompresses gzip responses on its own.
+		case "http1.1":
+			r.HTTPVersion = "HTTP/1.1"
+		case "http2":
+			r.HTTPVersion = "HTTP/2"
 		case "quiet":
 		case "tls":
 			warn("%s: configure tls: in apic.yaml, or pass %s to apic itself", tok, tok)
@@ -270,7 +277,7 @@ var flags = map[string]flagSpec{
 	"--connect-to": {"ignored", true}, "--happy-eyeballs-timeout-ms": {"ignored", true}, "--retry-delay": {"ignored", true},
 	"--retry-max-time": {"ignored", true}, "--max-filesize": {"ignored", true}, "-y": {"ignored", true}, "-Y": {"ignored", true},
 	"--ntlm": {"quiet", false}, "--digest": {"quiet", false}, "--negotiate": {"quiet", false}, "--basic": {"quiet", false}, "--anyauth": {"quiet", false},
-	"--http1.1": {"quiet", false}, "--http2": {"quiet", false}, "--http3": {"quiet", false}, "--tlsv1.2": {"quiet", false}, "--tlsv1.3": {"quiet", false},
+	"--http1.1": {"http1.1", false}, "--http1.0": {"http1.1", false}, "-0": {"http1.1", false}, "--http2": {"http2", false}, "--http3": {"quiet", false}, "--tlsv1.2": {"quiet", false}, "--tlsv1.3": {"quiet", false},
 	"-4": {"quiet", false}, "-6": {"quiet", false}, "-N": {"quiet", false}, "--no-buffer": {"quiet", false}, "--retry-all-errors": {"quiet", false},
 	"-o": {"ignored", true}, "--output": {"ignored", true}, "-w": {"ignored", true}, "--write-out": {"ignored", true},
 	"-x": {"ignored", true}, "--proxy": {"ignored", true}, "--max-time": {"ignored", true}, "-m": {"ignored", true},
@@ -521,7 +528,11 @@ func Render(r *Request, name, baseURL string) string {
 		b.WriteString("# curl was run with --insecure; run this with `apic --insecure` or set tls.verifyHost in apic.yaml\n")
 	}
 	b.WriteString("# @assert status == 200\n")
-	fmt.Fprintf(&b, "%s %s\n", r.Method, oneLine(rawURL))
+	line := r.Method + " " + oneLine(rawURL)
+	if r.HTTPVersion != "" {
+		line += " " + r.HTTPVersion
+	}
+	b.WriteString(line + "\n")
 	for _, h := range r.Headers {
 		fmt.Fprintf(&b, "%s: %s\n", oneLine(h.Name), oneLine(h.Value))
 	}

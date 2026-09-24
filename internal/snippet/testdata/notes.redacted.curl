@@ -1,0 +1,7 @@
+curl -sS \
+  -X PURGE \
+  -H "Authorization: Bearer $TOKEN" \
+  --http2 \
+  --cacert 'certs/ca.pem' \
+  --cert 'certs/client.pem' \
+  'https://cdn.example.com/x'

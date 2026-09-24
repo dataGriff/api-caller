@@ -146,6 +146,13 @@ Authorization: Bearer {{token}}
 	if cmd, _ := curl["command"].(string); !strings.Contains(cmd, "Authorization: Bearer t-1") {
 		t.Fatalf("curl_request raw: %v", curl)
 	}
+	py := call("curl_request", map[string]any{"name": "me", "lang": "python"})
+	if code, _ := py["command"].(string); py["lang"] != "python" || !strings.Contains(code, "requests.request(") || strings.Contains(code, "t-1") {
+		t.Fatalf("curl_request python: %v", py)
+	}
+	if e := call("curl_request", map[string]any{"name": "me", "lang": "cobol"}); !strings.Contains(e["_error"].(string), "unknown language") {
+		t.Fatalf("curl_request cobol: %v", e)
+	}
 	// A missing variable is an error naming it, never a command with a
 	// placeholder left in.
 	call("clear_session", map[string]any{})

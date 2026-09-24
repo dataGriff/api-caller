@@ -488,6 +488,31 @@ curl -sS \
   'http://localhost:8089/todos/3'
 ```
 
+curl is one language of six. `apic snippet` prints the same request as
+HTTPie, PowerShell, Python, JavaScript or Go, with the same rules for
+secrets, for the colleague on Windows or the service's README:
+
+<!-- learn -->
+```sh
+apic snippet get-todo -C todos-api --lang python --redact
+```
+
+```
+import os
+
+import requests
+
+response = requests.request(
+    "GET",
+    "http://localhost:8089/todos/3",
+    headers={
+        "Authorization": "Bearer " + os.environ["TOKEN"],
+    },
+)
+print(response.status_code)
+print(response.text)
+```
+
 ## Checkpoint
 
 The imported project runs green as a flow, login included:

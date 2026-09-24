@@ -1,8 +1,10 @@
 package httpfile
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseSample(t *testing.T) {
@@ -13,8 +15,8 @@ func TestParseSample(t *testing.T) {
 	if len(f.Vars) != 2 || f.Vars[0].Name != "baseUrl" || f.Vars[0].Value != "https://api.example.com" {
 		t.Fatalf("vars = %+v", f.Vars)
 	}
-	if len(f.Requests) != 8 {
-		t.Fatalf("want 8 requests, got %d", len(f.Requests))
+	if len(f.Requests) != 9 {
+		t.Fatalf("want 9 requests, got %d", len(f.Requests))
 	}
 
 	login := f.Requests[0]
@@ -71,6 +73,22 @@ func TestParseSample(t *testing.T) {
 	}
 	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
 		t.Errorf("retry directive = %q, %v", v, ok)
+	}
+
+	if up.Disabled() {
+		t.Error("upload is not disabled")
+	}
+	if d, err := up.Sleep(); d != 0 || err != nil {
+		t.Errorf("upload sleep = %v, %v", d, err)
+	}
+	slow := f.Requests[8]
+	if d, err := slow.Sleep(); !slow.Disabled() || d != 1500*time.Millisecond || err != nil {
+		t.Errorf("slow-report: disabled=%v sleep=%v err=%v", slow.Disabled(), d, err)
+	}
+	for _, bad := range []string{"soon", "-1s", ""} {
+		if _, err := ParseSleep(bad); err == nil {
+			t.Errorf("ParseSleep(%q) should fail", bad)
+		}
 	}
 
 	gql := f.Requests[6]
@@ -386,5 +404,22 @@ func TestSaveTo(t *testing.T) {
 		if dg.Code == "editor-script" {
 			t.Errorf("redirect reported as a script: %+v", dg)
 		}
+	}
+}
+
+// The version on a request line is HTTP/1.1 or HTTP/2; anything else is an
+// error at the version's span.
+func TestHTTPVersion(t *testing.T) {
+	f, diags := Parse("v.http", "GET http://x/ HTTP/1.0\n\n###\nGET http://x/ HTTP/2.0\n\n###\n  POST http://x/HTTP/3 HTTP/3\n\n###\nhttp://x/ HTTP/1.1\n")
+	var got []string
+	for _, r := range f.Requests {
+		v, err := r.Protocol()
+		got = append(got, fmt.Sprintf("%s:%v", v, err != nil))
+	}
+	if strings.Join(got, ",") != "HTTP/1.1:false,HTTP/2:false,:true,HTTP/1.1:false" {
+		t.Fatalf("protocols: %v", got)
+	}
+	if len(diags) != 1 || diags[0].Code != "bad-http-version" || diags[0].Line != 7 || diags[0].Column != 24 || diags[0].EndColumn != 30 {
+		t.Fatalf("diags: %+v", diags)
 	}
 }

@@ -70,7 +70,7 @@ terminal and agents need:
 - **Safe to log.** Sensitive headers are masked in output, on the request and the response; `--redact` masks both bodies, all header values, query values, captures and assertion values for stored CI logs, keeping status, timing and pass/fail.
 - **Agent-first output.** `--json` gives a stable object per request; `list` and `describe` make requests discoverable; errors say what to do next.
 - **MCP server.** `apic mcp` exposes every request as a tool for Claude Code, Cursor and friends.
-- **Escape hatches.** `apic curl <id>` prints the equivalent curl; `apic import` scaffolds files from an OpenAPI spec or a Postman collection.
+- **Escape hatches.** `apic curl <id>` prints the equivalent curl, `apic snippet` the same in five other languages; `apic import` scaffolds files from an OpenAPI spec or a Postman collection.
 
 The same file is clickable in VS Code, JetBrains and Neovim, because apic's
 additions are comments.
@@ -171,6 +171,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic env` | Environments found and the variables in effect (secrets masked). |
 | `apic session [clear]` | Captured values stored in `.apic/session.json`. |
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
+| `apic snippet <id> --lang python` | The same request as HTTPie, PowerShell, Python, JavaScript or Go code. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |
 | `apic import <openapi.yaml>` | One `.http` per tag, one named request per operation, example bodies from schemas. |
 | `apic import <collection.postman.json>` | Folders to files, requests to named requests, variables to env files, simple `pm.test` checks to assertions. |
@@ -213,8 +214,11 @@ Shell: `apic list --json`, `apic describe <id> --json`, `apic run <id> --json`.
 MCP: `claude mcp add api -- apic mcp --dir ./api --env dev`.
 See [docs/agents.md](docs/agents.md) for the JSON contract and a snippet to
 paste into your project's `AGENTS.md`. The contract only grows: a body
-that is not text now comes as base64 with `body_encoding` beside it, and
-`saved_to` names the file a `>> file` line wrote.
+that is not text now comes as base64 with `body_encoding` beside it,
+`saved_to` names the file a `>> file` line wrote, a `# @disabled`
+request a flow skipped prints `"skipped": "disabled"` with no response,
+`response.proto` says whether it came over HTTP/1.1 or HTTP/2, and under
+`run --data` each object carries its `iteration`.
 
 ## The format
 

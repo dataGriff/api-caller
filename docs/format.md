@@ -37,7 +37,7 @@ Accept: application/json
 | Comment | `# text` or `// text` |
 | GraphQL request | `GRAPHQL {{baseUrl}}/graphql` (or a `X-REQUEST-TYPE: GraphQL` header): the body is the query, a JSON object after a blank line is the variables; see [GraphQL](#graphql) |
 | Directive | `# @key value` before the request line |
-| Request line | `METHOD url [HTTP/1.1]`; a bare URL means `GET` |
+| Request line | `METHOD url [version]`, the version `HTTP/1.1` or `HTTP/2`; a bare URL means `GET`. See [HTTP version](#http-version) |
 | Query continuation | indented lines starting with `?` or `&` are appended to the URL |
 | Headers | `Name: value` lines until the first blank line. Any RFC 7230 token character may appear in a name, except that a line starting with `#` is a comment |
 | Body | everything after the blank line until the next `###` |
@@ -66,6 +66,8 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @no-cookies` | Send no cookies with this request and keep none it sets, when the [cookie jar](#cookies) is on. |
 | `# @timeout 10s` | Per-request timeout. |
 | `# @retry 10 2s` | Re-send until every assertion passes, up to 10 times, 2s apart (default 1s). See [Retries](#retries). |
+| `# @sleep 2s` | Wait this long before sending, after any `# @ref` ran. See [Pauses and disabled requests](#pauses-and-disabled-requests). |
+| `# @disabled` | Keep the request out of flows: running its file skips it. Asking for it by name still sends it. |
 | `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
 | `# @prompt name` | Accepted and ignored: apic never prompts. Pass the value with `--var name=...`, or put it in an env file. |
 
@@ -101,7 +103,9 @@ Keep secrets in `http-client.private.env.json` and gitignore it; apic masks
 values from that file, from `.env` and from the session in `describe`, `env`
 and MCP output. A JetBrains `SSLConfiguration` entry in either file is not
 a variable: it configures a client certificate, see
-[auth.md](auth.md#tls-and-client-certificates).
+[auth.md](auth.md#tls-and-client-certificates). Neither is a `Security`
+block, whose `Auth` configurations requests use as
+`{{$auth.token("name")}}`; see [JetBrains projects](auth.md#jetbrains-projects).
 
 ### Built-ins
 
@@ -119,6 +123,7 @@ a variable: it configures a client certificate, see
 | `{{$processEnv NAME}}` / `{{$env.NAME}}` | shell environment variable |
 | `{{$dotenv NAME}}` | value from `.env` |
 | `{{$projectRoot}}` | the project root, absolute, for `< {{$projectRoot}}/fixtures/x.json` |
+| `{{$auth.token("name")}}`, `{{$auth.idToken("name")}}` | the access or ID token of a JetBrains `Security.Auth` configuration in the env files; see [JetBrains projects](auth.md#jetbrains-projects) |
 
 An offset is `<n> <unit>`, as REST Client writes it: `-1 d`, `2 h`,
 `30 m`, `-10 s`, `500 ms`, `1 w`, `1 M` (months), `1 Q` (quarters),
@@ -305,6 +310,33 @@ the first failed assertion, failed capture or transport error (use
 `--keep-going` to continue). Exit code is 1 if anything failed. `--json`
 prints one JSON object per request (NDJSON).
 
+## HTTP version
+
+With no version on the request line, apic does what browsers do: HTTP/2
+when the server offers it over TLS, HTTP/1.1 otherwise. A version pins it:
+
+```http
+### A gateway whose HTTP/2 is broken
+GET https://legacy.example.com/report HTTP/1.1
+
+### Prove the API speaks HTTP/2
+GET https://api.example.com/health HTTP/2
+```
+
+- `HTTP/1.1` (or `HTTP/1.0`, sent as 1.1) never uses HTTP/2, even when
+  the server offers it.
+- `HTTP/2` requires it: over `https://` the request fails with exit code 3
+  when the server does not offer HTTP/2, and over plain `http://` it is a
+  usage error, because apic does not send cleartext HTTP/2 (h2c).
+- `HTTP/3`, or anything else, is reported by `apic validate` as
+  `bad-http-version` and refused.
+
+`run -v` puts the protocol the response came over in front of the status
+(`HTTP/2.0 200 OK`), `--json` has it as `response.proto` and the pinned
+version as `request.http_version`, and `apic curl` adds `--http1.1` or
+`--http2`. `apic import curl` reads those two flags back onto the request
+line.
+
 ## Dependencies
 
 A request that needs a value another request captures can say so, and apic
@@ -365,6 +397,33 @@ attempt only, and every attempt gets the full `# @timeout`.
 `# @retry`, `--retry "<attempts> [interval]"` overrides that for one run,
 and `--no-retry` sends everything once. The order is directive, flag, file.
 `apic validate` reports a policy it cannot read as `bad-retry`.
+
+## Pauses and disabled requests
+
+```http
+### Nightly export, slow and rate limited
+# @name export
+# @disabled
+# @sleep 2s
+POST {{baseUrl}}/exports
+```
+
+`# @sleep <duration>` waits that long (a Go duration such as `500ms` or
+`2s`) before the request is sent: after any `# @ref` ran and before the
+first attempt, once however many attempts a `# @retry` makes. Cancelling
+the run (Ctrl-C, `esc` in the UI) cancels the wait. `describe` shows it,
+and `apic validate` reports a value it cannot read as `bad-sleep`.
+
+`# @disabled` keeps a request in the file without it running in the flow.
+Running the file skips it: `apic run export.http`, `f` and `a` in the UI,
+`When I run the file` in a feature and MCP's `run_file`. The flow's output
+says `skipped (disabled)` and its summary counts it (`2 passed, 1
+skipped`); under `--json` the request still prints its object, with
+`"skipped": "disabled"`, `ok: true` and no `response`. Asking for the
+request itself sends it as usual: `apic run export`,
+`apic run export.http#export`, `enter` in the UI, `When I run "export"`,
+MCP's `run_request`, and a `# @ref` to it. `list` marks it
+(`"disabled": true`, dimmed in the UI).
 
 ## Cookies
 
@@ -443,7 +502,7 @@ parts into `--form-string` and `-F name=@file` options.
 
 `apic fmt` rewrites a file the way this page writes them: one blank line
 between blocks, directives in a fixed order (`name`, `description`,
-`step`, `auth`, `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`,
+`disabled`, `step`, `auth`, `ref`, `forceRef`, `sleep`, `retry`, `timeout`, `no-redirect`,
 `no-session`, `no-cookies`, `assert`, `capture`, then the rest as
 written), header names in canonical case, query continuations indented,
 JSON bodies pretty-printed when they hold no placeholders. Every other

@@ -1,0 +1,11 @@
+# TOKEN is an OAuth2 access token from https://idp/token
+# apic's TLS settings are not carried over: client cert certs/client.pem · ca certs/ca.pem
+# the request line asks for HTTP/2, which this client does not require
+# present the client certificate with -Certificate (Get-PfxCertificate 'certs/client.pem')
+$headers = @{
+  'Authorization' = 'Bearer ' + $env:TOKEN
+}
+Invoke-RestMethod -CustomMethod 'PURGE' `
+  -Uri 'https://cdn.example.com/x' `
+  -Headers $headers `
+  -HttpVersion 2.0

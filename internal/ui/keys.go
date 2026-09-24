@@ -48,7 +48,7 @@ func newKeyMap() keyMap {
 		Tab3:     bind("3", "checks tab", "3"),
 		Tab4:     bind("4", "session tab", "4"),
 		Headers:  bind("H", "toggle headers", "H"),
-		Curl:     bind("c", "toggle the curl command", "c"),
+		Curl:     bind("c", "show as code: curl, httpie … go, then hide", "c"),
 		Open:     bind("o", "open in $EDITOR", "o"),
 		Env:      bind("e", "next environment", "e"),
 		Reload:   bind("r", "reload the project", "r"),

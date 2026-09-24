@@ -1,0 +1,7 @@
+http --ignore-stdin \
+  --multipart \
+  --auth="$APIC_USER:$APIC_PASSWORD" \
+  POST \
+  'http://localhost:8080/upload' \
+  'title=***' \
+  'file@docs/report.pdf;type=application/pdf;filename=q3.pdf'

@@ -1,0 +1,4 @@
+curl -sS \
+  -X DELETE \
+  --digest --user "$APIC_USER:$APIC_PASSWORD" \
+  'https://api.example.com/items/7'
