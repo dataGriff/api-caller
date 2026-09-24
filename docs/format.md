@@ -66,6 +66,8 @@ skipping hidden directories, `node_modules` and `vendor`.
 | `# @no-cookies` | Send no cookies with this request and keep none it sets, when the [cookie jar](#cookies) is on. |
 | `# @timeout 10s` | Per-request timeout. |
 | `# @retry 10 2s` | Re-send until every assertion passes, up to 10 times, 2s apart (default 1s). See [Retries](#retries). |
+| `# @sleep 2s` | Wait this long before sending, after any `# @ref` ran. See [Pauses and disabled requests](#pauses-and-disabled-requests). |
+| `# @disabled` | Keep the request out of flows: running its file skips it. Asking for it by name still sends it. |
 | `# @note text` | Free text. Accepted and ignored, for REST Client compatibility. |
 | `# @prompt name` | Accepted and ignored: apic never prompts. Pass the value with `--var name=...`, or put it in an env file. |
 
@@ -366,6 +368,33 @@ attempt only, and every attempt gets the full `# @timeout`.
 and `--no-retry` sends everything once. The order is directive, flag, file.
 `apic validate` reports a policy it cannot read as `bad-retry`.
 
+## Pauses and disabled requests
+
+```http
+### Nightly export, slow and rate limited
+# @name export
+# @disabled
+# @sleep 2s
+POST {{baseUrl}}/exports
+```
+
+`# @sleep <duration>` waits that long (a Go duration such as `500ms` or
+`2s`) before the request is sent: after any `# @ref` ran and before the
+first attempt, once however many attempts a `# @retry` makes. Cancelling
+the run (Ctrl-C, `esc` in the UI) cancels the wait. `describe` shows it,
+and `apic validate` reports a value it cannot read as `bad-sleep`.
+
+`# @disabled` keeps a request in the file without it running in the flow.
+Running the file skips it: `apic run export.http`, `f` and `a` in the UI,
+`When I run the file` in a feature and MCP's `run_file`. The flow's output
+says `skipped (disabled)` and its summary counts it (`2 passed, 1
+skipped`); under `--json` the request still prints its object, with
+`"skipped": "disabled"`, `ok: true` and no `response`. Asking for the
+request itself sends it as usual: `apic run export`,
+`apic run export.http#export`, `enter` in the UI, `When I run "export"`,
+MCP's `run_request`, and a `# @ref` to it. `list` marks it
+(`"disabled": true`, dimmed in the UI).
+
 ## Cookies
 
 apic sends no cookies unless a jar is switched on, with `cookies: true` in
@@ -443,7 +472,7 @@ parts into `--form-string` and `-F name=@file` options.
 
 `apic fmt` rewrites a file the way this page writes them: one blank line
 between blocks, directives in a fixed order (`name`, `description`,
-`step`, `auth`, `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`,
+`disabled`, `step`, `auth`, `ref`, `forceRef`, `sleep`, `retry`, `timeout`, `no-redirect`,
 `no-session`, `no-cookies`, `assert`, `capture`, then the rest as
 written), header names in canonical case, query continuations indented,
 JSON bodies pretty-printed when they hold no placeholders. Every other

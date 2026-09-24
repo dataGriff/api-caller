@@ -52,6 +52,7 @@ var Codes = map[string]string{
 	"bad-ref":             "a `# @ref` or `# @forceRef` whose target is not one request in the project",
 	"ref-cycle":           "a `# @ref` chain that leads back to the request it started from",
 	"bad-retry":           "a `# @retry` (or retry in apic.yaml) that is not `<attempts> [interval]`",
+	"bad-sleep":           "a `# @sleep` whose value is not a duration such as 500ms or 2s",
 	"unknown-selector":    "a selector that is not status, statusText, duration, header.*, cookie.*, body or body.$*, or a body path apic cannot read",
 	"missing-body-file":   "a `< file` body, or a `< file` part of a multipart body, whose file does not exist",
 	"bad-multipart":       "a multipart/form-data body without a boundary, or whose parts are not laid out between `--boundary` delimiters",
@@ -92,6 +93,8 @@ var KnownDirectives = map[string]string{
 	"no-cookies":  "send no cookies with this request and keep none it sets",
 	"timeout":     "per-request timeout, e.g. `10s`",
 	"retry":       "re-send until the assertions pass: `# @retry <attempts> [interval]`, e.g. `# @retry 10 2s`",
+	"sleep":       "wait before sending, e.g. `# @sleep 2s`",
+	"disabled":    "skip the request when its file runs as a flow; `apic run <name>` still sends it",
 	"note":        "free text, ignored (REST Client compatibility)",
 	"prompt":      "REST Client prompt, ignored (pass with --var instead)",
 }

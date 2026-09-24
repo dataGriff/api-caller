@@ -3,6 +3,7 @@ package httpfile
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseSample(t *testing.T) {
@@ -13,8 +14,8 @@ func TestParseSample(t *testing.T) {
 	if len(f.Vars) != 2 || f.Vars[0].Name != "baseUrl" || f.Vars[0].Value != "https://api.example.com" {
 		t.Fatalf("vars = %+v", f.Vars)
 	}
-	if len(f.Requests) != 8 {
-		t.Fatalf("want 8 requests, got %d", len(f.Requests))
+	if len(f.Requests) != 9 {
+		t.Fatalf("want 9 requests, got %d", len(f.Requests))
 	}
 
 	login := f.Requests[0]
@@ -71,6 +72,22 @@ func TestParseSample(t *testing.T) {
 	}
 	if v, ok := up.Directive("retry"); !ok || v != "3 500ms" {
 		t.Errorf("retry directive = %q, %v", v, ok)
+	}
+
+	if up.Disabled() {
+		t.Error("upload is not disabled")
+	}
+	if d, err := up.Sleep(); d != 0 || err != nil {
+		t.Errorf("upload sleep = %v, %v", d, err)
+	}
+	slow := f.Requests[8]
+	if d, err := slow.Sleep(); !slow.Disabled() || d != 1500*time.Millisecond || err != nil {
+		t.Errorf("slow-report: disabled=%v sleep=%v err=%v", slow.Disabled(), d, err)
+	}
+	for _, bad := range []string{"soon", "-1s", ""} {
+		if _, err := ParseSleep(bad); err == nil {
+			t.Errorf("ParseSleep(%q) should fail", bad)
+		}
 	}
 
 	gql := f.Requests[6]

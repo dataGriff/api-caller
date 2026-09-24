@@ -68,10 +68,10 @@ footer{margin-top:40px;color:var(--dim);font-size:12px}
 {{end}}
 
 {{define "request"}}<details{{if not .OK}} open{{end}}>
-<summary><span class="badge {{if .OK}}ok{{else}}fail{{end}}">{{if .OK}}pass{{else}}fail{{end}}</span> <span class="method">{{.Method}}</span> <span class="url">{{.URL}}</span> <span class="file">{{.Name}} · {{.File}}:{{.Line}}</span>{{if .Status}} <span class="status {{if lt .Status 300}}ok{{else if lt .Status 400}}warn{{else}}fail{{end}}">{{.Status}} {{.StatusText}}</span> <span class="dim">{{ms .Duration}} · {{.Size}} B{{if gt .Attempts 1}} · {{.Attempts}} attempts{{end}}{{if .Auth}} · auth {{.Auth}}{{end}}</span>{{end}}</summary>
+<summary>{{if .Skipped}}<span class="badge warn">skipped</span>{{else}}<span class="badge {{if .OK}}ok{{else}}fail{{end}}">{{if .OK}}pass{{else}}fail{{end}}</span>{{end}} <span class="method">{{.Method}}</span> <span class="url">{{.URL}}</span> <span class="file">{{.Name}} · {{.File}}:{{.Line}}</span>{{if .Status}} <span class="status {{if lt .Status 300}}ok{{else if lt .Status 400}}warn{{else}}fail{{end}}">{{.Status}} {{.StatusText}}</span> <span class="dim">{{ms .Duration}} · {{.Size}} B{{if gt .Attempts 1}} · {{.Attempts}} attempts{{end}}{{if .Auth}} · auth {{.Auth}}{{end}}</span>{{end}}</summary>
 <div class="body">
 {{if .Deps}}<div class="dim">ran first (# @ref)</div>{{range .Deps}}{{template "request" .}}{{end}}{{end}}
-{{if .Errors}}{{range .Errors}}<div class="error">{{.}}</div>{{end}}{{end}}
+{{if .Skipped}}<p class="dim">Skipped ({{.Skipped}}): the flow did not send it.</p>{{end}}{{if .Errors}}{{range .Errors}}<div class="error">{{.}}</div>{{end}}{{end}}
 {{if or .Asserts .Captures}}<ul class="checks">{{range .Asserts}}<li class="{{if .Pass}}pass{{else}}failed{{end}}">{{.Expr}}{{if .Error}} <span class="dim">({{.Error}})</span>{{else if not .Pass}} <span class="dim">(actual: {{.Actual}}{{if .Expected}}, expected: {{.Expected}}{{end}})</span>{{end}}</li>{{end}}{{range .Captures}}<li class="capture">{{.Key}} = {{.Value}}</li>{{end}}</ul>{{end}}
 {{if .Timings}}<div class="timings">dns {{.Timings.DNSMs}} ms · connect {{.Timings.ConnectMs}} ms · tls {{.Timings.TLSMs}} ms · ttfb {{.Timings.TTFBMs}} ms · total {{.Timings.TotalMs}} ms · {{if .Timings.Reused}}reused{{else}}new{{end}} connection</div>{{end}}
 <details class="inner"><summary>request</summary><div class="body">{{if .RequestHeaders}}<table>{{range .RequestHeaders}}<tr><th>{{.Key}}</th><td>{{.Value}}</td></tr>{{end}}</table>{{end}}{{if .RequestBody}}<pre>{{json .RequestBody}}</pre>{{else if not .RequestHeaders}}<span class="dim">no headers, no body</span>{{end}}</div></details>
@@ -81,7 +81,7 @@ footer{margin-top:40px;color:var(--dim);font-size:12px}
 {{end}}
 
 {{define "run"}}{{template "head" .}}
-<div class="summary"><div class="{{if .Failed}}fail{{else}}ok{{end}}"><b>{{if .Failed}}{{.Failed}} failed{{else}}all passed{{end}}</b><span>{{len .Requests}} requests</span></div><div class="ok"><b>{{.Passed}}</b><span>passed</span></div><div class="{{if .Failed}}fail{{end}}"><b>{{.Failed}}</b><span>failed</span></div><div><b>{{ms .Duration}}</b><span>total response time</span></div></div>
+<div class="summary"><div class="{{if .Failed}}fail{{else}}ok{{end}}"><b>{{if .Failed}}{{.Failed}} failed{{else}}all passed{{end}}</b><span>{{len .Requests}} requests</span></div><div class="ok"><b>{{.Passed}}</b><span>passed</span></div><div class="{{if .Failed}}fail{{end}}"><b>{{.Failed}}</b><span>failed</span></div>{{if .Skipped}}<div><b>{{.Skipped}}</b><span>skipped</span></div>{{end}}<div><b>{{ms .Duration}}</b><span>total response time</span></div></div>
 <h2>Requests</h2>
 {{range .Requests}}{{template "request" .}}{{end}}
 {{template "foot" .}}{{end}}

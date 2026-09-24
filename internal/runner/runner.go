@@ -112,7 +112,10 @@ type Runner struct {
 	// with its result (never nil) and the error, if any, that stopped it.
 	OnResult func(*Result, error)
 
-	sleep func(ctx context.Context, d time.Duration) error // between attempts; tests replace it
+	sleep func(ctx context.Context, d time.Duration) error // between attempts and for @sleep; tests replace it
+	// named are the requests a target named directly (get-user,
+	// users.http#3): RunAll sends them even when they are # @disabled.
+	named map[*httpfile.Request]bool
 	// Now is the clock the time built-ins read; nil means time.Now.
 	// Tests set it to pin `$timestamp` and friends.
 	Now      func() time.Time
@@ -453,10 +456,13 @@ type Result struct {
 	SavedTo string `json:"saved_to,omitempty"`
 	// Deps are the results of the requests `# @ref` and `# @forceRef` ran
 	// first, in run order; a dependency's own dependencies nest under it.
-	Deps   []*Result `json:"ran_first,omitempty"`
-	Redact bool      `json:"-"` // set from Options.Redact
-	raw    *selector.Response
-	req    *httpfile.Request
+	Deps []*Result `json:"ran_first,omitempty"`
+	// Skipped says why a flow did not send the request: "disabled" for
+	// `# @disabled`. A skipped result is OK and has no response.
+	Skipped string `json:"skipped,omitempty"`
+	Redact  bool   `json:"-"` // set from Options.Redact
+	raw     *selector.Response
+	req     *httpfile.Request
 	// authNote says what the auth did on the wire beyond setting a header:
 	// for digest, whether a challenge was answered. Shown by run -v.
 	authNote string
@@ -1006,6 +1012,15 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 	}
 	// Each schema is read and resolved once for all the attempts.
 	schemas := assert.Options{Schema: assert.Schemas(func(path string) ([]byte, error) { return r.readBodyFile(req, path, "schema") })}
+	pause, err := req.Sleep()
+	if err != nil {
+		return nil, usagef("%s:%d: @sleep: %v", req.File.Path, req.Line, err)
+	}
+	if pause > 0 {
+		if err := r.sleep(ctx, pause); err != nil {
+			return nil, &TransportError{Err: err}
+		}
+	}
 
 	for attempt := 1; ; attempt++ {
 		res, err := r.attempt(ctx, req, resolved, preparedAsserts, schemas, timeout)
@@ -1281,12 +1296,43 @@ func (r *Runner) retryPolicy(req *httpfile.Request) (retryPolicy, error) {
 	return one, nil
 }
 
+// Target resolves a command-line target as Project.Resolve does. A target
+// that names one request (get-user, users.http#get-user, users.http#3)
+// is remembered, so RunAll sends it even when it is # @disabled: that
+// directive only keeps a request out of a file's flow.
+func (r *Runner) Target(target string) ([]*httpfile.Request, error) {
+	reqs, err := r.Project.Resolve(target)
+	if err != nil {
+		return nil, err
+	}
+	if r.Project.File(target) == nil {
+		if r.named == nil {
+			r.named = map[*httpfile.Request]bool{}
+		}
+		for _, req := range reqs {
+			r.named[req] = true
+		}
+	}
+	return reqs, nil
+}
+
 // RunAll runs requests in order as a flow, stopping at the first failure
-// unless KeepGoing is set. Results for requests that ran are always returned.
+// unless KeepGoing is set. Results for requests that ran are always
+// returned. A `# @disabled` request is skipped, with a result that says
+// so, unless Target resolved it by name.
 func (r *Runner) RunAll(ctx context.Context, reqs []*httpfile.Request) ([]*Result, error) {
 	var out []*Result
 	var firstErr error
 	for _, req := range reqs {
+		if req.Disabled() && !r.named[req] {
+			res := &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL},
+				OK: true, Skipped: "disabled", Redact: r.Opts.Redact, req: req}
+			out = append(out, res)
+			if r.OnResult != nil {
+				r.OnResult(res, nil)
+			}
+			continue
+		}
 		res, err := r.Run(ctx, req)
 		if err != nil && res == nil {
 			res = &Result{Request: Resolved{Name: req.Name, File: req.File.Path, Line: req.Line, Method: req.Method, URL: req.URL}, Errors: []string{err.Error()}, req: req}
@@ -1330,6 +1376,8 @@ type Description struct {
 	Asserts     []string          `json:"asserts,omitempty"`
 	Steps       []string          `json:"steps,omitempty"`       // # @step phrases
 	Refs        []string          `json:"refs,omitempty"`        // # @ref and # @forceRef targets
+	Sleep       string            `json:"sleep,omitempty"`       // # @sleep: the wait before sending
+	Disabled    bool              `json:"disabled,omitempty"`    // # @disabled: skipped by flows
 	Auth        string            `json:"auth,omitempty"`        // auth spec template
 	AuthSource  string            `json:"auth_source,omitempty"` // "request" or "apic.yaml"
 	TLS         *TLSInfo          `json:"tls,omitempty"`         // non-default TLS setup for the request's host
@@ -1340,7 +1388,11 @@ type Description struct {
 // Describe reports a request's variables and where each comes from.
 func (r *Runner) Describe(req *httpfile.Request) *Description {
 	d := &Description{Name: req.Name, ID: req.ID(), File: req.File.Path, Line: req.Line, Description: req.Description,
-		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true}
+		Method: req.Method, URLTemplate: req.URL, Headers: headerMap(req.Headers), Body: req.Body, BodyFile: req.BodyFile, Ready: true,
+		Disabled: req.Disabled()}
+	if v, ok := req.Directive("sleep"); ok {
+		d.Sleep = strings.TrimSpace(v)
+	}
 	if req.SaveTo != nil {
 		d.SaveTo = req.SaveTo.Path
 		if req.SaveTo.Overwrite {

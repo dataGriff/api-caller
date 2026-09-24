@@ -349,12 +349,17 @@ func (p *Project) Validate() []httpfile.Diagnostic {
 			}
 		}
 		for _, d := range r.Directives {
-			if d.Key != "retry" {
-				continue
-			}
-			if _, _, err := httpfile.ParseRetry(d.Value); err != nil {
-				col, end := d.Column, d.Column+len(d.Value)
-				diags = append(diags, diag(r.File.Path, "error", "bad-retry", d.Line, col, end, fmt.Sprintf("@retry %q: %v", d.Value, err)))
+			switch d.Key {
+			case "retry":
+				if _, _, err := httpfile.ParseRetry(d.Value); err != nil {
+					col, end := d.Column, d.Column+len(d.Value)
+					diags = append(diags, diag(r.File.Path, "error", "bad-retry", d.Line, col, end, fmt.Sprintf("@retry %q: %v", d.Value, err)))
+				}
+			case "sleep":
+				if _, err := httpfile.ParseSleep(d.Value); err != nil {
+					col, end := d.Column, d.Column+len(d.Value)
+					diags = append(diags, diag(r.File.Path, "error", "bad-sleep", d.Line, col, end, "@sleep: "+err.Error()))
+				}
 			}
 		}
 		for _, d := range r.Directives {

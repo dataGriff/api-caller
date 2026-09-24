@@ -67,8 +67,8 @@ func Format(src string) string {
 // directiveRank orders the known directives; unknown ones come after,
 // in the order they were written.
 var directiveRank = map[string]int{
-	"name": 0, "description": 1, "step": 2, "auth": 3, "ref": 4, "forceRef": 5, "retry": 6,
-	"timeout": 7, "no-redirect": 8, "no-session": 9, "no-cookies": 10, "assert": 11, "capture": 12,
+	"name": 0, "description": 1, "disabled": 2, "step": 3, "auth": 4, "ref": 5, "forceRef": 6, "sleep": 7,
+	"retry": 8, "timeout": 9, "no-redirect": 10, "no-session": 11, "no-cookies": 12, "assert": 13, "capture": 14,
 }
 
 var reBodyFile = regexp.MustCompile(`^<@?\s+`)

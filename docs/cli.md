@@ -151,6 +151,10 @@ apic run get-user --body-only | jq .email
 - `attempts` (omitted when no retry policy applied) is how many times the
   request was sent; the object describes the last attempt. Attempt lines
   are not printed under `--json`.
+- `skipped` (omitted otherwise) is `"disabled"` for a
+  [`# @disabled`](format.md#pauses-and-disabled-requests) request that a
+  file's flow did not send: `ok` is true and there is no `response`.
+  Naming the request sends it.
 - Requests a `# @ref` or `# @forceRef` ran first are printed as objects of
   their own, before the request that needed them, so there is still exactly
   one object per request sent. The `ran_first` key is only present in the
@@ -233,8 +237,10 @@ requests whose id, URL, file or description contains it, case-insensitively.
 
 `name` is omitted for unnamed requests; `id` is then `file.http#N`. `steps`
 lists the request's `# @step` phrases and `refs` its `# @ref` and
-`# @forceRef` targets, when it has any. A pattern filters the `requests`
-array; the shape does not change.
+`# @forceRef` targets, when it has any. `disabled` is true for a request
+marked [`# @disabled`](format.md#pauses-and-disabled-requests), which a
+flow skips. A pattern filters the `requests` array; the shape does not
+change.
 
 ## apic describe
 
@@ -370,8 +376,8 @@ Rewrites request files in their canonical form, so files written by
 several people (or agents) stop drifting:
 
 - one blank line between blocks, `### Title` on its own line;
-- directives in a fixed order: `name`, `description`, `step`, `auth`,
-  `ref`, `forceRef`, `retry`, `timeout`, `no-redirect`, `no-session`,
+- directives in a fixed order: `name`, `description`, `disabled`, `step`,
+  `auth`, `ref`, `forceRef`, `sleep`, `retry`, `timeout`, `no-redirect`, `no-session`,
   `no-cookies`, `assert`, `capture`, then unknown ones as written; comments
   keep their place among them;
 - `@name = value` file variables, the request line and header names
@@ -466,6 +472,7 @@ Codes:
 | `bad-ref` | A `# @ref` or `# @forceRef` whose target is not exactly one request in the project. |
 | `ref-cycle` | A `# @ref` chain that leads back to the request it started from. |
 | `bad-retry` | A `# @retry` directive, or `retry` in `apic.yaml`, that is not `<attempts> [interval]`. |
+| `bad-sleep` | A `# @sleep` whose value is not a duration such as `500ms` or `2s`. |
 | `unknown-selector` | A selector that is not `status`, `statusText`, `duration`, `header.*`, `body` or `body.$*`. |
 | `missing-body-file` | A `< file` body, or a `< file` part of a multipart body, whose file does not exist. |
 | `bad-multipart` | A `multipart/form-data` body without a boundary, or whose parts are not laid out between `--boundary` delimiters. |

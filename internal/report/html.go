@@ -45,15 +45,16 @@ type Meta struct {
 // A Run report: one section per request, dependencies nested.
 type runPage struct {
 	Meta
-	Passed, Failed int
-	Duration       time.Duration
-	Requests       []requestView
+	Passed, Failed, Skipped int
+	Duration                time.Duration
+	Requests                []requestView
 }
 
 type requestView struct {
 	Name, Method, URL, File string
 	Line                    int
 	OK                      bool
+	Skipped                 string // why a flow did not send it: "disabled"
 	Status                  int
 	StatusText              string
 	Duration                time.Duration
@@ -85,9 +86,12 @@ func Run(w io.Writer, meta Meta, results []*runner.Result) error {
 		v := view(res)
 		p.Requests = append(p.Requests, v)
 		p.Duration += v.Duration
-		if v.OK {
+		switch {
+		case v.Skipped != "":
+			p.Skipped++
+		case v.OK:
 			p.Passed++
-		} else {
+		default:
 			p.Failed++
 		}
 	}
@@ -107,7 +111,7 @@ func fill(m Meta, title string) Meta {
 
 func view(res *runner.Result) requestView {
 	v := requestView{Name: res.Request.Name, Method: res.Request.Method, URL: res.Request.DisplayURL(res.Redact), File: res.Request.File, Line: res.Request.Line,
-		OK: res.OK, Attempts: res.Attempts, Auth: res.Request.Auth, RequestBody: res.Request.DisplayBody(res.Redact), Errors: res.Errors}
+		OK: res.OK, Skipped: res.Skipped, Attempts: res.Attempts, Auth: res.Request.Auth, RequestBody: res.Request.DisplayBody(res.Redact), Errors: res.Errors}
 	if v.Name == "" {
 		v.Name = fmt.Sprintf("%s#%d", v.File, v.Line)
 	}

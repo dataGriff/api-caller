@@ -38,7 +38,8 @@ reused by later calls automatically, so run a login request once and then
 call the requests that depend on it. A request that declares "# @ref login"
 runs login by itself when the token is missing; the result then lists what
 ran first under ran_first. run_file runs every request in a file in
-order as a flow. run_features runs the project's Gherkin .feature files and
+order as a flow, skipping those marked disabled (their results say
+skipped: disabled); run_request sends a disabled request all the same. run_features runs the project's Gherkin .feature files and
 reports which steps failed. validate_project checks every .http file without
 sending anything, with the line and column of each problem, so run it after
 editing a file. curl_request gives the equivalent curl command for a request.
@@ -133,7 +134,8 @@ type requestSummary struct {
 	Description string   `json:"description,omitempty"`
 	Captures    []string `json:"captures,omitempty"`
 	Asserts     []string `json:"asserts,omitempty"`
-	Refs        []string `json:"refs,omitempty"` // # @ref and # @forceRef targets
+	Refs        []string `json:"refs,omitempty"`     // # @ref and # @forceRef targets
+	Disabled    bool     `json:"disabled,omitempty"` // # @disabled: run_file skips it
 }
 
 func (s *service) listRequests(_ context.Context, _ *sdk.CallToolRequest, _ emptyInput) (*sdk.CallToolResult, any, error) {
@@ -152,7 +154,7 @@ func (s *service) listRequests(_ context.Context, _ *sdk.CallToolRequest, _ empt
 }
 
 func summarize(r *httpfile.Request) requestSummary {
-	e := requestSummary{ID: r.ID(), Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description}
+	e := requestSummary{ID: r.ID(), Method: r.Method, URL: r.URL, File: r.File.Path, Line: r.Line, Description: r.Description, Disabled: r.Disabled()}
 	for _, c := range r.Captures {
 		e.Captures = append(e.Captures, c.Name)
 	}

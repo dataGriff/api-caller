@@ -52,6 +52,7 @@ its state, method, id and description:
 | `○` | Not ready: something is missing, usually a token another request captures. |
 | `✓` | Ran and passed every assertion and capture. |
 | `✗` | Ran and failed, or could not be sent at all. |
+| `-` | [`# @disabled`](format.md#pauses-and-disabled-requests): dimmed, and skipped by <kbd>f</kbd> and <kbd>a</kbd>; <kbd>enter</kbd> still sends it. |
 | spinner | In flight. |
 
 Once a request has run, its status code and round trip sit at the right of

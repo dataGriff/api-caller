@@ -73,3 +73,9 @@ POST {{baseUrl}}/graphql
 X-REQUEST-TYPE: GraphQL
 
 { todos { id } }
+
+### Rate limited, kept out of the flow
+# @name slow-report
+# @disabled
+# @sleep 1500ms
+GET {{baseUrl}}/reports/slow

@@ -142,7 +142,7 @@ func (m *Model) fileRequests() []*httpfile.Request {
 	}
 	var out []*httpfile.Request
 	for _, it := range m.items {
-		if it.req != nil && it.file == sel.File.Path {
+		if it.req != nil && it.file == sel.File.Path && !it.req.Disabled() {
 			out = append(out, it.req)
 		}
 	}
@@ -152,7 +152,7 @@ func (m *Model) fileRequests() []*httpfile.Request {
 func (m *Model) allRequests() []*httpfile.Request {
 	var out []*httpfile.Request
 	for _, it := range m.items {
-		if it.req != nil {
+		if it.req != nil && !it.req.Disabled() {
 			out = append(out, it.req)
 		}
 	}
@@ -226,8 +226,12 @@ func (m *Model) renderRow(it item, cursor bool, width int, rolls map[string]roll
 		prefix = t.Accent.Render("▸ ")
 	}
 	id := r.ID()
-	if cursor {
+	switch {
+	case cursor:
 		id = t.Bold.Render(id)
+	case r.Disabled():
+		// Kept out of runs of the file and of everything; r still sends it.
+		id = t.Dim.Render(id)
 	}
 	head := prefix + m.rowMark(r) + " " + t.Method(fmt.Sprintf("%-6s", r.Method)) + " " + id
 
@@ -358,7 +362,7 @@ func (m *Model) renderRollup(r rollup) string {
 }
 
 // rowMark is the one-character state of a request: running, passed, failed,
-// ready or not ready.
+// disabled, ready or not ready.
 func (m *Model) rowMark(r *httpfile.Request) string {
 	t := m.theme
 	if rs := m.inflight; rs != nil && rs.reqs[rs.idx] == r {
@@ -369,6 +373,9 @@ func (m *Model) rowMark(r *httpfile.Request) string {
 	}
 	if res := m.results[r]; res != nil {
 		return t.Mark(res.OK)
+	}
+	if r.Disabled() {
+		return t.Dim.Render("-")
 	}
 	if d := m.descs[r]; d != nil && !d.Ready {
 		return t.Warn.Render("○")

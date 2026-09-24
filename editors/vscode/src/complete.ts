@@ -110,6 +110,8 @@ const DIRECTIVES: Record<string, DirectiveInfo> = {
   "no-cookies": { body: "no-cookies", doc: "Send no cookies with this request and keep none it sets." },
   timeout: { body: "timeout ${1:10s}", doc: "Per-request timeout." },
   retry: { body: "retry ${1:5} ${2:1s}", doc: "Re-send until every assertion passes, up to N times, this long apart." },
+  sleep: { body: "sleep ${1:1s}", doc: "Wait this long before sending, e.g. for a rate-limited API." },
+  disabled: { body: "disabled", doc: "Skip this request when its file runs as a flow; running it by name still sends it." },
   note: { body: "note ${1:text}", doc: "Free text, accepted and ignored (REST Client compatibility)." },
   prompt: { body: "prompt ${1:name}", doc: "Accepted and ignored: apic never prompts. Pass the value with --var or an env file." },
 };

@@ -53,7 +53,7 @@ seconds apart; each failed attempt prints a line as it happens.`,
 			}
 			var reqs []*httpfile.Request
 			for _, t := range args {
-				rs, err := r.Project.Resolve(t)
+				rs, err := r.Target(t)
 				if err != nil {
 					return &runner.UsageError{Msg: err.Error()}
 				}

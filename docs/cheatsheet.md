@@ -77,6 +77,8 @@ Written as comments before the request line, so editors ignore them.
 | `# @no-cookies` | Send and keep no cookies for this request |
 | `# @timeout 10s` | Per-request timeout |
 | `# @retry 10 2s` | Re-send until the assertions pass, up to 10 times, 2s apart |
+| `# @sleep 2s` | Wait before sending |
+| `# @disabled` | Skipped when its file runs as a flow; `apic run <name>` still sends it |
 | `# @note text` | Free text, ignored (REST Client compatibility) |
 | `# @prompt name` | Ignored; pass the value with `--var name=...` instead |
 

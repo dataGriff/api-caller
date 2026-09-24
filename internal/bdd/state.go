@@ -339,7 +339,7 @@ func (s *scenario) render(text string) (string, error) {
 // vars apply to this invocation only: phrase parameters and `with:` tables
 // do not leak into later steps.
 func (s *scenario) run(ctx context.Context, target string, vars map[string]string) error {
-	reqs, err := s.r.Project.Resolve(target)
+	reqs, err := s.r.Target(target)
 	if err != nil {
 		return s.cfg.fail(&runner.UsageError{Msg: err.Error()})
 	}
@@ -357,8 +357,12 @@ func (s *scenario) runRequests(ctx context.Context, reqs []*httpfile.Request, va
 	restore := s.setScoped(vars)
 	defer restore()
 	results, err := s.r.RunAll(ctx, reqs)
-	if len(results) > 0 {
-		s.last = results[len(results)-1]
+	// The last response is the last request that went out: a # @disabled
+	// request the flow skipped has none.
+	for i := len(results) - 1; i >= 0 && s.last == nil; i-- {
+		if results[i].Skipped == "" {
+			s.last = results[i]
+		}
 	}
 	for _, res := range results {
 		s.cfg.noteSecrets(res.Captures)
