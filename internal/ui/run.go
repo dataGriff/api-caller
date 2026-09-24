@@ -9,6 +9,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/output"
 	"github.com/dataGriff/api-caller/internal/runner"
+	"github.com/dataGriff/api-caller/internal/snippet"
 )
 
 // resultMsg is one finished request (a single run, or one step of a flow).
@@ -73,8 +74,8 @@ func (m *Model) handleKey(msg Key) Cmd {
 			m.filter = ""
 			m.clampCursor()
 			m.selected = m.selectedReq()
-		case m.showCurl:
-			m.showCurl = false
+		case m.codeLang > 0:
+			m.codeLang = 0
 		}
 	case k.Down.matches(msg):
 		m.move(1)
@@ -114,7 +115,7 @@ func (m *Model) handleKey(msg Key) Cmd {
 		m.showHeaders = !m.showHeaders
 		m.tab = tabResponse
 	case k.Curl.matches(msg):
-		m.showCurl = !m.showCurl
+		m.codeLang = (m.codeLang + 1) % (len(snippet.Languages) + 1)
 		m.tab = tabResponse
 	case k.Open.matches(msg):
 		return m.openEditor()
@@ -161,7 +162,7 @@ func (m *Model) startRun(reqs []*httpfile.Request, flow bool) Cmd {
 		delete(m.results, r)
 		delete(m.errs, r)
 	}
-	m.showCurl = false
+	m.codeLang = 0
 	m.tab = tabResponse
 	m.selected = reqs[0]
 	return m.stepCmd()

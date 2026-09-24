@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/dataGriff/api-caller/internal/auth"
-	"github.com/dataGriff/api-caller/internal/curlexport"
 	"github.com/dataGriff/api-caller/internal/output"
+	"github.com/dataGriff/api-caller/internal/snippet"
 )
 
 // renderTabs draws the tab strip above the viewport, with the scroll
@@ -112,8 +112,13 @@ func (m *Model) renderResponse(width int) string {
 	if res == nil {
 		return t.Dim.Render("not run yet · press enter to send it, f to run the whole file")
 	}
-	if m.showCurl {
-		return t.Bold.Render("curl") + "\n\n" + m.curlFor() + "\n\n" + t.Dim.Render("c hides this")
+	if m.codeLang > 0 {
+		lang := snippet.Languages[m.codeLang-1]
+		next := "c hides this"
+		if m.codeLang < len(snippet.Languages) {
+			next = "c shows " + snippet.Languages[m.codeLang]
+		}
+		return t.Bold.Render(lang) + t.Dim.Render(fmt.Sprintf(" · %d/%d", m.codeLang, len(snippet.Languages))) + "\n\n" + m.codeFor(lang) + "\n\n" + t.Dim.Render(next)
 	}
 	var b strings.Builder
 	b.WriteString(output.RequestLine(t, res) + "\n")
@@ -139,8 +144,8 @@ func (m *Model) renderResponse(width int) string {
 	return b.String()
 }
 
-// curlFor renders the curl command for the selected request.
-func (m *Model) curlFor() string {
+// codeFor renders the selected request as code in lang.
+func (m *Model) codeFor(lang string) string {
 	if m.inflight != nil {
 		return m.theme.Dim.Render("(available once the run finishes)")
 	}
@@ -149,10 +154,14 @@ func (m *Model) curlFor() string {
 	if err != nil {
 		return m.theme.Fail.Render("✗ ") + err.Error()
 	}
-	if d := m.descs[r]; d != nil && !d.Ready {
-		return m.theme.Warn.Render("some variables are missing; the command below is incomplete") + "\n\n" + curlexport.Command(resolved, m.cfg.Redact)
+	code, err := snippet.Render(lang, resolved, m.cfg.Redact)
+	if err != nil {
+		return m.theme.Fail.Render("✗ ") + err.Error()
 	}
-	return curlexport.Command(resolved, m.cfg.Redact)
+	if d := m.descs[r]; d != nil && !d.Ready {
+		return m.theme.Warn.Render("some variables are missing; the code below is incomplete") + "\n\n" + code
+	}
+	return code
 }
 
 func (m *Model) renderChecks(width int) string {

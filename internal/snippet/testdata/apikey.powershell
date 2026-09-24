@@ -1,0 +1,5 @@
+Invoke-RestMethod -Method Get `
+  -Uri 'https://internal.example.com/v1/items?api_key=k-123' `
+  -HttpVersion 1.1 `
+  -SkipCertificateCheck `
+  -Proxy 'http://proxy.internal:3128'

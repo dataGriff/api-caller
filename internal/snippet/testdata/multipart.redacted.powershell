@@ -1,0 +1,11 @@
+$headers = @{
+  'Authorization' = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($env:APIC_USER + ':' + $env:APIC_PASSWORD))
+}
+$form = @{
+  'title' = '***'
+  'file' = Get-Item 'docs/report.pdf'
+}
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/upload' `
+  -Headers $headers `
+  -Form $form

@@ -1,0 +1,17 @@
+import os
+
+import requests
+
+response = requests.request(
+    "POST",
+    "https://api.example.com/todos?list=***&q=***",
+    headers={
+        "Content-Type": "***",
+        "Accept": "***",
+        "X-Note": "***",
+        "Authorization": "Bearer " + os.environ["TOKEN"],
+    },
+    data="***".encode(),
+)
+print(response.status_code)
+print(response.text)

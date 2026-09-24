@@ -1,0 +1,8 @@
+http --ignore-stdin \
+  --raw='***' \
+  POST \
+  'https://api.example.com/todos?list=***&q=***' \
+  'Content-Type:***' \
+  'Accept:***' \
+  'X-Note:***' \
+  "Authorization:Bearer $TOKEN"

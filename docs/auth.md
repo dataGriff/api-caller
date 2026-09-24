@@ -350,7 +350,9 @@ host override.
 
 ## curl export
 
-`apic curl <id>` maps auth onto curl where curl has an equivalent:
+`apic curl <id>` maps auth onto curl where curl has an equivalent (and
+[`apic snippet`](cli.md#apic-snippet) onto the other languages, in the
+second table):
 
 | Type | curl flags |
 |---|---|
@@ -361,6 +363,15 @@ host override.
 | `aws` | `--aws-sigv4 'aws:amz:<region>:<service>' --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY"` plus the session token header |
 | `oauth2` | a placeholder `$TOKEN` header with a comment naming the token URL |
 | `exec` | `-H "Authorization: Bearer $(command)"` |
+
+| Type | httpie | powershell | python | js | go |
+|---|---|---|---|---|---|
+| `bearer` | `Authorization:` item | `Authorization` in `-Headers` | `headers={"Authorization": ...}` | `headers` | `req.Header.Set` |
+| `basic` | `--auth` | a `Basic` header | `auth=(user, password)` | a `Basic` header with `btoa` | `req.SetBasicAuth` |
+| `apikey` | a header item, or `name==key` for the query | a header, or the key in `-Uri` | `headers`, or `params` | `headers`, or `url.searchParams` | `req.Header.Set`, or the query |
+| `digest` | `--auth-type=digest --auth` | `-Credential` | `auth=HTTPDigestAuth(...)` | a comment | a comment |
+| `aws` | a comment | a comment | a comment | a comment | a comment |
+| `oauth2`, `exec` | the header from `$TOKEN`, with a comment naming the token URL or the command | the same, from `$env:TOKEN` | the same, from `os.environ` | the same, from `process.env` | the same, from `os.Getenv` |
 
 ## For agents
 

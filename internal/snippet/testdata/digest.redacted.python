@@ -1,0 +1,12 @@
+import os
+
+import requests
+from requests.auth import HTTPDigestAuth
+
+response = requests.request(
+    "DELETE",
+    "https://api.example.com/items/7",
+    auth=HTTPDigestAuth(os.environ["APIC_USER"], os.environ["APIC_PASSWORD"]),
+)
+print(response.status_code)
+print(response.text)

@@ -1,0 +1,14 @@
+# TOKEN is the output of: gcloud auth print-access-token
+import os
+
+import requests
+
+response = requests.request(
+    "GET",
+    "https://api.example.com/me",
+    headers={
+        "X-Token": os.environ["TOKEN"],
+    },
+)
+print(response.status_code)
+print(response.text)

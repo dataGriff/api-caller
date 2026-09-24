@@ -1,0 +1,6 @@
+curl -sS \
+  -X POST \
+  --form-string 'title=***' \
+  -F 'file=@docs/report.pdf;type=application/pdf;filename=q3.pdf' \
+  --user "$APIC_USER:$APIC_PASSWORD" \
+  'http://localhost:8080/upload'

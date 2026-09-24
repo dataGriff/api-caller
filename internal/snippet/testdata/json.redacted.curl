@@ -1,0 +1,7 @@
+curl -sS \
+  -H 'Content-Type: ***' \
+  -H 'Accept: ***' \
+  -H 'X-Note: ***' \
+  --data-raw '***' \
+  -H "Authorization: Bearer $TOKEN" \
+  'https://api.example.com/todos?list=***&q=***'

@@ -1,0 +1,7 @@
+http --ignore-stdin \
+  --verify=no \
+  --proxy='http:http://proxy.internal:3128' \
+  --proxy='https:http://proxy.internal:3128' \
+  GET \
+  'https://internal.example.com/v1/items' \
+  'api_key==k-123'

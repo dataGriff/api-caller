@@ -1,0 +1,7 @@
+# TOKEN is the output of: gcloud auth print-access-token
+$headers = @{
+  'X-Token' = $env:TOKEN
+}
+Invoke-RestMethod -Method Get `
+  -Uri 'https://api.example.com/me' `
+  -Headers $headers

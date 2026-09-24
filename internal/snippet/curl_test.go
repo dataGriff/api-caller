@@ -1,4 +1,4 @@
-package curlexport
+package snippet
 
 import (
 	"strings"
@@ -9,17 +9,17 @@ import (
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
-func TestCommand(t *testing.T) {
-	got := Command(&runner.Resolved{Method: "POST", URL: "https://a.b/c?x=1",
+func TestCurl(t *testing.T) {
+	got := Curl(&runner.Resolved{Method: "POST", URL: "https://a.b/c?x=1",
 		Headers: []httpfile.Header{{Name: "Authorization", Value: "******'s"}}, Body: `{"a":1}`}, false)
 	want := "curl -sS \\\n  -H 'Authorization: ******'\\''s' \\\n  --data-raw '{\"a\":1}' \\\n  'https://a.b/c?x=1'"
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
-	if got := Command(&runner.Resolved{Method: "DELETE", URL: "https://a.b"}, false); got != "curl -sS \\\n  -X DELETE \\\n  'https://a.b'" {
+	if got := Curl(&runner.Resolved{Method: "DELETE", URL: "https://a.b"}, false); got != "curl -sS \\\n  -X DELETE \\\n  'https://a.b'" {
 		t.Fatalf("got %q", got)
 	}
-	if got := Command(&runner.Resolved{Method: "GET", URL: "https://a.b", Body: "x=1"}, false); got != "curl -sS \\\n  -X GET \\\n  --data-raw 'x=1' \\\n  'https://a.b'" {
+	if got := Curl(&runner.Resolved{Method: "GET", URL: "https://a.b", Body: "x=1"}, false); got != "curl -sS \\\n  -X GET \\\n  --data-raw 'x=1' \\\n  'https://a.b'" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -42,7 +42,7 @@ func TestAuthFlags(t *testing.T) {
 		"oauth2 tokenUrl=https://idp/t clientId=c": "$TOKEN",
 	}
 	for spec, want := range cases {
-		if got := Command(mk(spec), false); !strings.Contains(got, want) {
+		if got := Curl(mk(spec), false); !strings.Contains(got, want) {
 			t.Errorf("%s:\n%s\nmissing %s", spec, got, want)
 		}
 	}
@@ -53,7 +53,7 @@ func TestOAuth2ExportHasNoInlineComment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := Command(&runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}, false)
+	got := Curl(&runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}, false)
 	if strings.Contains(got, "#") {
 		t.Fatalf("unexpected inline comment in curl export:\n%s", got)
 	}
@@ -64,7 +64,7 @@ func TestExecExportQuotesArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := Command(&runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}, false)
+	got := Curl(&runner.Resolved{Method: "GET", URL: "https://a.b", AuthSpec: s}, false)
 	want := `-H 'X-Api-Key: pre;fix '$('cmd' 'arg with space' 'quo'\''te')`
 	if !strings.Contains(got, want) {
 		t.Fatalf("got\n%s\nmissing\n%s", got, want)
@@ -90,21 +90,21 @@ func TestCommandRedacts(t *testing.T) {
 	}
 	live := []string{"live-token", "live-key", "live-password", "bearer-secret", "basic-user", "basic-password"}
 	for _, spec := range []string{"bearer bearer-secret", "basic basic-user basic-password"} {
-		got := Command(mk(spec), true)
+		got := Curl(mk(spec), true)
 		for _, bad := range live {
 			if strings.Contains(got, bad) {
 				t.Errorf("%s: redacted command leaks %q:\n%s", spec, bad, got)
 			}
 		}
 	}
-	if got := Command(mk("bearer bearer-secret"), true); !strings.Contains(got, "$TOKEN") {
+	if got := Curl(mk("bearer bearer-secret"), true); !strings.Contains(got, "$TOKEN") {
 		t.Errorf("redacted bearer should use a placeholder:\n%s", got)
 	}
-	if got := Command(mk("basic basic-user basic-password"), true); !strings.Contains(got, "$APIC_USER:$APIC_PASSWORD") {
+	if got := Curl(mk("basic basic-user basic-password"), true); !strings.Contains(got, "$APIC_USER:$APIC_PASSWORD") {
 		t.Errorf("redacted basic should use placeholders:\n%s", got)
 	}
 	// Without redact the command stays runnable as printed.
-	if got := Command(mk("bearer bearer-secret"), false); !strings.Contains(got, "bearer-secret") {
+	if got := Curl(mk("bearer bearer-secret"), false); !strings.Contains(got, "bearer-secret") {
 		t.Errorf("without redact the command should be runnable:\n%s", got)
 	}
 }
@@ -119,11 +119,11 @@ func TestCommandMapsMultipartPartsOntoForm(t *testing.T) {
 			{Name: "meta", Filename: "renamed.json", File: "files/meta.json"},
 		}}
 	want := "curl -sS \\\n  -H 'X-Trace: 1' \\\n  --form-string 'title=Quarterly report for alice' \\\n  -F 'file=@files/report.pdf;type=application/pdf' \\\n  -F 'meta=@files/meta.json;filename=renamed.json' \\\n  'https://a.b/upload'"
-	if got := Command(r, false); got != want {
+	if got := Curl(r, false); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	// Redacted: values masked, paths kept, no body summary leaks in.
-	got := Command(r, true)
+	got := Curl(r, true)
 	if !strings.Contains(got, "--form-string 'title=***'") || !strings.Contains(got, "-F 'file=@files/report.pdf;type=application/pdf'") || strings.Contains(got, "data-raw") {
 		t.Errorf("redacted: %s", got)
 	}
@@ -132,12 +132,12 @@ func TestCommandMapsMultipartPartsOntoForm(t *testing.T) {
 func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
 	r := &runner.Resolved{Method: "GET", URL: "https://api.internal/me", TLS: &runner.TLSInfo{CAFile: "certs/ca.pem", CertFile: "certs/client.pem", KeyFile: "certs/client-key.pem", Insecure: true}}
 	want := "curl -sS \\\n  --cacert 'certs/ca.pem' \\\n  --cert 'certs/client.pem' \\\n  --key 'certs/client-key.pem' \\\n  --insecure \\\n  'https://api.internal/me'"
-	if got := Command(r, false); got != want {
+	if got := Curl(r, false); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	// One file for both: no --key.
 	r.TLS = &runner.TLSInfo{CertFile: "certs/client.pem", KeyFile: "certs/client.pem"}
-	if got := Command(r, true); strings.Contains(got, "--key") || !strings.Contains(got, "--cert 'certs/client.pem'") {
+	if got := Curl(r, true); strings.Contains(got, "--key") || !strings.Contains(got, "--cert 'certs/client.pem'") {
 		t.Errorf("combined file: %s", got)
 	}
 }
@@ -146,26 +146,26 @@ func TestCommandMapsTLSOntoCurlFlags(t *testing.T) {
 func TestCommandKeepsTheHTTPVersion(t *testing.T) {
 	for version, flag := range map[string]string{"HTTP/1.1": "--http1.1", "HTTP/2": "--http2"} {
 		r := &runner.Resolved{Method: "GET", URL: "https://x/", HTTPVersion: version}
-		if got, want := Command(r, false), "curl -sS \\\n  "+flag+" \\\n  'https://x/'"; got != want {
+		if got, want := Curl(r, false), "curl -sS \\\n  "+flag+" \\\n  'https://x/'"; got != want {
 			t.Errorf("%s: got\n%s\nwant\n%s", version, got, want)
 		}
 	}
-	if got := Command(&runner.Resolved{Method: "GET", URL: "https://x/"}, false); strings.Contains(got, "--http") {
+	if got := Curl(&runner.Resolved{Method: "GET", URL: "https://x/"}, false); strings.Contains(got, "--http") {
 		t.Errorf("no version, no flag: %s", got)
 	}
 }
 
 func TestProxyFlags(t *testing.T) {
 	base := &runner.Resolved{Method: "GET", URL: "https://a.b"}
-	if got := Command(base, false); strings.Contains(got, "proxy") {
+	if got := Curl(base, false); strings.Contains(got, "proxy") {
 		t.Fatalf("no proxy configured, got %q", got)
 	}
 	base.Proxy = &runner.ProxyInfo{URL: "http://***@proxy.internal:3128", Source: "apic.yaml"}
-	if got := Command(base, true); !strings.Contains(got, "--proxy 'http://***@proxy.internal:3128' \\\n  'https://a.b'") {
+	if got := Curl(base, true); !strings.Contains(got, "--proxy 'http://***@proxy.internal:3128' \\\n  'https://a.b'") {
 		t.Fatalf("redacted proxy: %q", got)
 	}
 	base.Proxy = &runner.ProxyInfo{Source: "--no-proxy", Off: true}
-	if got := Command(base, false); !strings.Contains(got, "--noproxy '*' \\\n  'https://a.b'") {
+	if got := Curl(base, false); !strings.Contains(got, "--noproxy '*' \\\n  'https://a.b'") {
 		t.Fatalf("off: %q", got)
 	}
 }
@@ -186,10 +186,10 @@ func TestAPIKeyAndDigestFlags(t *testing.T) {
 		"digest u p":                                     {"--digest --user 'u:p'", `--digest --user "$APIC_USER:$APIC_PASSWORD"`},
 	}
 	for spec, want := range cases {
-		if got := Command(mk(spec), false); !strings.Contains(got, want[0]) {
+		if got := Curl(mk(spec), false); !strings.Contains(got, want[0]) {
 			t.Errorf("%s:\n%s\nmissing %s", spec, got, want[0])
 		}
-		if got := Command(mk(spec), true); !strings.Contains(got, want[1]) || strings.Contains(got, "k1") || strings.Contains(got, "'u:p'") {
+		if got := Curl(mk(spec), true); !strings.Contains(got, want[1]) || strings.Contains(got, "k1") || strings.Contains(got, "'u:p'") {
 			t.Errorf("%s redacted:\n%s\nmissing %s", spec, got, want[1])
 		}
 	}

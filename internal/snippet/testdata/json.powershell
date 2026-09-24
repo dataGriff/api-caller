@@ -1,0 +1,12 @@
+$headers = @{
+  'Accept' = 'application/json'
+  'X-Note' = 'say "hi" $HOME'
+  'Authorization' = 'Bearer s3cret-token'
+}
+$body = '{"title": "café \"x\"",
+ "done": false}'
+Invoke-RestMethod -Method Post `
+  -Uri 'https://api.example.com/todos?list=home&q=it''s' `
+  -Headers $headers `
+  -Body $body `
+  -ContentType 'application/json'

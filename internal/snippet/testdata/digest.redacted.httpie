@@ -1,0 +1,5 @@
+http --ignore-stdin \
+  --auth-type=digest \
+  --auth="$APIC_USER:$APIC_PASSWORD" \
+  DELETE \
+  'https://api.example.com/items/7'

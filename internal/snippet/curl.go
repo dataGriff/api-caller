@@ -1,6 +1,4 @@
-// Package curlexport renders a resolved request as a curl command, so a
-// request can still be run where apic is not installed.
-package curlexport
+package snippet
 
 import (
 	"path"
@@ -11,11 +9,11 @@ import (
 	"github.com/dataGriff/api-caller/internal/runner"
 )
 
-// Command returns a POSIX-shell curl command for the request. With redact set
+// Curl returns a POSIX-shell curl command for the request. With redact set
 // the header values, body and query values are masked and the bearer and basic
 // credentials become shell placeholders, so the command can go into a stored
 // log; without it the command is runnable as printed.
-func Command(r *runner.Resolved, redact bool) string {
+func Curl(r *runner.Resolved, redact bool) string {
 	var parts []string
 	parts = append(parts, "curl -sS")
 	body := r.DisplayBody(redact)

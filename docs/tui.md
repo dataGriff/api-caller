@@ -72,7 +72,9 @@ time went (DNS, connect, TLS, first byte, total, and whether the
 connection was reused), the body pretty-printed
 and syntax-highlighted, and the assertions and captures underneath. <kbd>H</kbd>
 adds the request and response headers; <kbd>c</kbd> swaps in the equivalent
-curl command. When a tab holds more than fits, the right of the tab strip
+curl command, and each further press the same request as HTTPie,
+PowerShell, Python, JavaScript and Go (see
+[`apic snippet`](cli.md#apic-snippet)) before the response comes back. When a tab holds more than fits, the right of the tab strip
 says where you are in it: `top ↓`, `↑ 40% ↓`, `↑ end`.
 
 **Checks** shows each assertion with its actual *and* expected value, which
@@ -103,7 +105,7 @@ force, so a screenshot never hides that values were masked.
 | <kbd>tab</kbd>/<kbd>l</kbd>, <kbd>shift+tab</kbd>/<kbd>h</kbd> | Next and previous tab |
 | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Jump to preview, response, checks, session |
 | <kbd>H</kbd> | Toggle request and response headers |
-| <kbd>c</kbd> | Toggle the curl command for the selected request |
+| <kbd>c</kbd> | Show the selected request as curl; again for HTTPie, PowerShell, Python, JavaScript, Go, then back to the response |
 | <kbd>J</kbd>, <kbd>K</kbd> | Scroll the right pane a line down or up |
 | <kbd>pgup</kbd>/<kbd>ctrl+u</kbd>, <kbd>pgdn</kbd>/<kbd>ctrl+d</kbd> | Scroll the right pane half a page |
 | <kbd>e</kbd> | Switch to the next environment |

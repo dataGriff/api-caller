@@ -1,0 +1,3 @@
+curl -sS \
+  -H 'X-Token: '$('gcloud' 'auth' 'print-access-token') \
+  'https://api.example.com/me'

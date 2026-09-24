@@ -1,0 +1,4 @@
+curl -sS \
+  -X DELETE \
+  --digest --user 'bob:hunter2' \
+  'https://api.example.com/items/7'

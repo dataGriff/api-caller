@@ -1,0 +1,9 @@
+http --ignore-stdin \
+  --raw='{"title": "café \"x\"",
+ "done": false}' \
+  POST \
+  'https://api.example.com/todos?list=home&q=it'\''s' \
+  'Content-Type:application/json' \
+  'Accept:application/json' \
+  'X-Note:say "hi" $HOME' \
+  'Authorization:Bearer s3cret-token'

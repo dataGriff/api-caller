@@ -1,0 +1,6 @@
+curl -sS \
+  -X POST \
+  --form-string 'title=Q3 report' \
+  -F 'file=@docs/report.pdf;type=application/pdf;filename=q3.pdf' \
+  --user 'alice:pa'\''ss' \
+  'http://localhost:8080/upload'

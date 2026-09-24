@@ -41,6 +41,7 @@ Content-Type: application/json
 | `apic env` | Environments and the variables in effect |
 | `apic session [clear]` | Captured values; `clear --all` for every environment |
 | `apic curl <id>` | The equivalent curl command |
+| `apic snippet <id> --lang python` | The request as httpie, powershell, python, js or go code |
 | `apic init [dir]` | Scaffold a project |
 | `apic import <spec>` | `.http` files from an OpenAPI 3 document or a Postman collection (`--postman-env` for its environments) |
 | `apic import --curl '<cmd>' --into f.http` | One request block from a curl command |

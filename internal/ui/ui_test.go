@@ -295,9 +295,22 @@ func TestHeadersAndCurlToggles(t *testing.T) {
 	if v := f.view(); !strings.Contains(v, "curl -sS") || !strings.Contains(v, "/auth/login'") {
 		t.Fatalf("c should show the curl command:\n%s", v)
 	}
+	// c again moves on through the languages, then hides the code.
 	f.press("c")
+	if v := f.view(); !strings.Contains(v, "http --ignore-stdin") || !strings.Contains(v, "httpie · 2/6") || !strings.Contains(v, "c shows powershell") {
+		t.Fatalf("c again should show HTTPie:\n%s", v)
+	}
+	f.press("c", "c", "c", "c")
+	if v := f.view(); !strings.Contains(v, "package main") || !strings.Contains(v, "c hides this") {
+		t.Fatalf("the sixth c should show Go:\n%s", v)
+	}
+	f.press("c")
+	if v := f.view(); strings.Contains(v, "package main") || strings.Contains(v, "curl -sS") {
+		t.Fatal("c after the last language should hide the code")
+	}
+	f.press("c", "esc")
 	if v := f.view(); strings.Contains(v, "curl -sS") {
-		t.Fatal("c again should hide curl")
+		t.Fatal("esc should hide the code")
 	}
 }
 

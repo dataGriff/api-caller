@@ -379,6 +379,49 @@ masked, and `bearer`/`basic` credentials become `$TOKEN` and
 `oauth2` and `exec` exports already use. Without it, the command runs as
 printed, credentials included.
 
+`apic curl` is [`apic snippet --lang curl`](#apic-snippet), kept for its
+own `--json` shape.
+
+## apic snippet
+
+```
+apic snippet <target> [--lang curl|httpie|powershell|python|js|go]
+```
+
+The request as code in another language, every variable resolved, for a
+machine without apic, a service's README or a colleague on Windows:
+
+| `--lang` | What it prints |
+|---|---|
+| `curl` (default) | The `apic curl` command |
+| `httpie` | An [HTTPie](https://httpie.io/cli) command, `http --ignore-stdin …` |
+| `powershell` | `Invoke-RestMethod` for PowerShell 7, with `-Headers`, `-Body` or `-Form`, `-HttpVersion`, `-SkipCertificateCheck` and `-Proxy` where they apply |
+| `python` | A script using [requests](https://requests.readthedocs.io/): `requests.request(...)` with `headers`, `params`, `auth`, `data`/`files`, `verify`, `cert` and `proxies` |
+| `js` | `fetch` for Node 18+ (an ES module) or a browser, with `FormData` for a multipart body |
+| `go` | A `package main` program using `net/http`, formatted by gofmt |
+
+Auth follows the [curl export](auth.md#curl-export): bearer, basic,
+apikey and digest become what each language uses for them. The rules for
+secrets are curl's too: without `--redact` the snippet runs as printed,
+credentials included; with it the values are masked and the credentials
+come from the environment (`TOKEN`, `APIC_USER`, `APIC_PASSWORD`,
+`APIC_API_KEY`, read as `$env:TOKEN`, `os.environ["TOKEN"]`,
+`process.env.TOKEN`, `os.Getenv("TOKEN")`). What a language cannot do on
+its own is said in a comment at the top: AWS SigV4 signing, digest auth in
+`fetch` and Go, a CA file or client certificate where the snippet cannot
+point at one, a proxy for `fetch`, a required HTTP/2. A missing variable
+fails with exit code 2, as for `apic curl`.
+
+```sh
+apic snippet get-user --lang python
+apic snippet create-order --lang powershell --redact
+apic snippet login --lang go > login.go
+```
+
+`--json` wraps it as `{"id": "get-user", "lang": "python", "code": "..."}`.
+In [the UI](tui.md), <kbd>c</kbd> shows the selected request as curl and
+each press moves to the next language.
+
 ## apic fmt
 
 ```
@@ -1004,6 +1047,18 @@ apic session cookies
 ```
 
 No flags of its own.
+
+### apic snippet
+
+Print the request as code: curl, HTTPie, PowerShell, Python, JavaScript or Go.
+
+```
+apic snippet <request> [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `-l, --lang <string>` | language: curl, httpie, powershell, python, js, go (default `curl`) |
 
 ### apic test
 

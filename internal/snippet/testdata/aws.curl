@@ -1,0 +1,6 @@
+curl -sS \
+  --aws-sigv4 'aws:amz:eu-west-2:execute-api' \
+  --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" \
+  ${AWS_SESSION_TOKEN:+-H} \
+  ${AWS_SESSION_TOKEN:+x-amz-security-token:$AWS_SESSION_TOKEN} \
+  'https://abc.execute-api.eu-west-2.amazonaws.com/prod/orders'
