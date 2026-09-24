@@ -20,7 +20,7 @@ certificate from Sigstore's CA, bound to the identity of the GitHub Actions
 workflow that built the release, and records the signature in a public
 transparency log. Verifying checks that chain.
 
-You need [cosign](https://docs.sigstore.dev/cosign/installation/).
+You need [cosign](https://github.com/sigstore/cosign#installation).
 
 ```sh
 VERSION=v0.1.0
