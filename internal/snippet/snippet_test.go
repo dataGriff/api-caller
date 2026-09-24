@@ -2,6 +2,7 @@ package snippet
 
 import (
 	"flag"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,9 +91,21 @@ func TestGolden(t *testing.T) {
 }
 
 // The snippets parse in their own languages, where the interpreter is
-// installed: Python's ast, node --check on an ES module, bash -n. The Go
-// one went through go/format already.
+// installed: Python's ast, node --check on an ES module, bash -n; the Go
+// one is exactly what gofmt would write.
 func TestSnippetsParse(t *testing.T) {
+	for name, r := range fixtures(t) {
+		for _, redact := range []bool{false, true} {
+			src, err := Render("go", r, redact)
+			if err != nil {
+				t.Fatal(err)
+			}
+			formatted, err := format.Source([]byte(src))
+			if err != nil || string(formatted) != src+"\n" {
+				t.Errorf("go %s (redact %v) is not gofmt'd: %v\n%s", name, redact, err, src)
+			}
+		}
+	}
 	checks := map[string]func(string, string) *exec.Cmd{
 		"python": func(dir, src string) *exec.Cmd {
 			return exec.Command("python3", "-c", "import ast,sys; ast.parse(sys.stdin.read())")

@@ -2,14 +2,14 @@ package snippet
 
 import (
 	"fmt"
-	"go/format"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// goCode renders a Go program using net/http, formatted by go/format so
-// it reads like code a person wrote.
+// goCode renders a Go program using net/http, written as gofmt would
+// write it (a test holds it to that; go/format itself would add most of
+// a megabyte to the binary for this one use).
 func goCode(m *request) (string, error) {
 	imports := map[string]bool{"fmt": true, "io": true, "net/http": true}
 	var body strings.Builder
@@ -115,14 +115,27 @@ func goCode(m *request) (string, error) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		src.WriteString(strconv.Quote(name) + "\n")
+		src.WriteString("\t" + strconv.Quote(name) + "\n")
 	}
-	src.WriteString(")\n\nfunc main() {\n" + body.String() + "}\n")
-	out, err := format.Source([]byte(src.String()))
-	if err != nil {
-		return "", fmt.Errorf("go snippet: %w", err)
+	src.WriteString(")\n\nfunc main() {\n" + indent(body.String()) + "}")
+	return src.String(), nil
+}
+
+// indent puts each line of a function body at its brace depth, one tab
+// per level inside func main.
+func indent(body string) string {
+	var b strings.Builder
+	depth := 1
+	for _, line := range strings.Split(strings.TrimRight(body, "\n"), "\n") {
+		if strings.HasPrefix(line, "}") {
+			depth--
+		}
+		b.WriteString(strings.Repeat("\t", depth) + line + "\n")
+		if strings.HasSuffix(line, "{") {
+			depth++
+		}
 	}
-	return strings.TrimRight(string(out), "\n"), nil
+	return b.String()
 }
 
 // goQuote is a Go string literal.
@@ -140,7 +153,7 @@ func goConcat(prefix string, v secret) string {
 		if prefix == "" {
 			return goSecret(v)
 		}
-		return goQuote(prefix) + " + " + goSecret(v)
+		return goQuote(prefix) + "+" + goSecret(v) // gofmt's spacing inside a call
 	}
 	return goQuote(prefix + v.Literal)
 }
