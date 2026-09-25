@@ -43,8 +43,16 @@ same files to an AI agent. It takes about ten minutes.
 
 === "Windows"
 
-    Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
-    and put `apic.exe` on your `PATH`.
+    ```powershell
+    irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
+    ```
+
+    It installs `apic.exe` into `%LOCALAPPDATA%\Programs\apic`, verifies
+    the release checksum, and adds the directory to your user `PATH`.
+    `$env:APIC_VERSION = "v1.2.3"` pins a version, `$env:APIC_INSTALL_DIR`
+    chooses the directory and `$env:APIC_NO_MODIFY_PATH = "1"` leaves `PATH`
+    alone. The zip is also on [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
+    to install by hand.
 
 === "Docker"
 

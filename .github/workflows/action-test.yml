@@ -4,10 +4,10 @@ name: setup-apic
 # cannot break `uses: dataGriff/api-caller/setup-apic@v0` unnoticed.
 on:
   pull_request:
-    paths: [setup-apic/**, install.sh, .github/workflows/action-test.yml]
+    paths: [setup-apic/**, install.sh, install.ps1, .github/workflows/action-test.yml]
   push:
     branches: [main]
-    paths: [setup-apic/**, install.sh, .github/workflows/action-test.yml]
+    paths: [setup-apic/**, install.sh, install.ps1, .github/workflows/action-test.yml]
 
 permissions:
   contents: read
@@ -47,3 +47,67 @@ jobs:
         with:
           version: 0.1.2
       - run: apic version
+
+  # install.ps1 against the latest release, in Windows PowerShell 5.1 and in
+  # PowerShell 7, the way the docs run it (piped into iex).
+  install-ps1-latest:
+    strategy:
+      matrix:
+        shell: [powershell, pwsh]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          $env:APIC_INSTALL_DIR = "$env:RUNNER_TEMP\apic"
+          Get-Content .\install.ps1 -Raw | Invoke-Expression
+          # The script puts the directory on PATH for this session too.
+          apic version
+          if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -notcontains $env:APIC_INSTALL_DIR) { throw 'not added to the user PATH' }
+
+  # The same script against a mirror serving a build of this commit, so a
+  # change to the script is tested before a release exists; then with a
+  # tampered checksum, which must refuse and install nothing.
+  install-ps1-mirror:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: A release, laid out as <base>/<tag>/<file>
+        run: |
+          $rel = New-Item -ItemType Directory -Force mirror\v0.0.0-ci
+          go build -ldflags "-X github.com/dataGriff/api-caller/internal/cli.Version=0.0.0-ci" -o apic.exe ./cmd/apic
+          Compress-Archive -Path apic.exe, README.md, LICENSE -DestinationPath "$rel\apic_0.0.0-ci_windows_amd64.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 "$rel\apic_0.0.0-ci_windows_amd64.zip").Hash.ToLower()
+          Set-Content -NoNewline "$rel\checksums.txt" "$hash  apic_0.0.0-ci_windows_amd64.zip`n"
+          Start-Process python -ArgumentList '-m', 'http.server', '8765', '--bind', '127.0.0.1' -WorkingDirectory mirror
+          Start-Sleep -Seconds 2
+      - name: Installs and runs
+        env:
+          APIC_DOWNLOAD_BASE: http://127.0.0.1:8765
+          APIC_VERSION: 0.0.0-ci
+          APIC_NO_MODIFY_PATH: "1"
+        run: |
+          $env:APIC_INSTALL_DIR = "$env:RUNNER_TEMP\good"
+          .\install.ps1
+          $out = (& "$env:APIC_INSTALL_DIR\apic.exe" version) -join "`n"
+          if ($out -notmatch 'apic 0\.0\.0-ci') { throw "wrong version installed: $out" }
+      - name: Refuses a tampered checksum
+        env:
+          APIC_DOWNLOAD_BASE: http://127.0.0.1:8765
+          APIC_VERSION: v0.0.0-ci
+          APIC_NO_MODIFY_PATH: "1"
+        run: |
+          Set-Content -NoNewline mirror\v0.0.0-ci\checksums.txt ("0" * 64 + "  apic_0.0.0-ci_windows_amd64.zip`n")
+          $env:APIC_INSTALL_DIR = "$env:RUNNER_TEMP\bad"
+          $failed = $false
+          try { .\install.ps1 } catch { $failed = $true; Write-Host "refused: $_" }
+          if (-not $failed) { throw 'installed despite a checksum mismatch' }
+          if (Test-Path "$env:APIC_INSTALL_DIR\apic.exe") { throw 'apic.exe was written anyway' }

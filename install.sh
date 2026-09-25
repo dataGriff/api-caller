@@ -17,7 +17,7 @@ case "$arch" in
 esac
 case "$os" in
   linux|darwin) ;;
-  *) echo "unsupported OS: $os (download a Windows zip from the releases page)" >&2; exit 1 ;;
+  *) echo "unsupported OS: $os (on Windows, run install.ps1 in PowerShell: irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex)" >&2; exit 1 ;;
 esac
 
 if [ -z "$VERSION" ]; then

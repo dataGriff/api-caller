@@ -90,7 +90,10 @@ sudo dpkg -i apic_<version>_linux_amd64.deb
 # Docker: the binary on scratch, amd64 and arm64
 docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
 
-# Windows and everything else: download from GitHub Releases
+# Windows (PowerShell): verifies the checksum, adds apic to your user PATH
+irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
+
+# Everything else: download from GitHub Releases
 ```
 
 ```yaml
@@ -99,9 +102,9 @@ docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
 ```
 
 `APIC_VERSION=v1.2.3` pins a version and `APIC_INSTALL_DIR=~/bin` chooses
-where the binary lands. The installer verifies the archive against the
-published `checksums.txt` and refuses to install on a mismatch; the action
-does the same and takes `with: version: v1.2.3`.
+where the binary lands (both installers read them). The installers verify the
+archive against the published `checksums.txt` and refuse to install on a
+mismatch; the action does the same and takes `with: version: v1.2.3`.
 
 Every release is signed with cosign and ships an SPDX SBOM per archive (the
 image is signed too, with an SBOM attestation); see
