@@ -84,6 +84,9 @@ go install github.com/dataGriff/api-caller/cmd/apic@latest
 # Linux / macOS: downloads the release binary and verifies its checksum
 curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
 
+# Docker: the binary on scratch, amd64 and arm64
+docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
+
 # Windows and everything else: download from GitHub Releases
 ```
 
@@ -97,7 +100,8 @@ where the binary lands. The installer verifies the archive against the
 published `checksums.txt` and refuses to install on a mismatch; the action
 does the same and takes `with: version: v1.2.3`.
 
-Every release is signed with cosign and ships an SPDX SBOM per archive; see
+Every release is signed with cosign and ships an SPDX SBOM per archive (the
+image is signed too, with an SBOM attestation); see
 [docs/verifying.md](docs/verifying.md) to check a download before trusting it.
 
 ## 60-second tour

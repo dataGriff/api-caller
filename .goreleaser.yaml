@@ -60,6 +60,35 @@ signs:
 sboms:
   - artifacts: archive
 
+# ghcr.io/datagriff/apic, for CI systems that install tools as images
+# (GitLab, Jenkins, Azure Pipelines). The binary on scratch, with the CA
+# bundle and a /tmp from Alpine (see Dockerfile). One multi-platform image
+# per release, tagged with the version, v-prefixed version, major.minor and
+# latest; a snapshot builds it locally without pushing.
+dockers_v2:
+  - images: [ghcr.io/datagriff/apic]
+    tags:
+      - "{{ .Version }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms: [linux/amd64, linux/arm64]
+    labels:
+      org.opencontainers.image.title: apic
+      org.opencontainers.image.description: Run .http request files from the terminal, CI or an AI agent.
+      org.opencontainers.image.source: https://github.com/dataGriff/api-caller
+      org.opencontainers.image.url: https://datagriff.github.io/api-caller/
+      org.opencontainers.image.licenses: MIT
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+
+# The image is signed keylessly like checksums.txt: the signature is bound to
+# the release workflow's identity and recorded in the transparency log, and
+# docs/verifying.md has the `cosign verify` command.
+docker_signs:
+  - args: ["sign", "${artifact}@${digest}", "--yes"]
+
 changelog:
   use: github
   filters:

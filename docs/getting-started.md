@@ -26,6 +26,17 @@ same files to an AI agent. It takes about ten minutes.
     Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
     and put `apic.exe` on your `PATH`.
 
+=== "Docker"
+
+    ```sh
+    docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
+    ```
+
+    The image is the binary on `scratch`, about 7 MB, for amd64 and arm64.
+    The project directory is mounted at `/work`; see
+    [the cookbook](cookbook.md#in-a-container) for CI systems that run
+    containers.
+
 Check it with `apic version`.
 
 ## 2. See it work before writing anything
@@ -254,7 +265,8 @@ v0.1.2` to pin one), verifies it against the published checksums, caches
 it and puts it on `PATH`, on Linux, macOS and Windows runners. On any
 other CI system, `curl -fsSL
 https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh`
-does the same job. `--format github` turns each validation problem into
+does the same job, and where tools come as images there is
+[`ghcr.io/datagriff/apic`](cookbook.md#in-a-container). `--format github` turns each validation problem into
 an annotation on the pull request at the right line.
 
 `APIC_VAR_<name>` environment variables override values from the env files,

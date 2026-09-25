@@ -168,3 +168,23 @@ jobs:
             sleep 0.1
           done
           /tmp/apic validate -C /tmp/apic-demo
+
+  # The release image, built the way goreleaser lays it out ($TARGETPLATFORM/apic
+  # in the context), so a broken Dockerfile shows up here rather than on a tag.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: |
+          mkdir -p ctx/linux/amd64
+          cp Dockerfile ctx/
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X github.com/dataGriff/api-caller/internal/cli.Version=ci" -o ctx/linux/amd64/apic ./cmd/apic
+          docker buildx build --load --platform linux/amd64 -t apic:ci ctx
+          docker run --rm apic:ci version | grep -F "apic ci"
+          # Not root, and TLS roots and /tmp are there.
+          docker run --rm --user 65534:65534 --entrypoint /apic apic:ci version
+          docker create --name probe apic:ci >/dev/null
+          docker export probe | tar -t | grep -x 'etc/ssl/certs/ca-certificates.crt' >/dev/null
