@@ -30,14 +30,16 @@ jobs:
         working-directory: editors/vscode
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      # No dependency cache here: this job holds the Marketplace and Open VSX
+      # tokens, and a cache restored into it could have been written by any
+      # branch (setup-node's advice for privileged workflows).
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: editors/vscode/package-lock.json
+          package-manager-cache: false
       - name: Check the tag against package.json
         run: |
           tag="${GITHUB_REF_NAME#vscode-v}"

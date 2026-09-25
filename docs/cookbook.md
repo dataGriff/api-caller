@@ -145,7 +145,7 @@ same way:
 - run: apic run auth.http smoke.http -C api --env staging --redact --report smoke.html
   env:
     APIC_VAR_password: ${{ secrets.API_PASSWORD }}
-- uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@v7
   if: always()
   with:
     name: smoke-report
