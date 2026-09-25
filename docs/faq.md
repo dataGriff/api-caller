@@ -150,8 +150,14 @@ APIC_VERSION=v1.2.3 curl -fsSL https://raw.githubusercontent.com/dataGriff/api-c
 APIC_INSTALL_DIR=~/bin curl -fsSL ... | sh
 ```
 
-The installer downloads the release archive for your platform, verifies it
-against the published `checksums.txt`, and refuses to install on a mismatch.
+On Windows, the same variables for `install.ps1`:
+
+```powershell
+$env:APIC_VERSION = "v1.2.3"; irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
+```
+
+Both installers download the release archive for your platform, verify it
+against the published `checksums.txt`, and refuse to install on a mismatch.
 
 ## Does apic work with VS Code and JetBrains files?
 

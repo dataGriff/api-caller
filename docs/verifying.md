@@ -5,7 +5,7 @@ trust it:
 
 | File | What it is |
 |---|---|
-| `checksums.txt` | SHA-256 of every archive in the release |
+| `checksums.txt` | SHA-256 of every archive and every `.deb`, `.rpm` and `.apk` package in the release |
 | `checksums.txt.sig` + `checksums.txt.pem` | a [cosign](https://docs.sigstore.dev/) signature over `checksums.txt`, and the certificate it was made with |
 | `<archive>.sbom.json` | an SPDX 2.3 SBOM listing every Go module compiled into that archive |
 
@@ -44,7 +44,7 @@ them: they say *this was signed by the release workflow in this repository,
 running on a tag*. Without them cosign will happily confirm that **somebody**
 signed the file.
 
-Then check your archive against the file you just verified:
+Then check your archive, or package, against the file you just verified:
 
 ```sh
 sha256sum --ignore-missing -c checksums.txt   # macOS: shasum -a 256 -c
@@ -52,6 +52,28 @@ sha256sum --ignore-missing -c checksums.txt   # macOS: shasum -a 256 -c
 
 That chain — signature vouches for `checksums.txt`, `checksums.txt` vouches for
 the archive — is why only one file needs signing.
+
+## Verify the container image
+
+The image `ghcr.io/datagriff/apic` is signed by the same workflow, keyless,
+so the same two identity flags apply:
+
+```sh
+cosign verify ghcr.io/datagriff/apic:0.1.0 \
+  --certificate-identity-regexp '^https://github\.com/dataGriff/api-caller/\.github/workflows/release\.yml@refs/tags/' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+```
+
+cosign prints the verified signatures as JSON, and exits non-zero if there
+are none from that identity. To pin what you run to what you verified,
+use the digest it reports: `ghcr.io/datagriff/apic@sha256:…`.
+
+The image also carries an SBOM attestation, which buildx attached when it
+built it:
+
+```sh
+docker buildx imagetools inspect ghcr.io/datagriff/apic:0.1.0 --format '{{ json .SBOM }}'
+```
 
 ## Read the SBOM
 

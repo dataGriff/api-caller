@@ -162,6 +162,50 @@ at the exact line and column:
 - run: apic validate -C api --format github
 ```
 
+### In a container
+
+`ghcr.io/datagriff/apic` is the same binary on `scratch`, with the CA
+bundle it needs for TLS: about 7 MB, for amd64 and arm64, tagged with the
+version (`0.2.0` and `v0.2.0`), the minor (`v0.2`) and `latest`. Mount the
+project at `/work` and pass secrets as `APIC_VAR_*` variables:
+
+```sh
+docker run --rm -v "$PWD/api:/work" -e APIC_VAR_password \
+  ghcr.io/datagriff/apic run auth.http smoke.http --env staging --json --redact
+```
+
+- Files apic writes (`.apic/session.json`, a report) belong to root unless
+  you add `--user "$(id -u):$(id -g)"`.
+- `apic ui` needs a terminal: `docker run --rm -it …`.
+- `apic mcp --http 0.0.0.0:8765` with `-p 8765:8765` serves an agent
+  outside the container (set a token, as for any non-loopback address).
+  `apic demo` listens on the container's loopback only, so it is for the
+  container's own use.
+
+The image has no shell, so it cannot be a CI system's job image where the
+job runs a script inside it (GitLab's `image:`, an Azure container job).
+There, copy the binary into the image you already use:
+
+```dockerfile
+FROM node:22
+COPY --from=ghcr.io/datagriff/apic:v0.2 /apic /usr/local/bin/apic
+```
+
+or run the installer in the job:
+
+```yaml
+# .gitlab-ci.yml
+smoke:
+  image: alpine:3.22
+  script:
+    - apk add --no-cache curl
+    - curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
+    - apic run auth.http smoke.http -C api --env staging --json --redact
+```
+
+The image is signed like the release archives;
+[verifying.md](verifying.md#verify-the-container-image) has the command.
+
 ## AWS API Gateway with SigV4
 
 ```http

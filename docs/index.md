@@ -40,10 +40,8 @@ claude mcp add api -- apic mcp      # let an agent call the same requests as too
 
 === "Windows"
 
-    Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases),
-    put `apic.exe` on your `PATH`, then:
-
     ```powershell
+    irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
     apic ui --demo
     ```
 

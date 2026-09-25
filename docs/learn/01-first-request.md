@@ -26,10 +26,15 @@ One static binary, no runtime. Pick your platform:
 
 === "Windows"
 
-    Download the zip for your architecture from
-    [GitHub Releases](https://github.com/dataGriff/api-caller/releases/latest),
-    unzip it, and put `apic.exe` somewhere on your `PATH`. `winget`, Scoop
-    and a PowerShell installer are on the way; the release page says when.
+    In PowerShell:
+
+    ```powershell
+    irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
+    ```
+
+    The installer puts `apic.exe` in `%LOCALAPPDATA%\Programs\apic`,
+    verifies the release checksum, and adds the directory to your user
+    `PATH` (open a new terminal for other windows to see it).
 
 === "Go"
 

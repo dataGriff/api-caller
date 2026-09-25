@@ -168,3 +168,53 @@ jobs:
             sleep 0.1
           done
           /tmp/apic validate -C /tmp/apic-demo
+
+  # The release image, built the way goreleaser lays it out ($TARGETPLATFORM/apic
+  # in the context), so a broken Dockerfile shows up here rather than on a tag.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: |
+          mkdir -p ctx/linux/amd64
+          cp Dockerfile ctx/
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X github.com/dataGriff/api-caller/internal/cli.Version=ci" -o ctx/linux/amd64/apic ./cmd/apic
+          docker buildx build --load --platform linux/amd64 -t apic:ci ctx
+          docker run --rm apic:ci version | grep -F "apic ci"
+          # Not root, and TLS roots and /tmp are there.
+          docker run --rm --user 65534:65534 --entrypoint /apic apic:ci version
+          docker create --name probe apic:ci >/dev/null
+          docker export probe | tar -t | grep -x 'etc/ssl/certs/ca-certificates.crt' >/dev/null
+
+  # The deb, rpm and apk packages goreleaser builds for a release, installed
+  # on the distributions they are for. Signing, SBOMs and the image are
+  # skipped: the jobs above cover the image, and a release does the rest.
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign,sbom,docker
+      - name: deb on Ubuntu
+        run: |
+          sudo dpkg -i dist/apic_*_linux_amd64.deb
+          apic version
+          man -w apic
+          test -f /usr/share/bash-completion/completions/apic
+          sudo dpkg -r apic
+      - name: rpm on Fedora
+        run: docker run --rm -v "$PWD/dist:/dist:ro" fedora:41 sh -c 'rpm -i /dist/apic_*_linux_amd64.rpm && apic version && rpm -ql apic | grep -q man1/apic.1'
+      - name: apk on Alpine
+        run: docker run --rm -v "$PWD/dist:/dist:ro" alpine:3.22 sh -c 'apk add --no-network --allow-untrusted /dist/apic_*_linux_amd64.apk && apic version'
+      - name: The packages are in checksums.txt
+        run: test "$(grep -cE '\.(deb|rpm|apk)$' dist/checksums.txt)" -eq 6

@@ -38,10 +38,13 @@ const (
 func main() {
 	check := flag.Bool("check", false, "exit 1 if the page is stale instead of rewriting it")
 	page := flag.String("md", filepath.Join("docs", "cli.md"), "the page holding the generated section")
-	man := flag.String("man", "", "also write man pages into this directory")
+	man := flag.String("man", "", "write man pages into this directory instead of updating the page")
 	flag.Parse()
 	root := Tree()
 	if *man != "" {
+		// Only the man pages: rendering them changes the tree's usage
+		// lines, so the page must not be written from the same tree (and
+		// goreleaser, which runs this, must not touch the docs).
 		if err := os.MkdirAll(*man, 0o755); err != nil { //nolint:gosec // a build output directory
 			log.Fatal(err)
 		}
@@ -50,6 +53,7 @@ func main() {
 				log.Fatal(err)
 			}
 		}
+		return
 	}
 	current, err := os.ReadFile(*page)
 	if err != nil {

@@ -66,7 +66,7 @@ tasks:
   clean:
     desc: Remove build, docs and coverage output
     cmds:
-      - rm -rf bin dist site coverage.out THIRD_PARTY_NOTICES.md
+      - rm -rf bin dist site man completions coverage.out THIRD_PARTY_NOTICES.md
 
   check:
     desc: Everything CI runs
@@ -177,7 +177,7 @@ tasks:
       - sh scripts/notices.sh THIRD_PARTY_NOTICES.md
 
   snapshot:
-    desc: Build release archives for every platform without publishing
+    desc: Build release archives, packages and the container image for every platform without publishing (needs Docker)
     cmds:
       # Signing and SBOMs are skipped: they need cosign and syft, which the
       # release runner installs, and a snapshot signature would mean nothing.

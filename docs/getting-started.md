@@ -21,10 +21,49 @@ same files to an AI agent. It takes about ten minutes.
     `APIC_VERSION=v1.2.3` pins a version, `APIC_INSTALL_DIR=~/bin` chooses
     where it lands. The installer verifies the release checksum.
 
+=== "deb, rpm, apk"
+
+    Each release has packages for Debian and Ubuntu, Fedora and RHEL, and
+    Alpine, for amd64 and arm64, with the man pages and shell completions:
+
+    ```sh
+    V=0.1.2   # the release, without the v
+    A=amd64   # or arm64
+    BASE=https://github.com/dataGriff/api-caller/releases/download/v$V
+
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.deb" && sudo dpkg -i "apic_${V}_linux_${A}.deb"   # Debian, Ubuntu
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.rpm" && sudo rpm -i "apic_${V}_linux_${A}.rpm"    # Fedora, RHEL
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.apk" && apk add --allow-untrusted "apic_${V}_linux_${A}.apk"   # Alpine
+    ```
+
+    There is no apt, yum or apk repository, so upgrading means installing
+    the next release's package. The packages are listed in `checksums.txt`
+    with the archives; [verifying.md](verifying.md) checks them the same way.
+    The apk is unsigned, hence `--allow-untrusted`: check its checksum first.
+
 === "Windows"
 
-    Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
-    and put `apic.exe` on your `PATH`.
+    ```powershell
+    irm https://raw.githubusercontent.com/dataGriff/api-caller/main/install.ps1 | iex
+    ```
+
+    It installs `apic.exe` into `%LOCALAPPDATA%\Programs\apic`, verifies
+    the release checksum, and adds the directory to your user `PATH`.
+    `$env:APIC_VERSION = "v1.2.3"` pins a version, `$env:APIC_INSTALL_DIR`
+    chooses the directory and `$env:APIC_NO_MODIFY_PATH = "1"` leaves `PATH`
+    alone. The zip is also on [GitHub Releases](https://github.com/dataGriff/api-caller/releases)
+    to install by hand.
+
+=== "Docker"
+
+    ```sh
+    docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
+    ```
+
+    The image is the binary on `scratch`, about 7 MB, for amd64 and arm64.
+    The project directory is mounted at `/work`; see
+    [the cookbook](cookbook.md#in-a-container) for CI systems that run
+    containers.
 
 Check it with `apic version`.
 
@@ -254,7 +293,8 @@ v0.1.2` to pin one), verifies it against the published checksums, caches
 it and puts it on `PATH`, on Linux, macOS and Windows runners. On any
 other CI system, `curl -fsSL
 https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh`
-does the same job. `--format github` turns each validation problem into
+does the same job, and where tools come as images there is
+[`ghcr.io/datagriff/apic`](cookbook.md#in-a-container). `--format github` turns each validation problem into
 an annotation on the pull request at the right line.
 
 `APIC_VAR_<name>` environment variables override values from the env files,
