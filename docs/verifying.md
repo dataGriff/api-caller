@@ -5,7 +5,7 @@ trust it:
 
 | File | What it is |
 |---|---|
-| `checksums.txt` | SHA-256 of every archive in the release |
+| `checksums.txt` | SHA-256 of every archive and every `.deb`, `.rpm` and `.apk` package in the release |
 | `checksums.txt.sig` + `checksums.txt.pem` | a [cosign](https://docs.sigstore.dev/) signature over `checksums.txt`, and the certificate it was made with |
 | `<archive>.sbom.json` | an SPDX 2.3 SBOM listing every Go module compiled into that archive |
 
@@ -44,7 +44,7 @@ them: they say *this was signed by the release workflow in this repository,
 running on a tag*. Without them cosign will happily confirm that **somebody**
 signed the file.
 
-Then check your archive against the file you just verified:
+Then check your archive, or package, against the file you just verified:
 
 ```sh
 sha256sum --ignore-missing -c checksums.txt   # macOS: shasum -a 256 -c

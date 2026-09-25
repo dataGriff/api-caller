@@ -66,7 +66,7 @@ tasks:
   clean:
     desc: Remove build, docs and coverage output
     cmds:
-      - rm -rf bin dist site coverage.out THIRD_PARTY_NOTICES.md
+      - rm -rf bin dist site man completions coverage.out THIRD_PARTY_NOTICES.md
 
   check:
     desc: Everything CI runs

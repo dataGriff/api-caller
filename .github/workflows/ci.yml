@@ -188,3 +188,33 @@ jobs:
           docker run --rm --user 65534:65534 --entrypoint /apic apic:ci version
           docker create --name probe apic:ci >/dev/null
           docker export probe | tar -t | grep -x 'etc/ssl/certs/ca-certificates.crt' >/dev/null
+
+  # The deb, rpm and apk packages goreleaser builds for a release, installed
+  # on the distributions they are for. Signing, SBOMs and the image are
+  # skipped: the jobs above cover the image, and a release does the rest.
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign,sbom,docker
+      - name: deb on Ubuntu
+        run: |
+          sudo dpkg -i dist/apic_*_linux_amd64.deb
+          apic version
+          man -w apic
+          test -f /usr/share/bash-completion/completions/apic
+          sudo dpkg -r apic
+      - name: rpm on Fedora
+        run: docker run --rm -v "$PWD/dist:/dist:ro" fedora:41 sh -c 'rpm -i /dist/apic_*_linux_amd64.rpm && apic version && rpm -ql apic | grep -q man1/apic.1'
+      - name: apk on Alpine
+        run: docker run --rm -v "$PWD/dist:/dist:ro" alpine:3.22 sh -c 'apk add --no-network --allow-untrusted /dist/apic_*_linux_amd64.apk && apic version'
+      - name: The packages are in checksums.txt
+        run: test "$(grep -cE '\.(deb|rpm|apk)$' dist/checksums.txt)" -eq 6

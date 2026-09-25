@@ -9,6 +9,7 @@ coverage.out
 /site/
 /THIRD_PARTY_NOTICES.md
 /man/
+/completions/
 
 # The report tests write these beside the goldens when they differ.
 internal/report/testdata/*.got

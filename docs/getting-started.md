@@ -21,6 +21,26 @@ same files to an AI agent. It takes about ten minutes.
     `APIC_VERSION=v1.2.3` pins a version, `APIC_INSTALL_DIR=~/bin` chooses
     where it lands. The installer verifies the release checksum.
 
+=== "deb, rpm, apk"
+
+    Each release has packages for Debian and Ubuntu, Fedora and RHEL, and
+    Alpine, for amd64 and arm64, with the man pages and shell completions:
+
+    ```sh
+    V=0.1.2   # the release, without the v
+    A=amd64   # or arm64
+    BASE=https://github.com/dataGriff/api-caller/releases/download/v$V
+
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.deb" && sudo dpkg -i "apic_${V}_linux_${A}.deb"   # Debian, Ubuntu
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.rpm" && sudo rpm -i "apic_${V}_linux_${A}.rpm"    # Fedora, RHEL
+    curl -fsSLO "$BASE/apic_${V}_linux_${A}.apk" && apk add --allow-untrusted "apic_${V}_linux_${A}.apk"   # Alpine
+    ```
+
+    There is no apt, yum or apk repository, so upgrading means installing
+    the next release's package. The packages are listed in `checksums.txt`
+    with the archives; [verifying.md](verifying.md) checks them the same way.
+    The apk is unsigned, hence `--allow-untrusted`: check its checksum first.
+
 === "Windows"
 
     Download the zip from [GitHub Releases](https://github.com/dataGriff/api-caller/releases)

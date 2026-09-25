@@ -84,6 +84,9 @@ go install github.com/dataGriff/api-caller/cmd/apic@latest
 # Linux / macOS: downloads the release binary and verifies its checksum
 curl -fsSL https://raw.githubusercontent.com/dataGriff/api-caller/main/install.sh | sh
 
+# Debian/Ubuntu, Fedora/RHEL, Alpine: .deb, .rpm and .apk on every release
+sudo dpkg -i apic_<version>_linux_amd64.deb
+
 # Docker: the binary on scratch, amd64 and arm64
 docker run --rm -v "$PWD:/work" ghcr.io/datagriff/apic version
 

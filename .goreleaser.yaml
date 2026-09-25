@@ -7,6 +7,8 @@ before:
     # man/apic.1, man/apic-run.1 and the rest, from the command tree; the
     # packages and the Homebrew formula install them from the archive.
     - go run ./scripts/clidocs -man man
+    # Shell completions for the deb, rpm and apk packages.
+    - sh -c 'mkdir -p completions && for s in bash zsh fish; do go run ./cmd/apic completion $s > completions/apic.$s; done'
 
 builds:
   - main: ./cmd/apic
@@ -24,6 +26,50 @@ archives:
       - goos: windows
         formats: [zip]
     files: [README.md, LICENSE, THIRD_PARTY_NOTICES.md, docs/*, man/*]
+
+# deb, rpm and apk packages, attached to the release like the archives (no
+# apt, yum or apk repository). They are in checksums.txt, so the one
+# signature covers them too. apk packages are unsigned: install them with
+# --allow-untrusted after checking the checksum.
+nfpms:
+  - package_name: apic
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [deb, rpm, apk]
+    vendor: dataGriff
+    homepage: https://datagriff.github.io/api-caller/
+    maintainer: dataGriff <16266964+dataGriff@users.noreply.github.com>
+    description: |-
+      Run .http request files from the terminal, CI or an AI agent.
+      apic runs the files VS Code REST Client and JetBrains send, with
+      environments, captured values that persist, assertions, JSON output
+      and an MCP server.
+    license: MIT
+    section: utils
+    bindir: /usr/bin
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/doc/apic/LICENSE
+      - src: ./THIRD_PARTY_NOTICES.md
+        dst: /usr/share/doc/apic/THIRD_PARTY_NOTICES.md
+      - src: ./README.md
+        dst: /usr/share/doc/apic/README.md
+      - src: ./man/*.1
+        dst: /usr/share/man/man1/
+      - src: ./completions/apic.bash
+        dst: /usr/share/bash-completion/completions/apic
+      - src: ./completions/apic.fish
+        dst: /usr/share/fish/vendor_completions.d/apic.fish
+      # Debian's zsh looks in vendor-completions; Fedora's and Alpine's in
+      # site-functions.
+      - src: ./completions/apic.zsh
+        dst: /usr/share/zsh/vendor-completions/_apic
+        packager: deb
+      - src: ./completions/apic.zsh
+        dst: /usr/share/zsh/site-functions/_apic
+        packager: rpm
+      - src: ./completions/apic.zsh
+        dst: /usr/share/zsh/site-functions/_apic
+        packager: apk
 
 checksum:
   name_template: checksums.txt
