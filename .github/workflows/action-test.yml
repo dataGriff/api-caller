@@ -86,7 +86,7 @@ jobs:
           go build -ldflags "-X github.com/dataGriff/api-caller/internal/cli.Version=0.0.0-ci" -o apic.exe ./cmd/apic
           Compress-Archive -Path apic.exe, README.md, LICENSE -DestinationPath "$rel\apic_0.0.0-ci_windows_amd64.zip"
           $hash = (Get-FileHash -Algorithm SHA256 "$rel\apic_0.0.0-ci_windows_amd64.zip").Hash.ToLower()
-          Set-Content -NoNewline "$rel\checksums.txt" "$hash  apic_0.0.0-ci_windows_amd64.zip`n"
+          Set-Content -LiteralPath "$rel\checksums.txt" -Value "$hash  apic_0.0.0-ci_windows_amd64.zip" -NoNewline
           Start-Process python -ArgumentList '-m', 'http.server', '8765', '--bind', '127.0.0.1' -WorkingDirectory mirror
           Start-Sleep -Seconds 2
       - name: Installs and runs
@@ -105,7 +105,7 @@ jobs:
           APIC_VERSION: v0.0.0-ci
           APIC_NO_MODIFY_PATH: "1"
         run: |
-          Set-Content -NoNewline mirror\v0.0.0-ci\checksums.txt ("0" * 64 + "  apic_0.0.0-ci_windows_amd64.zip`n")
+          Set-Content -LiteralPath mirror\v0.0.0-ci\checksums.txt -Value ("0" * 64 + "  apic_0.0.0-ci_windows_amd64.zip") -NoNewline
           $env:APIC_INSTALL_DIR = "$env:RUNNER_TEMP\bad"
           $failed = $false
           try { .\install.ps1 } catch { $failed = $true; Write-Host "refused: $_" }
