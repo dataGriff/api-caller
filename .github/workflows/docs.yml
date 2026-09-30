@@ -39,7 +39,7 @@ jobs:
       # External links rot on their own schedule, so they are checked when
       # the docs change in a pull request, not on the way to deploying main.
       - if: github.event_name == 'pull_request'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .lycheecache
           key: lychee-${{ github.sha }}
