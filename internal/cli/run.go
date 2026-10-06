@@ -45,7 +45,13 @@ seconds apart; each failed attempt prints a line as it happens.`,
   apic run daily-report --output reports/daily.csv`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			r, err := a.newRunner()
+			p, err := a.loadProject()
+			if err != nil {
+				return err
+			}
+			// A data run records no history: a response per row would push
+			// out what the history is for.
+			r, err := a.runnerFor(p, func(o *runner.Options) { o.NoHistory = dataPath != "" })
 			if err != nil {
 				return err
 			}
@@ -248,12 +254,10 @@ func (a *App) readRows(path string) ([]datafile.Row, error) {
 // neither reach the next iteration nor the session file; with share one
 // runner carries them through. start is called before each iteration,
 // done after it with its results. A failed iteration stops the run
-// unless keepGoing is set. A data run records no history: one row per
-// response would push out what the history is for.
+// unless keepGoing is set.
 func (a *App) runRows(cmd *cobra.Command, r *runner.Runner, rows []datafile.Row, args []string, share, keepGoing bool, start func(*runner.Iteration, *runner.Runner), done func([]*runner.Result)) ([]*runner.Result, error) {
 	base := r.Opts.Vars
 	session := r.Session
-	r.History = nil
 	var all []*runner.Result
 	var firstErr error
 	for i, row := range rows {

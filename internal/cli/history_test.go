@@ -190,6 +190,7 @@ func TestHistoryErrorsAndClear(t *testing.T) {
 		{[]string{"history", "nope"}, `no request named "nope"`},
 		{[]string{"history", "--show", "1"}, "--show needs a request"},
 		{[]string{"history", "clear", "count", "--all"}, "give it no request"},
+		{[]string{"history", "clear"}, "pass --all"},
 	} {
 		_, errOut, code := apic(t, append([]string{"-C", dir}, c.args...)...)
 		if code != 2 || !strings.Contains(errOut, c.want) {
@@ -213,8 +214,119 @@ func TestHistoryErrorsAndClear(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "flaky · default · 1 entry") {
 		t.Errorf("history of a removed request: %d\n%s", code, out)
 	}
-	out, _, _ = apic(t, "-C", dir, "history", "clear")
+	_, errOut, code := apic(t, "-C", dir, "history", "clear")
+	if code != 2 || !strings.Contains(errOut, "--all for every request") {
+		t.Errorf("a bare clear should refuse: %d %s", code, errOut)
+	}
+	out, _, _ = apic(t, "-C", dir, "history", "clear", "--all")
 	if !strings.Contains(out, "cleared 1 entry") {
 		t.Errorf("clear the environment:\n%s", out)
 	}
+}
+
+func TestHistoryClearScopes(t *testing.T) {
+	dir := historyProject(t, 5)
+	mustWrite(t, filepath.Join(dir, "http-client.env.json"), `{"dev": {}, "staging": {}}`)
+	apic(t, "-C", dir, "--env", "dev", "run", "count")
+	apic(t, "-C", dir, "--env", "staging", "run", "count")
+	out, _, _ := apic(t, "-C", dir, "--env", "dev", "history", "clear", "--all")
+	if !strings.Contains(out, "cleared 1 entry") {
+		t.Errorf("--all clears the environment only:\n%s", out)
+	}
+	out, _, _ = apic(t, "-C", dir, "--env", "staging", "history")
+	if !strings.Contains(out, "count 1 entry") {
+		t.Errorf("staging lost its history:\n%s", out)
+	}
+	out, _, _ = apic(t, "-C", dir, "--json", "history", "clear", "--every-env")
+	if !strings.Contains(out, `"cleared": "*"`) || !strings.Contains(out, `"entries": 1`) {
+		t.Errorf("--every-env:\n%s", out)
+	}
+}
+
+func TestHistoryClearRefusesForARequestNamedClear(t *testing.T) {
+	dir := historyProject(t, 5)
+	mustWrite(t, filepath.Join(dir, "cart.http"), "### Clear the cart\n# @name clear\nDELETE http://example.com/cart\n")
+	_, errOut, code := apic(t, "-C", dir, "history", "clear")
+	if code != 2 || !strings.Contains(errOut, "apic history cart.http#clear") {
+		t.Errorf("bare clear with a request named clear: %d %s", code, errOut)
+	}
+}
+
+func TestHistoryKeepsRequestsThatShareANameApart(t *testing.T) {
+	dir := historyProject(t, 5)
+	mustWrite(t, filepath.Join(dir, "other.http"), strings.Replace(mustRead(t, filepath.Join(dir, "api.http")), "/count", "/other-count", 1))
+	if _, errOut, code := apic(t, "-C", dir, "run", "api.http#count"); code != 0 {
+		t.Fatalf("run: %s", errOut)
+	}
+	apic(t, "-C", dir, "run", "other.http#count")
+	apic(t, "-C", dir, "run", "other.http#count")
+	out, _, _ := apic(t, "-C", dir, "history", "api.http#count")
+	if !strings.Contains(out, "api.http#count · default · 1 entry") {
+		t.Errorf("api.http#count:\n%s", out)
+	}
+	out, _, _ = apic(t, "-C", dir, "history", "other.http#count")
+	if !strings.Contains(out, "2 entries") {
+		t.Errorf("other.http#count:\n%s", out)
+	}
+	_, errOut, code := apic(t, "-C", dir, "history", "count")
+	if code != 2 || !strings.Contains(errOut, "more than once") {
+		t.Errorf("a shared name is ambiguous: %d %s", code, errOut)
+	}
+}
+
+func TestHistoryHoldsTheFinalResult(t *testing.T) {
+	dir := historyProject(t, 5)
+	out := filepath.Join(t.TempDir(), "count.json")
+	if _, errOut, code := apic(t, "-C", dir, "run", "count", "--output", out); code != 0 {
+		t.Fatalf("run --output: %s", errOut)
+	}
+	shown, _, _ := apic(t, "-C", dir, "--json", "history", "count", "--show", "1")
+	if !strings.Contains(shown, `"saved_to"`) {
+		t.Errorf("history lacks the --output path:\n%s", shown)
+	}
+}
+
+func TestAHistoryThatCannotBeWrittenIsAWarning(t *testing.T) {
+	dir := historyProject(t, 5)
+	// A file where the history directory should be: every write fails.
+	mustWrite(t, filepath.Join(dir, ".apic", "history"), "not a directory")
+	out, errOut, code := apic(t, "-C", dir, "--json", "run", "count")
+	if code != 0 {
+		t.Fatalf("a failed history write failed the run: %d %s", code, errOut)
+	}
+	var res struct {
+		OK       bool     `json:"ok"`
+		Errors   []string `json:"errors"`
+		Warnings []string `json:"warnings"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !res.OK || len(res.Errors) != 0 || len(res.Warnings) != 1 || !strings.HasPrefix(res.Warnings[0], "history: ") {
+		t.Errorf("result = %+v", res)
+	}
+	text, _, code := apic(t, "-C", dir, "run", "count")
+	if code != 0 || !strings.Contains(text, "! history: ") {
+		t.Errorf("text output: %d\n%s", code, text)
+	}
+}
+
+func TestHistoryCommandsDoNotNeedTheSession(t *testing.T) {
+	dir := historyProject(t, 5)
+	apic(t, "-C", dir, "run", "count")
+	mustWrite(t, filepath.Join(dir, ".apic", "session.json"), "{not json")
+	for _, args := range [][]string{{"history", "count"}, {"history", "clear", "--every-env"}} {
+		if _, errOut, code := apic(t, append([]string{"-C", dir}, args...)...); code != 0 {
+			t.Errorf("%v with a broken session: %d %s", args, code, errOut)
+		}
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

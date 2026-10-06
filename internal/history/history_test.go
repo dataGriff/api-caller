@@ -133,6 +133,64 @@ func TestSameInstantEntriesKeepTheirOrder(t *testing.T) {
 	}
 }
 
+func TestPruningNeverDropsTheNewestOfOneInstant(t *testing.T) {
+	// Four entries in one clock tick with room for two: once the bare
+	// name is pruned it must not be reused, or the newest entry would
+	// sort as the oldest and be pruned on the spot.
+	s := New(t.TempDir(), 2)
+	for i := range 4 {
+		must(t, s.Record("", "poll", t0, result(200, itoa(i))))
+	}
+	for index, body := range map[int]string{1: `"body":3`, 2: `"body":2`} {
+		e, err := s.Get("", "poll", index)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(compact(e.Result), body) {
+			t.Errorf("entry %d = %s, want %s", index, compact(e.Result), body)
+		}
+	}
+}
+
+func TestAClockThatGoesBackStillRecordsTheNewestLast(t *testing.T) {
+	s := New(t.TempDir(), 5)
+	must(t, s.Record("", "login", t0, result(200, `1`)))
+	must(t, s.Record("", "login", t0.Add(-time.Hour), result(201, `2`)))
+	e, err := s.Get("", "login", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Status != 201 {
+		t.Errorf("newest = %d, want the entry recorded last (201)", e.Status)
+	}
+}
+
+func TestADamagedEntryIsPassedOver(t *testing.T) {
+	root := t.TempDir()
+	s := New(root, 5)
+	must(t, s.Record("", "login", t0, result(200, `1`)))
+	must(t, s.Record("", "login", t0.Add(time.Second), result(201, `2`)))
+	list, err := s.List("", "login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A write cut short by a killed process.
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(list[0].File)), []byte(`{"time":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	list, err = s.List("", "login")
+	if err != nil || len(list) != 1 || list[0].Status != 200 || list[0].Index != 1 {
+		t.Fatalf("list = %+v, %v; want the one whole entry", list, err)
+	}
+	if e, err := s.Get("", "login", 1); err != nil || e.Status != 200 {
+		t.Errorf("get 1 = %+v, %v", e, err)
+	}
+	must(t, s.Record("", "login", t0.Add(2*time.Second), result(202, `3`)))
+	if list, _ := s.List("", "login"); len(list) != 2 || list[0].Status != 202 {
+		t.Errorf("after another run = %+v", list)
+	}
+}
+
 func TestNamesCannotLeaveTheDirectory(t *testing.T) {
 	root := t.TempDir()
 	s := New(root, 2)
@@ -246,6 +304,28 @@ func TestCompareText(t *testing.T) {
 	}
 	if got := render(changes); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestCompareLongTextsThatDifferInOneLine(t *testing.T) {
+	var a, b strings.Builder
+	for i := range 5000 {
+		line := fmt.Sprintf("line %d", i)
+		a.WriteString(line + "\n")
+		if i == 4321 {
+			line = "changed"
+		}
+		b.WriteString(line + "\n")
+	}
+	as, _ := json.Marshal(a.String())
+	bs, _ := json.Marshal(b.String())
+	changes, err := Compare(result(200, string(as)), result(200, string(bs)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`removed line 4322 "line 4321" → `, `added line 4322  → "changed"`}
+	if got := render(changes); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("changes = %q", got)
 	}
 }
 

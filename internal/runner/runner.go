@@ -464,6 +464,9 @@ type Result struct {
 	Captures map[string]string `json:"captures,omitempty"`
 	Asserts  []assert.Result   `json:"asserts,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
+	// Warnings are problems that did not fail the request, such as a
+	// response history that could not be written.
+	Warnings []string `json:"warnings,omitempty"`
 	// Error is the error that stopped the request, with its catalogue
 	// code, when one did; Errors keeps the message too.
 	Error *ErrorInfo `json:"error,omitempty"`
@@ -869,6 +872,11 @@ func (r *Runner) Run(ctx context.Context, req *httpfile.Request) (*Result, error
 			res.OK = false
 		}
 	}
+	if err == nil && res != nil {
+		// Recorded once the result is final, --output included, so the
+		// history holds what `apic run --json` prints.
+		r.record(req, res)
+	}
 	return res, err
 }
 
@@ -1137,9 +1145,10 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			result.OK = false
 		}
 	}
-	if err := r.record(req, result); err != nil {
-		result.Errors = append(result.Errors, "history: "+err.Error())
-		result.OK = false
+	if len(chain) > 0 {
+		// A dependency is final here; the request Run was called for is
+		// recorded by Run.
+		r.record(req, result)
 	}
 	return result, nil
 }
@@ -1147,17 +1156,31 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 // record adds a named request's response to its history, in the form
 // `apic run --json` prints: sensitive headers masked, and every value
 // under --redact. The requests it ran first have histories of their own.
-func (r *Runner) record(req *httpfile.Request, result *Result) error {
+// History is a convenience: a write that fails (a read-only checkout, a
+// full disk) is a warning on the result, never a failed request.
+func (r *Runner) record(req *httpfile.Request, result *Result) {
 	if r.History == nil || req.Name == "" || result.Response == nil {
-		return nil
+		return
 	}
 	entry := *result
-	entry.Deps, entry.Iteration = nil, nil
+	entry.Deps, entry.Iteration, entry.Warnings = nil, nil, nil
 	data, err := json.Marshal(entry)
-	if err != nil {
-		return err
+	if err == nil {
+		err = r.History.Record(r.Opts.Env, HistoryKey(r.Project, req), r.clock(), data)
 	}
-	return r.History.Record(r.Opts.Env, req.Name, r.clock(), data)
+	if err != nil {
+		result.Warnings = append(result.Warnings, "history: "+err.Error())
+	}
+}
+
+// HistoryKey is what a request's history is kept under: its name, or
+// file#name when the name is used in more than one file, so two requests
+// that share a name never share a history.
+func HistoryKey(p *project.Project, req *httpfile.Request) string {
+	if _, err := p.Lookup(req.Name); err != nil {
+		return req.File.Path + "#" + req.Name
+	}
+	return req.Name
 }
 
 // attempt sends a resolved request once and evaluates its captures and

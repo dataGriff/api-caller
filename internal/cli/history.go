@@ -26,23 +26,31 @@ type historyTarget struct {
 }
 
 // historyStore opens the project's history for the environment in
-// effect. Reading needs no `history:` in apic.yaml: what an earlier
-// setting recorded stays readable.
+// effect: --env, else apic.yaml's env, else "default". It builds no
+// runner, so a session or cookie jar apic cannot read never stands in
+// the way of reading or clearing the history. Reading needs no
+// `history:` in apic.yaml: what an earlier setting recorded stays
+// readable.
 func (a *App) historyStore() (*history.Store, *project.Project, string, error) {
-	r, err := a.newRunner()
+	p, err := a.loadProject()
 	if err != nil {
 		return nil, nil, "", err
 	}
-	env := r.Opts.Env
+	env := a.g.env
+	if env == "" {
+		env = p.Config.Env
+	}
 	if env == "" {
 		env = history.DefaultEnv
 	}
-	return history.New(r.Project.Root, r.Project.Config.History), r.Project, env, nil
+	return history.New(p.Root, p.Config.History), p, env, nil
 }
 
-// historyFor resolves target to a named request. A name with history
-// but no request any more (renamed or deleted since) still resolves, so
-// its history can be read and cleared.
+// historyFor resolves target to the key a request's history is kept
+// under (see runner.HistoryKey). A name with history but no request any
+// more (renamed or deleted since) still resolves, so its history can be
+// read and cleared; a name several requests share does not, since the
+// history of each is kept apart under file#name.
 func (a *App) historyFor(target string) (*historyTarget, error) {
 	store, p, env, err := a.historyStore()
 	if err != nil {
@@ -54,9 +62,18 @@ func (a *App) historyFor(target string) (*historyTarget, error) {
 		if reqs[0].Name == "" {
 			return nil, runner.Usage(runner.CodeUnknownRequest, fmt.Sprintf("%s has no # @name; history keeps named requests only", target))
 		}
-		return &historyTarget{store: store, project: p, env: env, name: reqs[0].Name}, nil
+		return &historyTarget{store: store, project: p, env: env, name: runner.HistoryKey(p, reqs[0])}, nil
 	case rerr == nil:
 		return nil, runner.Usage(runner.CodeAmbiguous, fmt.Sprintf("%s names %d requests; pick one with %s#<name>", target, len(reqs), target))
+	}
+	shared := 0
+	for _, r := range p.Requests() {
+		if r.Name == target {
+			shared++
+		}
+	}
+	if shared > 1 {
+		return nil, runner.Usage(runner.CodeAmbiguous, rerr.Error())
 	}
 	if entries, err := store.List(env, target); err == nil && len(entries) > 0 {
 		return &historyTarget{store: store, project: p, env: env, name: target}, nil
@@ -169,14 +186,23 @@ newest; the default compares 2 with 1.`,
 	diff.ValidArgsFunction = a.completeRequests
 	cmd.AddCommand(diff)
 
-	var all bool
+	var all, everyEnv bool
 	clear := &cobra.Command{
 		Use:   "clear [request]",
-		Short: "Forget the history of a request, or of every request in the environment (or --all)",
-		Args:  cobra.MaximumNArgs(1),
+		Short: "Forget the history of a request, or of every request with --all",
+		Long: `Forget the history of one request in the current environment. With
+--all and no request, forget every request's history in the environment;
+add --every-env to forget it in every environment.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if all && len(args) > 0 {
-				return runner.Usage(runner.CodeFlag, "--all clears every request in every environment; give it no request")
+			if everyEnv {
+				all = true
+			}
+			switch {
+			case all && len(args) > 0:
+				return runner.Usage(runner.CodeFlag, "--all clears every request; give it no request")
+			case !all && len(args) == 0:
+				return a.historyClearNeedsScope()
 			}
 			var store *history.Store
 			env, name := "", ""
@@ -192,7 +218,7 @@ newest; the default compares 2 with 1.`,
 					return err
 				}
 			}
-			if all {
+			if everyEnv {
 				env = "*"
 			}
 			n, err := store.Clear(env, name)
@@ -210,10 +236,27 @@ newest; the default compares 2 with 1.`,
 			return nil
 		},
 	}
-	clear.Flags().BoolVar(&all, "all", false, "clear every environment")
+	clear.Flags().BoolVar(&all, "all", false, "clear every request's history in the environment")
+	clear.Flags().BoolVar(&everyEnv, "every-env", false, "clear every request's history in every environment (implies --all)")
 	clear.ValidArgsFunction = a.completeRequests
 	cmd.AddCommand(clear)
 	return cmd
+}
+
+// historyClearNeedsScope refuses a bare `history clear`, which would
+// otherwise wipe a whole environment by accident; a project with a
+// request named clear is told how to list its history instead.
+func (a *App) historyClearNeedsScope() error {
+	msg := "name the request whose history to clear, or pass --all for every request in the environment (--every-env for every environment)"
+	if p, err := a.loadProject(); err == nil {
+		for _, r := range p.Requests() {
+			if r.Name == "clear" {
+				msg += fmt.Sprintf("; to list the history of the request named clear, use apic history %s#clear", r.File.Path)
+				break
+			}
+		}
+	}
+	return runner.Usage(runner.CodeFlag, msg)
 }
 
 func (a *App) historyRequests() error {

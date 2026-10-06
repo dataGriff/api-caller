@@ -233,7 +233,9 @@ that is not text now comes as base64 with `body_encoding` beside it,
 `saved_to` names the file a `>> file` line wrote, a `# @disabled`
 request a flow skipped prints `"skipped": "disabled"` with no response,
 `response.proto` says whether it came over HTTP/1.1 or HTTP/2, under
-`run --data` each object carries its `iteration`, and an error comes with
+`run --data` each object carries its `iteration`, `warnings` lists what
+went wrong without failing the request (a history that could not be
+written), and an error comes with
 its catalogue code: as `error` beside `errors` on a result, and as one
 `{"error": {"code", "title", "message", "hint", "exit", "url"}}` object on
 stderr (stdout is unchanged).

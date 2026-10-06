@@ -123,18 +123,51 @@ func (s *Store) Record(env, name string, at time.Time, result []byte) error {
 	if err != nil {
 		return err
 	}
-	base := at.UTC().Format("20060102T150405.000000000Z")
-	path := filepath.Join(dir, base+".json")
-	for n := 2; ; n++ {
-		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-			break
-		}
-		path = filepath.Join(dir, fmt.Sprintf("%s-%d.json", base, n))
-	}
-	if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
+	f, err := create(dir, at)
+	if err != nil {
 		return err
 	}
+	_, werr := f.Write(append(data, '\n'))
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		_ = os.Remove(f.Name())
+		return werr
+	}
 	return s.prune(dir)
+}
+
+// stamp is the layout of an entry's file name: its UTC time, which sorts
+// as text in the order the entries were written.
+const stamp = "20060102T150405.000000000Z"
+
+// create claims a new entry file in dir, named so that it sorts after
+// every entry already there: the time it is recorded at, or, when that is
+// not later than the newest entry (several entries in one clock tick, or
+// a clock that went back), the newest one's name with the next -N suffix.
+// The file is created exclusively, so two processes that pick the same
+// name take turns instead of one overwriting the other.
+func create(dir string, at time.Time) (*os.File, error) {
+	for range 100 {
+		names, err := entryFiles(dir)
+		if err != nil {
+			return nil, err
+		}
+		name := at.UTC().Format(stamp) + ".json"
+		if len(names) > 0 {
+			if newest := names[len(names)-1]; !lessName(newest, name) {
+				base, n := splitName(newest)
+				name = fmt.Sprintf("%s-%d.json", base, n+1)
+			}
+		}
+		f, err := os.OpenFile(filepath.Join(dir, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) //nolint:gosec // a name apic built under .apic/history
+		if errors.Is(err, fs.ErrExist) {
+			continue // another process took it first
+		}
+		return f, err
+	}
+	return nil, fmt.Errorf("%s: no free name for a new entry", dir)
 }
 
 // prune removes the oldest entries in dir beyond Keep.
@@ -199,6 +232,31 @@ func splitName(name string) (string, int) {
 // List returns the entries for name in env, newest first, without their
 // results. No history is an empty list, not an error.
 func (s *Store) List(env, name string) ([]Entry, error) {
+	entries, err := s.entries(env, name)
+	for i := range entries {
+		entries[i].Result = nil
+	}
+	return entries, err
+}
+
+// Get returns entry index (1 is the newest) for name in env, with its
+// result.
+func (s *Store) Get(env, name string, index int) (Entry, error) {
+	entries, err := s.entries(env, name)
+	if err != nil {
+		return Entry{}, err
+	}
+	if index < 1 || index > len(entries) {
+		return Entry{}, &RangeError{Name: name, Index: index, Have: len(entries)}
+	}
+	return entries[index-1], nil
+}
+
+// entries reads every entry for name in env, newest first, numbered from
+// 1. A file that cannot be parsed (a write cut short by a killed process,
+// or one still being written by another) is passed over rather than
+// failing the whole history; it ages out like any other entry.
+func (s *Store) entries(env, name string) ([]Entry, error) {
 	dir := s.dir(env, name)
 	names, err := entryFiles(dir)
 	if err != nil {
@@ -207,15 +265,20 @@ func (s *Store) List(env, name string) ([]Entry, error) {
 	out := make([]Entry, 0, len(names))
 	for i := len(names) - 1; i >= 0; i-- {
 		e, err := s.read(filepath.Join(dir, names[i]))
-		if err != nil {
+		switch {
+		case errors.Is(err, fs.ErrNotExist), errors.Is(err, errDamaged):
+			continue
+		case err != nil:
 			return nil, err
 		}
 		e.Index = len(out) + 1
-		e.Result = nil
 		out = append(out, e)
 	}
 	return out, nil
 }
+
+// errDamaged marks an entry file that is not a whole entry.
+var errDamaged = errors.New("damaged history entry")
 
 // Recorded is a request that has history in an environment.
 type Recorded struct {
@@ -225,7 +288,8 @@ type Recorded struct {
 
 // Requests lists the requests with history in env, by name.
 func (s *Store) Requests(env string) ([]Recorded, error) {
-	des, err := os.ReadDir(filepath.Join(s.root, component(envKey(env))))
+	envDir := filepath.Join(s.root, component(envKey(env)))
+	des, err := os.ReadDir(envDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -241,7 +305,7 @@ func (s *Store) Requests(env string) ([]Recorded, error) {
 		if err != nil {
 			continue // not a directory apic made
 		}
-		files, err := entryFiles(filepath.Join(s.root, component(envKey(env)), de.Name()))
+		files, err := entryFiles(filepath.Join(envDir, de.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -251,25 +315,6 @@ func (s *Store) Requests(env string) ([]Recorded, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Request < out[j].Request })
 	return out, nil
-}
-
-// Get returns entry index (1 is the newest) for name in env, with its
-// result.
-func (s *Store) Get(env, name string, index int) (Entry, error) {
-	dir := s.dir(env, name)
-	names, err := entryFiles(dir)
-	if err != nil {
-		return Entry{}, err
-	}
-	if index < 1 || index > len(names) {
-		return Entry{}, &RangeError{Name: name, Index: index, Have: len(names)}
-	}
-	e, err := s.read(filepath.Join(dir, names[len(names)-index]))
-	if err != nil {
-		return Entry{}, err
-	}
-	e.Index = index
-	return e, nil
 }
 
 // RangeError is a Get for an entry that does not exist.
@@ -295,12 +340,12 @@ func (s *Store) read(path string) (Entry, error) {
 		return Entry{}, err
 	}
 	var f file
-	if err := json.Unmarshal(data, &f); err != nil {
-		return Entry{}, fmt.Errorf("%s: %w", path, err)
+	if err := json.Unmarshal(data, &f); err != nil || len(f.Result) == 0 {
+		return Entry{}, fmt.Errorf("%s: %w", path, errDamaged)
 	}
 	var sum summary
 	if err := json.Unmarshal(f.Result, &sum); err != nil {
-		return Entry{}, fmt.Errorf("%s: %w", path, err)
+		return Entry{}, fmt.Errorf("%s: %w", path, errDamaged)
 	}
 	e := Entry{Time: f.Time, OK: sum.OK, Result: f.Result}
 	if r := sum.Response; r != nil {

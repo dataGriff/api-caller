@@ -163,6 +163,9 @@ apic run get-user --body-only | jq .email
 - `response.headers` keys are lower-case; multiple values are joined with `, `. `set-cookie` and `www-authenticate` are always `***`; under `--redact` every value is.
 - `asserts[].actual` and `asserts[].expected` are `***` under `--redact`, and `expr` keeps only its selector and operator. `pass` and `error` are unaffected.
 - `errors` (omitted when empty) lists failed captures and other problems.
+- `warnings` (omitted when empty) lists problems that did not fail the
+  request, such as a [response history](#apic-history) that could not be
+  written.
 - `ok` is false when any assertion or capture failed, and when a request a
   `# @ref` ran first failed; `errors` then names it (`@ref login failed`).
 - `response.timings` breaks `duration_ms` down: name resolution, the TCP
@@ -411,7 +414,7 @@ cookies are not in it. `session cookies` lists the jar on its own, and with
 ```
 apic history [request] [--show N] [-v]
 apic history diff <request> [from] [to]
-apic history clear [request] [--all]
+apic history clear <request> | --all [--every-env]
 ```
 
 Response history is off until `apic.yaml` sets `history: N`. Then every
@@ -419,9 +422,13 @@ Response history is off until `apic.yaml` sets `history: N`. Then every
 `N` responses of each named request, per environment, in
 `.apic/history/<env>/<request>/`. Unnamed requests, `--no-session` runs,
 `apic run --data` and `apic test` record nothing. A request that `# @ref`
-ran first gets its own entry. Each entry is the result as `apic run --json`
-prints it, so sensitive headers are masked and a `--redact` run stores the
-redacted form; see [Security](https://github.com/dataGriff/api-caller/blob/main/SECURITY.md)
+ran first gets its own entry. A name two files both use is kept apart as
+`file.http#name`, the target that picks either one. Each entry is the
+result as `apic run --json` prints it, `saved_to` from `--output`
+included, so sensitive headers are masked and a `--redact` run stores the
+redacted form. A history that cannot be written (a read-only checkout, a
+full disk) does not fail the run: the result carries a `warnings` entry
+instead. See [Security](https://github.com/dataGriff/api-caller/blob/main/SECURITY.md)
 for what that leaves on disk.
 
 `history <request>` lists the entries newest first, numbered from 1, with
@@ -429,7 +436,8 @@ the time, status, duration and size. With no request it lists the
 requests that have history in the environment. `--show N` prints entry N
 as `apic run` printed it (`-v` adds the headers). A request that has
 since been renamed or deleted keeps its history and can still be read and
-cleared by its old name.
+cleared by its old name. A request named `diff` or `clear` is reached as
+`apic history file.http#diff`, since the bare word is the subcommand.
 
 `history diff` compares two entries, by default `2` (the one before) with
 `1` (the latest): first the status, then the body. A JSON body is compared
@@ -446,8 +454,10 @@ list-todos #2 (2026-10-06 10:00:01, 200) → #1 (2026-10-06 10:05:03, 200)
 2 changes
 ```
 
-`history clear` forgets one request's history, the whole environment's
-without a request, or every environment's with `--all`.
+`history clear <request>` forgets one request's history in the current
+environment, `history clear --all` every request's in the environment,
+and `--every-env` every request's in every environment. A bare `history
+clear` is refused rather than taken to mean the whole environment.
 
 With `--json`:
 
@@ -1066,7 +1076,7 @@ apic history [request] [flags]
 
 ### apic history clear
 
-Forget the history of a request, or of every request in the environment (or --all).
+Forget the history of a request, or of every request with --all.
 
 ```
 apic history clear [request] [flags]
@@ -1074,7 +1084,8 @@ apic history clear [request] [flags]
 
 | Flag | Meaning |
 |---|---|
-| `--all` | clear every environment |
+| `--all` | clear every request's history in the environment |
+| `--every-env` | clear every request's history in every environment (implies --all) |
 
 ### apic history diff
 

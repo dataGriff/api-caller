@@ -6,6 +6,7 @@ import (
 
 	"github.com/dataGriff/api-caller/internal/history"
 	"github.com/dataGriff/api-caller/internal/output"
+	"github.com/dataGriff/api-caller/internal/runner"
 )
 
 // histView is the history tab's content for one request and environment,
@@ -22,24 +23,25 @@ type histView struct {
 // historyView returns the selected request's history, reading it when
 // the cached view is stale.
 func (m *Model) historyView() *histView {
-	key := fmt.Sprintf("%s|%s|%d", m.selected.ID(), m.env, m.histSeq)
-	if m.hist != nil && m.hist.key == key {
+	cache := fmt.Sprintf("%s|%s|%d", m.selected.ID(), m.env, m.histSeq)
+	if m.hist != nil && m.hist.key == cache {
 		return m.hist
 	}
 	p := m.runner.Project
 	s := history.New(p.Root, p.Config.History)
-	v := &histView{key: key}
+	v := &histView{key: cache}
 	m.hist = v
 	if m.selected.Name == "" {
 		return v
 	}
-	if v.entries, v.err = s.List(m.env, m.selected.Name); v.err != nil || len(v.entries) < 2 {
+	key := runner.HistoryKey(p, m.selected)
+	if v.entries, v.err = s.List(m.env, key); v.err != nil || len(v.entries) < 2 {
 		return v
 	}
-	if v.from, v.err = s.Get(m.env, m.selected.Name, 2); v.err != nil {
+	if v.from, v.err = s.Get(m.env, key, 2); v.err != nil {
 		return v
 	}
-	if v.to, v.err = s.Get(m.env, m.selected.Name, 1); v.err != nil {
+	if v.to, v.err = s.Get(m.env, key, 1); v.err != nil {
 		return v
 	}
 	v.changes, v.err = history.Compare(v.from.Result, v.to.Result)
@@ -85,6 +87,6 @@ func (m *Model) renderHistory(width int) string {
 		return b.String()
 	}
 	b.WriteString(output.Changes(t, v.changes, width-4))
-	b.WriteString(t.Dim.Render(fmt.Sprintf("apic history diff %s for the same in a terminal", m.selected.Name)) + "\n")
+	b.WriteString(t.Dim.Render(fmt.Sprintf("apic history diff %s for the same in a terminal", runner.HistoryKey(p, m.selected))) + "\n")
 	return b.String()
 }

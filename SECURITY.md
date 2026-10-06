@@ -71,7 +71,7 @@ this list and the behaviour is a bug worth reporting:
   a response body can hold personal data or a token. When it is on, each
   entry is stored the way `apic run --json` prints it, with sensitive
   headers masked and everything masked for a `--redact` run, `0600` under
-  `.apic/history`. `apic history clear --all` removes it.
+  `.apic/history`. `apic history clear --every-env` removes it.
 - Sensitive request headers (`Authorization`, `Cookie`, API-key headers) and
   sensitive response headers (`Set-Cookie`, `WWW-Authenticate`) are masked in
   output whether or not `--redact` is passed.

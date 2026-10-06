@@ -179,23 +179,33 @@ func key(k string) string {
 
 // diffLines is a line diff of two texts by longest common subsequence.
 // An added line is numbered as in the newer text, a removed one as in
-// the older.
+// the older. The lines both texts start and end with are set aside
+// first, so two long bodies that differ in a few lines cost little.
 func diffLines(a, b string) []Change {
 	if a == b {
 		return nil
 	}
 	al, bl := strings.Split(a, "\n"), strings.Split(b, "\n")
-	if len(al)*len(bl) > maxLineCells {
+	pre := 0
+	for pre < len(al) && pre < len(bl) && al[pre] == bl[pre] {
+		pre++
+	}
+	suf := 0
+	for suf < len(al)-pre && suf < len(bl)-pre && al[len(al)-1-suf] == bl[len(bl)-1-suf] {
+		suf++
+	}
+	am, bm := al[pre:len(al)-suf], bl[pre:len(bl)-suf]
+	if len(am)*len(bm) > maxLineCells {
 		return []Change{{Path: "body", Op: Changed}}
 	}
-	// lcs[i][j] is the common length of al[i:] and bl[j:].
-	lcs := make([][]int, len(al)+1)
+	// lcs[i][j] is the common length of am[i:] and bm[j:].
+	lcs := make([][]int, len(am)+1)
 	for i := range lcs {
-		lcs[i] = make([]int, len(bl)+1)
+		lcs[i] = make([]int, len(bm)+1)
 	}
-	for i := len(al) - 1; i >= 0; i-- {
-		for j := len(bl) - 1; j >= 0; j-- {
-			if al[i] == bl[j] {
+	for i := len(am) - 1; i >= 0; i-- {
+		for j := len(bm) - 1; j >= 0; j-- {
+			if am[i] == bm[j] {
 				lcs[i][j] = lcs[i+1][j+1] + 1
 			} else {
 				lcs[i][j] = max(lcs[i+1][j], lcs[i][j+1])
@@ -204,16 +214,16 @@ func diffLines(a, b string) []Change {
 	}
 	var out []Change
 	i, j := 0, 0
-	for i < len(al) || j < len(bl) {
+	for i < len(am) || j < len(bm) {
 		switch {
-		case i < len(al) && j < len(bl) && al[i] == bl[j]:
+		case i < len(am) && j < len(bm) && am[i] == bm[j]:
 			i++
 			j++
-		case i < len(al) && (j == len(bl) || lcs[i+1][j] >= lcs[i][j+1]):
-			out = append(out, Change{Path: fmt.Sprintf("line %d", i+1), Op: Removed, From: raw(al[i])})
+		case i < len(am) && (j == len(bm) || lcs[i+1][j] >= lcs[i][j+1]):
+			out = append(out, Change{Path: fmt.Sprintf("line %d", pre+i+1), Op: Removed, From: raw(am[i])})
 			i++
 		default:
-			out = append(out, Change{Path: fmt.Sprintf("line %d", j+1), Op: Added, To: raw(bl[j])})
+			out = append(out, Change{Path: fmt.Sprintf("line %d", pre+j+1), Op: Added, To: raw(bm[j])})
 			j++
 		}
 	}
