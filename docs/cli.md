@@ -802,7 +802,12 @@ The project root is found per file: the nearest directory holding
 `--dir` is used when the client names no workspace. `--env`, or
 `initializationOptions.env` from the client, picks the environment for
 hover, completion and runs; `workspace/didChangeConfiguration` with
-`{"apic": {"env": "staging"}}` changes it. A run through a code lens
+`{"apic": {"env": "staging"}}` changes it. `"codeLens": false` and
+`"formatting": false` in the initialisation options leave those features
+to a client that has its own, as the VS Code extension does. The
+workspace is checked when the client is ready, so problems in files that
+are not open show too, and `apic.lsp.validate` (no arguments) checks it
+again and answers once the diagnostics are out. A run through a code lens
 writes the session and the [response history](#apic-history) as
 `apic run` does. The server exits 0 after a `shutdown` request and an
 `exit` notification, and 2 if the client exits without one.

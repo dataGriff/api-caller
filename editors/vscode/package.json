@@ -193,6 +193,11 @@
           "minimum": 0,
           "markdownDescription": "How long to wait after a save before validating, so a burst of saves becomes one run."
         },
+        "apic.languageServer.enable": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Take diagnostics, completion and hover from `apic lsp` (apic 0.2.0 or later), so problems show as you type rather than on save. The code lenses, the formatter, the response panel, the views and the Test Explorer are unchanged. Reload the window after changing it."
+        },
         "apic.format.enable": {
           "type": "boolean",
           "default": true,
@@ -417,7 +422,7 @@
     "compile-tests": "tsc -p tsconfig.test.json",
     "pretest": "npm run build && npm run compile-tests",
     "test": "vscode-test",
-    "package": "vsce package --no-dependencies",
+    "package": "node notices.mjs && vsce package --no-dependencies",
     "check": "npm run lint && npm run typecheck && npm run build && npm run package",
     "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\""
   },
@@ -435,5 +440,8 @@
     "ovsx": "^1.2.0",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.70.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.2"
   }
 }

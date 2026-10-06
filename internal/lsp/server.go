@@ -37,6 +37,9 @@ const (
 	CommandRun      = "apic.lsp.run"
 	CommandDescribe = "apic.lsp.describe"
 	CommandCurl     = "apic.lsp.curl"
+	// CommandValidate checks every project of the workspace now and
+	// answers once its diagnostics are published. It takes no arguments.
+	CommandValidate = "apic.lsp.validate"
 )
 
 // markers are the files whose directory is a project root.
@@ -143,6 +146,7 @@ func (s *server) handle(m *message) (any, error) {
 	switch m.Method {
 	case "initialized":
 		s.registerWatchers()
+		s.validateWorkspace()
 		return nil, nil
 	case "shutdown":
 		s.mu.Lock()
@@ -281,20 +285,53 @@ func (s *server) initialize(raw json.RawMessage) (any, error) {
 	}
 	s.initialized = true
 	s.watchable = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
-	return map[string]any{
-		"capabilities": map[string]any{
-			"positionEncoding": encoding,
-			"textDocumentSync": map[string]any{"openClose": true, "change": 1, "save": map[string]any{"includeText": false}},
-			"completionProvider": map[string]any{
-				"triggerCharacters": []string{"@", "{", ".", " ", "$"},
-			},
-			"hoverProvider":              true,
-			"codeLensProvider":           map[string]any{"resolveProvider": false},
-			"documentFormattingProvider": true,
-			"executeCommandProvider":     map[string]any{"commands": []string{CommandRun, CommandDescribe, CommandCurl}},
+	caps := map[string]any{
+		"positionEncoding": encoding,
+		"textDocumentSync": map[string]any{"openClose": true, "change": 1, "save": map[string]any{"includeText": false}},
+		"completionProvider": map[string]any{
+			"triggerCharacters": []string{"@", "{", ".", " ", "$"},
 		},
-		"serverInfo": map[string]any{"name": "apic", "version": s.opts.Version},
+		"hoverProvider":          true,
+		"executeCommandProvider": map[string]any{"commands": []string{CommandRun, CommandDescribe, CommandCurl, CommandValidate}},
+	}
+	if o := p.InitializationOptions.CodeLens; o == nil || *o {
+		caps["codeLensProvider"] = map[string]any{"resolveProvider": false}
+	}
+	if o := p.InitializationOptions.Formatting; o == nil || *o {
+		caps["documentFormattingProvider"] = true
+	}
+	return map[string]any{
+		"capabilities": caps,
+		"serverInfo":   map[string]any{"name": "apic", "version": s.opts.Version},
 	}, nil
+}
+
+// validateWorkspace checks the project of every workspace folder, and
+// every project a document has opened since, publishing diagnostics for
+// files that are not open too, as `apic validate` would report them.
+func (s *server) validateWorkspace() {
+	s.mu.Lock()
+	seen := map[string]bool{}
+	var roots []string
+	for _, folder := range s.roots {
+		// rootFor walks up from a file; a name inside the folder starts
+		// the walk at the folder itself.
+		if r := s.rootFor(filepath.Join(folder, "_")); !seen[r] {
+			seen[r] = true
+			roots = append(roots, r)
+		}
+	}
+	for r := range s.projects {
+		if !seen[r] {
+			seen[r] = true
+			roots = append(roots, r)
+		}
+	}
+	s.mu.Unlock()
+	sort.Strings(roots)
+	for _, r := range roots {
+		s.refresh(r)
+	}
 }
 
 // registerWatchers asks a client that can to tell the server about

@@ -1,11 +1,14 @@
 // The apic extension: a thin client over the apic binary's --json contract.
 // Binary discovery and a version check, diagnostics from `apic validate`,
 // CodeLens to run, describe and copy a request, a response panel, and an
-// environment picker. Views, completions and hovers sit on top of this.
+// environment picker. Views, completions and hovers sit on top of this;
+// with apic.languageServer.enable, `apic lsp` supplies the diagnostics,
+// completions and hovers instead (client.ts).
 import * as vscode from "vscode";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } from "./apic";
+import { languageServerEnabled, setEnvironment, startLanguageClient, validateWith } from "./client";
 import { ApicCodeActions } from "./codeActions";
 import { ApicCodeLens } from "./codeLens";
 import { ApicCompletions } from "./completion";
@@ -74,13 +77,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   };
   const completions = new ApicCompletions(apic, envs, lens, knownDirectives, () => panel.last());
 
+  // With apic.languageServer.enable, diagnostics, completion and hover
+  // come from `apic lsp` and follow the buffer as you type; a binary
+  // without a language server leaves them to the extension, as before.
+  const firstRoot = projectRoot();
+  const lsp = languageServerEnabled() ? await startLanguageClient(apic, firstRoot ? envs.current(firstRoot) : undefined, output) : undefined;
+  if (lsp) {
+    context.subscriptions.push({ dispose: () => void lsp.stop() });
+  } else {
+    context.subscriptions.push(
+      vscode.languages.registerCompletionItemProvider(requestFiles, completions, ...ApicCompletions.triggers),
+      vscode.languages.registerHoverProvider(requestFiles, hover),
+    );
+  }
+
   // Request and config files changing on disk, whether saved here or
   // written by git, apic import or anything else: the request list and
   // the diagnostics follow.
   const watcher = vscode.workspace.createFileSystemWatcher(WATCH_GLOB);
   const onDisk = (uri: vscode.Uri) => {
     lens.fileChanged(uri);
-    diagnostics.changed(uri);
+    if (!lsp) {
+      diagnostics.changed(uri);
+    }
     if (uri.scheme === "file" && triggersValidation(uri)) {
       const root = projectRoot(uri);
       if (root) {
@@ -97,20 +116,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     watcher.onDidChange(onDisk),
     watcher.onDidCreate(onDisk),
     watcher.onDidDelete(onDisk),
-    vscode.workspace.onDidSaveTextDocument((doc) => diagnostics.changed(doc.uri)),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (!lsp) {
+        diagnostics.changed(doc.uri);
+      }
+    }),
     vscode.languages.registerCodeLensProvider(requestFiles, lens),
     vscode.languages.registerCodeLensProvider(requestFiles, stepLens),
     vscode.languages.registerDocumentFormattingEditProvider(requestFiles, new Formatter(apic)),
     vscode.languages.registerCodeActionsProvider(requestFiles, new ApicCodeActions(knownDirectives, (doc) => lens.names(doc)), ApicCodeActions.metadata),
-    vscode.languages.registerCompletionItemProvider(requestFiles, completions, ...ApicCompletions.triggers),
-    vscode.languages.registerHoverProvider(requestFiles, hover),
     envs.onDidChange((root) => {
       lens.invalidate(root);
       requestsView.refresh(root);
       sessionView.refresh();
       completions.invalidate(root);
       hover.invalidate(root);
-      if (diagnostics.auto()) {
+      if (lsp) {
+        void setEnvironment(lsp, envs.current(root));
+      } else if (diagnostics.auto()) {
         diagnostics.schedule(root);
       }
     }),
@@ -126,7 +149,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("apic.path")) {
         apic.reset();
-        void diagnostics.validateWorkspace();
+        if (!lsp) {
+          void diagnostics.validateWorkspace();
+        }
+      }
+      if (e.affectsConfiguration("apic.languageServer.enable")) {
+        void vscode.window.showInformationMessage("Reload the window to switch apic's language server on or off.", "Reload").then((pick) => {
+          if (pick) {
+            void vscode.commands.executeCommand("workbench.action.reloadWindow");
+          }
+        });
       }
     }),
   );
@@ -198,6 +230,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     vscode.commands.registerCommand("apic.revealStepUsages", (usages: Parameters<typeof revealStepUsages>[0]) => revealStepUsages(usages ?? [])),
     vscode.commands.registerCommand("apic.validate", async (uri?: vscode.Uri) => {
       const root = uri ? projectRoot(uri) : activeRoot();
+      if (lsp) {
+        await validateWith(lsp);
+        return;
+      }
       await guarded(() => (root ? diagnostics.validate(root) : diagnostics.validateWorkspace(true)));
     }),
   );
@@ -234,13 +270,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   // is, so this is the one prompt worth showing on activation. Then
   // validate what is open, so the Problems panel is populated from the
   // start.
-  void checkBinary(apic).then(() => diagnostics.validateWorkspace());
+  void checkBinary(apic).then(() => (lsp ? undefined : diagnostics.validateWorkspace()));
   void tests.discover();
 
   return {
     apic,
     projectRoot,
-    validateNow: () => diagnostics.validateWorkspace(),
+    validateNow: () => (lsp ? validateWith(lsp) : diagnostics.validateWorkspace()),
     lastResults: () => panel.last(),
     diagnostics,
     environments: envs,

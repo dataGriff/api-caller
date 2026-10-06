@@ -68,6 +68,10 @@ type deferred struct{}
 // shows a one-line summary and writes the full text report to the
 // client's log.
 func (s *server) execute(id *json.RawMessage, p executeCommandParams) (any, error) {
+	if p.Command == CommandValidate {
+		s.validateWorkspace()
+		return nil, nil
+	}
 	if len(p.Arguments) < 2 {
 		return nil, &rpcError{Code: codeInvalidParams, Message: p.Command + " takes a document URI and a request target"}
 	}

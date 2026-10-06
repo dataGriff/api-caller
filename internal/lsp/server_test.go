@@ -526,3 +526,40 @@ func must[T any](v T, err error) T {
 	}
 	return v
 }
+
+func TestTheWorkspaceIsCheckedWithoutOpeningAFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apic.yaml"), "env: dev\n")
+	warn := filepath.Join(dir, "warn.http")
+	writeFile(t, warn, "### w\n# @name w\n# @frobnicate\nGET https://example.com\n")
+	c := start(t, Options{})
+	c.call("initialize", map[string]any{"rootUri": pathToURI(dir)})
+	c.notify("initialized", map[string]any{})
+	d := c.diagnostics(warn, 0)
+	if len(d) != 1 || d[0].Code != "unknown-directive" {
+		t.Fatalf("diagnostics at start = %+v", d)
+	}
+	// The file is fixed on disk; apic.lsp.validate re-checks and answers
+	// once the diagnostics are out.
+	writeFile(t, warn, "### w\n# @name w\nGET https://example.com\n")
+	n := c.noteCount()
+	if m := c.call("workspace/executeCommand", map[string]any{"command": CommandValidate}); m.Error != nil {
+		t.Fatal(m.Error)
+	}
+	if c.noteCount() == n {
+		t.Fatal("validate answered before publishing")
+	}
+	if d := c.diagnostics(warn, n); len(d) != 0 {
+		t.Errorf("after the fix = %+v", d)
+	}
+}
+
+func TestInitializationOptionsTurnFeaturesOff(t *testing.T) {
+	c := start(t, Options{})
+	init := c.call("initialize", map[string]any{"rootUri": pathToURI(t.TempDir()),
+		"initializationOptions": map[string]any{"env": "staging", "codeLens": false, "formatting": false}})
+	caps := result[map[string]any](t, init)["capabilities"].(map[string]any)
+	if caps["codeLensProvider"] != nil || caps["documentFormattingProvider"] != nil || caps["hoverProvider"] != true {
+		t.Errorf("capabilities = %v", caps)
+	}
+}

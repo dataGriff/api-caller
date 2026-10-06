@@ -70,6 +70,11 @@ type initializeParams struct {
 	} `json:"workspaceFolders"`
 	InitializationOptions struct {
 		Env string `json:"env"`
+		// CodeLens and Formatting set false leave those features to a
+		// client that has its own (the VS Code extension keeps its
+		// lenses and formatter).
+		CodeLens   *bool `json:"codeLens"`
+		Formatting *bool `json:"formatting"`
 	} `json:"initializationOptions"`
 	Capabilities struct {
 		General struct {

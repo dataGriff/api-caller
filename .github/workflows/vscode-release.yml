@@ -59,7 +59,7 @@ jobs:
       - run: npm run build
       - run: npm run test:unit
       - run: xvfb-run -a npm test
-      - run: npx vsce package --no-dependencies
+      - run: npm run package # writes THIRD_PARTY_NOTICES.md, then vsce package
       - name: Publish to the Visual Studio Marketplace
         if: env.VSCE_PAT != ''
         run: npx vsce publish --no-dependencies --packagePath ./*.vsix

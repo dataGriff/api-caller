@@ -1,0 +1,4 @@
+{
+  "folders": [{ "path": "fixture" }],
+  "settings": { "apic.languageServer.enable": true }
+}
