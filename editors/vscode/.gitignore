@@ -3,3 +3,4 @@ dist/
 out/
 *.vsix
 .vscode-test/
+THIRD_PARTY_NOTICES.md

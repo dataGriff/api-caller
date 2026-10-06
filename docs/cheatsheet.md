@@ -50,6 +50,7 @@ Content-Type: application/json
 | `apic validate` | Parse everything and report problems (CI); `--format github\|sarif` |
 | `apic fmt [--check\|--diff]` | Canonical formatting for `.http` files; `-` filters stdin |
 | `apic mcp` | Serve the project to agents over MCP |
+| `apic lsp` | Language server for any LSP editor ([set-up](editors.md#any-editor-with-an-lsp-client)) |
 | `apic demo` | Scaffold and serve the bundled fake API |
 
 **Targets:** `get-user` (by name) · `users.http` (whole file as a flow) ·

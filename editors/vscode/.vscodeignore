@@ -10,3 +10,4 @@ tsconfig.json
 tsconfig.test.json
 **/*.map
 **/.gitignore
+notices.mjs

@@ -20,6 +20,7 @@ flowchart LR
     O --> CLI["<code>apic run</code>"]
     O --> UI["<code>apic ui</code>"]
     O --> MCP["<code>apic mcp</code>"]
+    O --> LSP["<code>apic lsp</code>"]
     O --> BDD["<code>apic test</code>"]
 ```
 
@@ -90,6 +91,7 @@ flowchart LR
 - `internal/output`: the shared theme (`theme.go`), the string renderers used by both the CLI and the UI (`render.go`), JSON highlighting (`jsonhl.go`) and the `io.Writer` wrappers (`output.go`)
 - `internal/phrase`: `# @step` phrase to regex
 - `internal/bdd`: the `apic test` machinery. Godog suite, step vocabulary (`steps.go`), phrase registration, JSON matching, cucumber-report summary
+- `internal/lsp`: `apic lsp`, the language server. JSON-RPC 2.0 with the protocol's framing is written out in `jsonrpc.go` rather than taken from a library; diagnostics come from `project.LoadOverlay` and `Validate` over the open buffers, hover from `Describe`, so an editor sees exactly what the CLI would report
 - `internal/snippet`, `internal/curlimport`, `internal/openapi`, `internal/postman`, `internal/mcp`: the `curl`/`snippet`, `import` and `mcp` commands. The OpenAPI reader is a small yaml.Node walker (`model.go`) with local `$ref` resolution and the Postman reader a hand-written model; neither uses a library for its format
 - `internal/cli`: cobra commands, including `demo`, `init`, `fmt` and `ui`
 - `internal/ui`: the `apic ui` terminal UI. Model/update/view live in `ui.go`, `list.go`, `panes.go` and `run.go`, key bindings in `keys.go`, and its own small terminal layer in `term.go` (input decoding), `viewport.go` and `program.go` (event loop). Tests drive `Update`/`View` directly, so no terminal is needed

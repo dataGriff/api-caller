@@ -118,7 +118,13 @@ func Discover(dir string) ([]string, error) {
 }
 
 // Load discovers and parses every *.http and *.rest file under root.
-func Load(root string) (*Project, error) {
+func Load(root string) (*Project, error) { return LoadOverlay(root, nil) }
+
+// LoadOverlay is Load with some files' content supplied rather than read:
+// overlay maps an absolute path to the text to parse in its place, as an
+// editor holds a buffer that is not saved yet. A request file in the
+// overlay that is not on disk yet is loaded too.
+func LoadOverlay(root string, overlay map[string]string) (*Project, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
@@ -137,9 +143,13 @@ func Load(root string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
+	paths = withOverlay(scan, paths, overlay)
 	for _, path := range paths {
-		f, diags, err := httpfile.ParseFile(path)
-		if err != nil {
+		var f *httpfile.File
+		var diags []httpfile.Diagnostic
+		if content, ok := overlay[path]; ok {
+			f, diags = httpfile.Parse(path, content)
+		} else if f, diags, err = httpfile.ParseFile(path); err != nil {
 			return nil, err
 		}
 		rel, _ := filepath.Rel(abs, path)
@@ -157,6 +167,47 @@ func Load(root string) (*Project, error) {
 		}
 	}
 	return p, nil
+}
+
+// withOverlay adds the overlay's request files under scan that Discover
+// did not find (new, unsaved files), keeping the list sorted. A file
+// Discover would skip (under a hidden directory, node_modules, vendor,
+// testdata or .apic) stays out, open or not, so a project is the same
+// set of files in an editor as on the command line.
+func withOverlay(scan string, paths []string, overlay map[string]string) []string {
+	have := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		have[p] = true
+	}
+	added := false
+	for p := range overlay {
+		ext := filepath.Ext(p)
+		if have[p] || (ext != ".http" && ext != ".rest") {
+			continue
+		}
+		rel, ok := Within(scan, p)
+		if !ok || skipped(rel) {
+			continue
+		}
+		paths = append(paths, p)
+		added = true
+	}
+	if added {
+		sort.Strings(paths)
+	}
+	return paths
+}
+
+// skipped reports whether Discover leaves out a file at rel, a path
+// relative to the directory it walks: one under a directory it skips.
+func skipped(rel string) bool {
+	dirs := strings.Split(filepath.ToSlash(filepath.Dir(rel)), "/")
+	for _, d := range dirs {
+		if d != "." && (skipDirs[d] || strings.HasPrefix(d, ".")) {
+			return true
+		}
+	}
+	return false
 }
 
 // Requests returns every request in file order.

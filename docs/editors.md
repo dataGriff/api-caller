@@ -42,8 +42,9 @@ Two extensions, and they cooperate:
   them through `apic test` in the environment in effect (a tag
   expression on request), and shows a failing step's message at its
   line; a `# @step` line in a request file says how many scenarios use
-  its phrase and opens them. A language server for diagnostics as you
-  type follows, tracked in the [VS Code epic](https://github.com/dataGriff/api-caller/issues/29).
+  its phrase and opens them. With **apic.languageServer.enable** on, the
+  diagnostics, completion and hover come from [`apic lsp`](#any-editor-with-an-lsp-client)
+  instead, so problems show as you type rather than on save.
 
 Install it from the Marketplace or Open VSX (search for **apic**), or
 from the `.vsix` attached to a `vscode-v*` entry on the
@@ -66,9 +67,83 @@ so in `apic validate`). Both read `http-client.env.json` and
 ## Neovim
 
 [kulala.nvim](https://github.com/mistweaverco/kulala.nvim) sends `.http`
-files and reads the same env files. apic's terminal UI (`apic ui`) and the
-CLI are the natural companions there; `apic ui` opens the request under
-the cursor in `$EDITOR` with <kbd>o</kbd> and reloads when you return.
+files and reads the same env files. Add `apic lsp` (below) for problems,
+completion and hover as you type, and apic's terminal UI is the natural
+companion: `apic ui` opens the request under the cursor in `$EDITOR` with
+<kbd>o</kbd> and reloads when you return.
+
+## Any editor with an LSP client
+
+`apic lsp` is a language server on stdin/stdout, built into the binary,
+so any editor with an LSP client gets what the VS Code extension has:
+
+- **Diagnostics as you type**: `apic validate`'s findings for the buffer
+  you are editing, saved or not, at the exact span and with their codes,
+  and for `apic.yaml` and the env files when they change on disk.
+- **Completion**: directives after `# @`, variables inside `{{` (the
+  environment's, with their source and secrets masked, the session's
+  captures, the built-ins and `<name>.response.…` references), selectors
+  after `# @assert` and `# @capture x =`, and after `body.$.` the keys of
+  that request's last response (from a run in the editor, or the
+  [response history](cli.md#apic-history)); operators, `# @auth` types
+  and `# @ref` targets.
+- **Hover** on a `{{placeholder}}`: its value and where it came from, or
+  which request captures it.
+- **Code lenses** above every request: Run, Describe and curl, run by the
+  server, with a one-line result and the full report in the editor's log
+  (curl with its credentials as shell placeholders, as
+  `apic curl --redact` prints it).
+- **Formatting** through `apic fmt`.
+
+The project is found from each file: the nearest directory holding
+`apic.yaml` or an `http-client` env file, without leaving the workspace
+folder. The environment is `env` in the client's initialisation options,
+else `--env` on the command, else `apic.yaml`'s `env:`; the
+[CLI reference](cli.md#apic-lsp) lists the other options.
+
+**Neovim** (0.11 or later):
+
+```lua
+vim.filetype.add({ extension = { http = "http", rest = "http" } })
+vim.lsp.config("apic", {
+  cmd = { "apic", "lsp" },
+  filetypes = { "http" },
+  root_markers = { "apic.yaml", "http-client.env.json", ".git" },
+  init_options = { env = "dev" }, -- optional
+})
+vim.lsp.enable("apic")
+```
+
+**Helix**, in `languages.toml`:
+
+```toml
+[language-server.apic]
+command = "apic"
+args = ["lsp"]
+
+[[language]]
+name = "http"
+scope = "source.http"
+file-types = ["http", "rest"]
+roots = ["apic.yaml", "http-client.env.json"]
+comment-token = "#"
+language-servers = ["apic"]
+```
+
+**JetBrains IDEs**: install the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)
+plugin, add a new language server with the command `apic lsp`, and map
+it to the file name patterns `*.http` and `*.rest`. The built-in HTTP
+Client keeps sending the requests; the server adds apic's diagnostics,
+completion and hover beside it.
+
+**Emacs** with Eglot:
+
+```elisp
+(add-to-list 'eglot-server-programs '((restclient-mode http-mode) . ("apic" "lsp")))
+```
+
+**Zed** starts language servers from extensions, and there is no apic
+extension for Zed yet; the terminal commands below work there today.
 
 ## Any editor
 

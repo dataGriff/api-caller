@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `apic.languageServer.enable` (off by default) takes the diagnostics,
+  completion and hover from `apic lsp`, the language server in apic 0.2.0
+  and later, instead of the extension's own providers: problems follow the
+  buffer as you type instead of appearing on save, and the same server
+  serves Neovim, Helix and JetBrains. The code lenses, formatting, the
+  response panel, the views and the Test Explorer are unchanged. An older
+  binary leaves the extension's providers in place, with a note.
+
 - Errors from apic read the `--json` error object on stderr (apic's error
   catalogue), and the message offers "What is E101?", which opens the
   code's entry on the docs site. Older binaries' `error:` lines still work.

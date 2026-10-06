@@ -779,6 +779,57 @@ pass one. See [agents.md](agents.md).
 claude mcp add api -- apic mcp --dir ./api --env dev
 ```
 
+## apic lsp
+
+```
+apic lsp [--dir <path>] [--env <name>]
+```
+
+A Language Server Protocol server on stdin/stdout, for Neovim, Helix,
+JetBrains IDEs, Emacs or any editor with an LSP client; the set-up for
+each is in [editors.md](editors.md#any-editor-with-an-lsp-client). It
+publishes `apic validate`'s diagnostics for open buffers as they change
+(and for `apic.yaml` and the env files when they change on disk),
+completes directives, variables, selectors, operators, auth types and
+`# @ref` targets, shows a variable's value and source on hover with
+secrets masked, formats with `apic fmt`, and offers Run, Describe and
+curl code lenses that it executes itself (`apic.lsp.run`,
+`apic.lsp.describe`, `apic.lsp.curl` through `workspace/executeCommand`,
+answering with what `run --json`, `describe --json` and
+`curl --redact` print; the curl command lands in a notification and the
+editor's log, so its credentials are shell placeholders).
+
+The project root is found per file: inside a workspace folder, the
+nearest directory holding `apic.yaml` or an `http-client` env file,
+without leaving the folder, else the folder itself; outside every
+folder, the file's own directory. `--dir` stands in for a client that
+names no workspace. A project nested in another keeps its own
+diagnostics, so two projects that each have a `login` are no clash. An
+edit is checked once typing pauses (150 ms); a completion, hover or
+lens for the file checks it first.
+
+The initialisation options:
+
+| Option | Meaning |
+|---|---|
+| `env` | The environment for hover, completion and runs; else `--env`, else `apic.yaml`'s `env:`. |
+| `envs` | The environment per project root, `{"/path/to/api": "staging"}`, for a client that picks one per project. |
+| `projectRoots` | Fixes the project root of every file in a workspace folder, `{"/path/to/folder": "/path/to/folder/api"}`, as the VS Code extension's `apic.projectDir` does. |
+| `codeLens`, `formatting` | `false` leaves that feature to a client with its own, as the VS Code extension does. |
+
+`workspace/didChangeConfiguration` with `{"apic": {"env": "staging"}}`
+or `{"apic": {"envs": {"/path/to/api": "staging"}}}` changes them (an
+empty value goes back to the default). The workspace is checked when the
+client is ready, so problems in files that are not open show too, and
+`apic.lsp.validate` (no arguments) checks it again and answers once the
+diagnostics are out. A run through a code lens writes the session and
+the [response history](#apic-history) as `apic run` does.
+
+The server speaks JSON-RPC on stdout, so `--json` changes nothing for it.
+It exits 0 after a `shutdown` request and an `exit` notification, and 1
+when the client exits or closes the stream without one, as the protocol
+asks.
+
 ## apic demo
 
 ```
@@ -1135,6 +1186,16 @@ List every request in the project.
 
 ```
 apic list [pattern]
+```
+
+No flags of its own.
+
+### apic lsp
+
+Serve diagnostics, completion, hover, code lenses and formatting to an editor over LSP (stdio).
+
+```
+apic lsp
 ```
 
 No flags of its own.
