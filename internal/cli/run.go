@@ -248,10 +248,12 @@ func (a *App) readRows(path string) ([]datafile.Row, error) {
 // neither reach the next iteration nor the session file; with share one
 // runner carries them through. start is called before each iteration,
 // done after it with its results. A failed iteration stops the run
-// unless keepGoing is set.
+// unless keepGoing is set. A data run records no history: one row per
+// response would push out what the history is for.
 func (a *App) runRows(cmd *cobra.Command, r *runner.Runner, rows []datafile.Row, args []string, share, keepGoing bool, start func(*runner.Iteration, *runner.Runner), done func([]*runner.Result)) ([]*runner.Result, error) {
 	base := r.Opts.Vars
 	session := r.Session
+	r.History = nil
 	var all []*runner.Result
 	var firstErr error
 	for i, row := range rows {
@@ -269,6 +271,7 @@ func (a *App) runRows(cmd *cobra.Command, r *runner.Runner, rows []datafile.Row,
 			var err error
 			ir, err = a.runnerFor(r.Project, func(o *runner.Options) {
 				o.Vars = vars
+				o.NoHistory = true
 				if session != nil {
 					o.Session = session.Snapshot()
 				}

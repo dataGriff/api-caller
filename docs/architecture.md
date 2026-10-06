@@ -57,10 +57,11 @@ flowchart LR
    response is read once, bounded by `maxBodyBytes`; `# @capture`
    selectors pull values out of it and `# @assert` expressions are
    evaluated. A failed assertion or capture is exit 1.
-7. **Persist** (`internal/session`). Captures are committed to the run
-   and to `.apic/session.json` for the environment, and the cookie jar to
-   `.apic/cookies.json`, so the next invocation continues where this one
-   stopped.
+7. **Persist** (`internal/session`, `internal/history`). Captures are
+   committed to the run and to `.apic/session.json` for the environment,
+   and the cookie jar to `.apic/cookies.json`, so the next invocation
+   continues where this one stopped. With `history:` set, the result is
+   also kept in `.apic/history`, in its `--json` form, for `apic history`.
 8. **Render** (`internal/output`). One set of renderers produces the
    terminal report, the `--json` line, the UI panes and the MCP result,
    all from the same `Result`, with the same redaction rules.
@@ -83,6 +84,7 @@ flowchart LR
 - `internal/selector`: `status`, `header.x`, `cookie.x`, `body.$.path` selectors
 - `internal/assert`: assertion parser and evaluator
 - `internal/session`: `.apic/session.json` persistence of captured values and cached tokens, and the cookie jar in `cookies.go`
+- `internal/history`: the last N responses of each named request per environment in `.apic/history`, and the comparison `apic history diff` and the UI's history tab show (JSON by structure, text by line)
 - `internal/auth`: `# @auth` spec parsing and application for bearer, basic, AWS SigV4 (own signer in `sigv4.go`, credentials in `awscreds.go`; no AWS SDK), OAuth2 grants and exec
 - `internal/runner`: variable precedence, request execution, TLS settings (`tls.go`), captures, asserts, retries, `# @ref` dependencies, flows, `describe`
 - `internal/output`: the shared theme (`theme.go`), the string renderers used by both the CLI and the UI (`render.go`), JSON highlighting (`jsonhl.go`) and the `io.Writer` wrappers (`output.go`)

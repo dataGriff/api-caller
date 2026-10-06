@@ -128,7 +128,7 @@ func (s *Store) Save() error {
 	// Refuse to write tokens into a directory that is not ignored: this file
 	// is what keeps a captured OAuth2 access and refresh token out of a
 	// commit, so failing to create it is not something to shrug off.
-	if err := ensureDir(filepath.Dir(s.path)); err != nil {
+	if err := EnsureDir(filepath.Dir(s.path)); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s, "", "  ")

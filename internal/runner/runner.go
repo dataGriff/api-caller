@@ -30,6 +30,7 @@ import (
 	"github.com/dataGriff/api-caller/internal/assert"
 	"github.com/dataGriff/api-caller/internal/auth"
 	"github.com/dataGriff/api-caller/internal/env"
+	"github.com/dataGriff/api-caller/internal/history"
 	"github.com/dataGriff/api-caller/internal/httpfile"
 	"github.com/dataGriff/api-caller/internal/project"
 	"github.com/dataGriff/api-caller/internal/selector"
@@ -79,6 +80,10 @@ type Options struct {
 	// every request directly, whatever is configured.
 	Proxy   string
 	NoProxy bool
+	// NoHistory records no responses whatever apic.yaml's history says:
+	// `apic test` and the iterations of `apic run --data` set it, so a
+	// test suite or a data file does not push a request's history out.
+	NoHistory bool
 }
 
 // Progress reports one failed attempt of a request that is being retried,
@@ -98,9 +103,13 @@ type Runner struct {
 	// Jar is the cookie jar, nil unless cookies are switched on. It is
 	// in-memory under --no-session and persisted to .apic/cookies.json
 	// otherwise.
-	Jar    *session.Jar
-	Opts   Options
-	Stderr io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
+	Jar *session.Jar
+	// History records each named request's response when apic.yaml sets
+	// `history: N`; nil when it does not, under --no-session, or with
+	// Options.NoHistory.
+	History *history.Store
+	Opts    Options
+	Stderr  io.Writer // interactive prompts such as device-code sign-in; nil means os.Stderr
 	// Interactive says a person is at the terminal: an OAuth2 grant that
 	// needs a browser may open one. The CLI sets it when stdin and stderr
 	// are terminals and --json is off; MCP and apic test leave it off.
@@ -187,6 +196,9 @@ func New(p *project.Project, opts Options) (*Runner, error) {
 		if r.Session, err = session.Open(p.Root); err != nil {
 			return nil, usagef(CodeSession, "session: %v", err)
 		}
+	}
+	if p.Config.History > 0 && !opts.NoSession && !opts.NoHistory {
+		r.History = history.New(p.Root, p.Config.History)
 	}
 	if opts.Cookies || p.Config.Cookies {
 		switch {
@@ -1125,7 +1137,27 @@ func (r *Runner) run(ctx context.Context, req *httpfile.Request, chain []*httpfi
 			result.OK = false
 		}
 	}
+	if err := r.record(req, result); err != nil {
+		result.Errors = append(result.Errors, "history: "+err.Error())
+		result.OK = false
+	}
 	return result, nil
+}
+
+// record adds a named request's response to its history, in the form
+// `apic run --json` prints: sensitive headers masked, and every value
+// under --redact. The requests it ran first have histories of their own.
+func (r *Runner) record(req *httpfile.Request, result *Result) error {
+	if r.History == nil || req.Name == "" || result.Response == nil {
+		return nil
+	}
+	entry := *result
+	entry.Deps, entry.Iteration = nil, nil
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	return r.History.Record(r.Opts.Env, req.Name, r.clock(), data)
 }
 
 // attempt sends a resolved request once and evaluates its captures and

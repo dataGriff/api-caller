@@ -180,6 +180,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic describe <id>` | Variables the request needs and where each comes from, captures, asserts, and whether it is ready. |
 | `apic env` | Environments found and the variables in effect (secrets masked). |
 | `apic session [clear]` | Captured values stored in `.apic/session.json`. |
+| `apic history <request>` | The responses a request returned before, and `apic history diff` for what changed. Off until `history: N` is set in `apic.yaml`. |
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
 | `apic snippet <id> --lang python` | The same request as HTTPie, PowerShell, Python, JavaScript or Go code. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |

@@ -155,7 +155,7 @@ Exit 2. The command works on one request (`describe`, `curl`, `snippet`) and the
 
 ### E203 bad flag or argument
 
-Exit 2. A flag has a value the command cannot use, two flags cannot be combined (`--output` with a flow or `--data`, `--use-session` with `--no-session`), an argument is missing or extra, or the command does not exist.
+Exit 2. A flag has a value the command cannot use, two flags cannot be combined (`--output` with a flow or `--data`, `--use-session` with `--no-session`), an argument is missing or extra, a history entry number names no entry, or the command does not exist.
 
 **What to do:** Check the command's flags with apic <command> --help.
 
@@ -195,7 +195,7 @@ Exit 2. `--proxy`, `proxy:` in `apic.yaml` or `HTTP(S)_PROXY` holds a URL apic c
 
 ### E208 session or cookie store problem
 
-Exit 2. `.apic/session.json` or the cookie jar could not be read or written, or a session command ran with `--no-session`.
+Exit 2. `.apic/session.json`, the cookie jar or the response history in `.apic/history` could not be read or written, or a session command ran with `--no-session`.
 
 **What to do:** Check .apic/ is writable, or run with --no-session.
 

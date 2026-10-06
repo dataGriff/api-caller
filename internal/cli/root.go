@@ -97,7 +97,7 @@ Exit codes: 0 ok · 1 assertion or capture failed · 2 usage/parse/missing varia
 	root.SetOut(a.Stdout)
 	root.SetErr(a.Stderr)
 
-	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.curlCmd(), a.snippetCmd(),
+	root.AddCommand(a.runCmd(), a.uiCmd(), a.testCmd(), a.listCmd(), a.describeCmd(), a.envCmd(), a.sessionCmd(), a.historyCmd(), a.curlCmd(), a.snippetCmd(),
 		a.validateCmd(), a.fmtCmd(), a.importCmd(), a.initCmd(), a.mcpCmd(), a.demoCmd(), a.versionCmd())
 	_ = root.RegisterFlagCompletionFunc("env", a.completeEnvs)
 	codeArgumentErrors(root)

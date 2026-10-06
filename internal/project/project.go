@@ -32,6 +32,9 @@ type Config struct {
 	Timeout string `yaml:"timeout"` // default request timeout, e.g. "30s"
 	Retry   string `yaml:"retry"`   // default retry policy, "<attempts> [interval]", e.g. "10 2s"
 	Cookies bool   `yaml:"cookies"` // keep a cookie jar per environment in .apic/cookies.json
+	// History keeps the last N responses of each named request, per
+	// environment, under .apic/history; zero (the default) keeps none.
+	History int `yaml:"history"`
 	// Proxy is an http, https or socks5 proxy URL every request goes
 	// through; NoProxy lists the hosts that bypass it. `--proxy` beats
 	// it and `--no-proxy` switches it off for one command.

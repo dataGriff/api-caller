@@ -111,6 +111,8 @@ func (m *Model) handleKey(msg Key) Cmd {
 		m.tab = tabChecks
 	case k.Tab4.matches(msg):
 		m.tab = tabSession
+	case k.Tab5.matches(msg):
+		m.tab = tabHistory
 	case k.Headers.matches(msg):
 		m.showHeaders = !m.showHeaders
 		m.tab = tabResponse
@@ -229,6 +231,7 @@ func (m *Model) storeDeps(res *runner.Result) {
 func (m *Model) finishRun(rs *runState) {
 	m.refreshDescs()
 	m.refreshSession()
+	m.histSeq++
 	var results []*runner.Result
 	for _, r := range rs.reqs {
 		if res := m.results[r]; res != nil {

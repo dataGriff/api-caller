@@ -167,7 +167,7 @@ func (j *Jar) Save() error {
 		}
 		return nil
 	}
-	if err := ensureDir(filepath.Dir(j.path)); err != nil {
+	if err := EnsureDir(filepath.Dir(j.path)); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(struct {
@@ -191,8 +191,10 @@ func (j *Jar) unexpired(cookies []Cookie) []Cookie {
 	return out
 }
 
-// ensureDir creates .apic/ with its .gitignore, as Store.Save does.
-func ensureDir(dir string) error {
+// EnsureDir creates a .apic directory with the .gitignore that keeps it
+// out of commits. The session, the cookie jar and the history all write
+// through it.
+func EnsureDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}

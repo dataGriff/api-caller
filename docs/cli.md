@@ -406,6 +406,59 @@ cookies are not in it. `session cookies` lists the jar on its own, and with
 `--json` prints `{"<env>": [{"name", "domain", "path", "expires", "secure",
 "http_only"}]}`, never the values.
 
+## apic history
+
+```
+apic history [request] [--show N] [-v]
+apic history diff <request> [from] [to]
+apic history clear [request] [--all]
+```
+
+Response history is off until `apic.yaml` sets `history: N`. Then every
+`apic run`, the UI and MCP's `run_request` and `run_file` keep the last
+`N` responses of each named request, per environment, in
+`.apic/history/<env>/<request>/`. Unnamed requests, `--no-session` runs,
+`apic run --data` and `apic test` record nothing. A request that `# @ref`
+ran first gets its own entry. Each entry is the result as `apic run --json`
+prints it, so sensitive headers are masked and a `--redact` run stores the
+redacted form; see [Security](https://github.com/dataGriff/api-caller/blob/main/SECURITY.md)
+for what that leaves on disk.
+
+`history <request>` lists the entries newest first, numbered from 1, with
+the time, status, duration and size. With no request it lists the
+requests that have history in the environment. `--show N` prints entry N
+as `apic run` printed it (`-v` adds the headers). A request that has
+since been renamed or deleted keeps its history and can still be read and
+cleared by its old name.
+
+`history diff` compares two entries, by default `2` (the one before) with
+`1` (the latest): first the status, then the body. A JSON body is compared
+by structure, with keys in sorted order and arrays index by index, and
+each change is a JSONPath of the kind `# @assert` reads. A text body is
+compared line by line. Headers are left out, since a `Date` or a request
+id differs every time:
+
+```text
+$ apic history diff list-todos
+list-todos #2 (2026-10-06 10:00:01, 200) → #1 (2026-10-06 10:05:03, 200)
+~ $[0].done: false → true
++ $[2]: {"done":false,"id":"3","title":"Write docs"}
+2 changes
+```
+
+`history clear` forgets one request's history, the whole environment's
+without a request, or every environment's with `--all`.
+
+With `--json`:
+
+| Command | Prints |
+|---|---|
+| `history` | `{"env", "keep", "requests": [{"request", "entries"}]}` |
+| `history <request>` | `{"env", "request", "keep", "entries": [{"index", "time", "ok", "status", "status_text", "duration_ms", "size", "file"}]}` |
+| `history <request> --show N` | the entry's fields and `"result"`, the stored `apic run --json` object |
+| `history diff` | `{"env", "request", "from", "to", "changes": [{"path", "op", "from", "to"}]}`; `op` is `added`, `removed` or `changed`, and `from` and `to` are JSON values |
+| `history clear` | `{"cleared": "<env>" or "*", "request", "entries"}` |
+
 ## apic curl
 
 ```
@@ -804,6 +857,7 @@ timeout: 30s    # default request timeout
 retry: 10 2s    # default retry policy for requests without # @retry; see format.md
 maxBodyBytes: 67108864  # cap on the response body read into memory (default 64 MiB)
 cookies: true           # keep a cookie jar per environment in .apic/cookies.json (default off)
+history: 20             # keep the last 20 responses of each request in .apic/history (default off)
 proxy: http://proxy.internal:3128   # every request goes through it; --proxy beats it, --no-proxy skips it
 noProxy: [localhost, .internal]     # hosts that bypass proxy: name, host:port, .suffix, IP, CIDR or *
 tls:                    # a private CA and a client certificate; see auth.md
@@ -848,6 +902,7 @@ and the URL above.
 | `.env` | `KEY=value` lines; lowest precedence after file `@vars`. |
 | `.apic/session.json` | Captured values per environment. Written by `run`, cleared by `session clear`. `.apic/.gitignore` is created alongside so it is never committed. |
 | `.apic/cookies.json` | The cookie jar per environment, when cookies are on. Written `0600` by `run`, cleared by `session clear`, listed by `session cookies`. |
+| `.apic/history/` | The last responses of each named request per environment, when `history:` is set. One `0600` file per response, written by `run`, read by `history`, cleared by `history clear`. |
 | `>> file` targets | Response bodies a request saves (`>> ./out.json`, `>>! ./out.json`) or `run --output` writes. Inside the project for `>>`; `0600` when a secret went into the request. |
 
 <!-- BEGIN GENERATED: go run ./scripts/clidocs (task docs:cli) rewrites this section; edit the flags in internal/cli instead -->
@@ -995,6 +1050,41 @@ apic fmt [path...] [flags]
 |---|---|
 | `--check` | do not write; list the files that would change and exit 1 if any |
 | `--diff` | do not write; print a unified diff of what would change and exit 1 if any |
+
+### apic history
+
+List the responses a request returned before (needs history: N in apic.yaml).
+
+```
+apic history [request] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--show <int>` | print entry N (1 is the newest) as apic run printed it |
+| `-v, --verbose` | with --show, include the request and response headers |
+
+### apic history clear
+
+Forget the history of a request, or of every request in the environment (or --all).
+
+```
+apic history clear [request] [flags]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--all` | clear every environment |
+
+### apic history diff
+
+Show what changed between two responses (default: the last two).
+
+```
+apic history diff <request> [from] [to]
+```
+
+No flags of its own.
 
 ### apic import
 

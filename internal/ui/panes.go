@@ -76,6 +76,8 @@ func (m *Model) renderPane(width int) string {
 		return m.renderResponse(width)
 	case tabChecks:
 		return m.renderChecks(width)
+	case tabHistory:
+		return m.renderHistory(width)
 	default:
 		return m.renderSession(width)
 	}
