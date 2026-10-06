@@ -12,7 +12,7 @@ both; keep it current when a package's job changes. The short version:
 `internal/runner` resolves variables, applies auth, sends, captures and
 asserts, with `env`, `template`, `session`, `auth`, `selector` and
 `assert` beneath it; `internal/output` renders for the CLI, the UI and
-MCP; `internal/bdd` and `internal/phrase` are `apic test`; `internal/cli`
+MCP; `internal/lsp` is `apic lsp`, the language server; `internal/bdd` and `internal/phrase` are `apic test`; `internal/cli`
 holds the commands (one file per command) and `internal/ui` the terminal UI; `internal/demoapi`
 is the offline API and project behind `apic demo`; `examples/` are the
 static sample projects CI validates and format-checks; `editors/vscode/`

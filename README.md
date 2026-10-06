@@ -190,6 +190,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic validate` | Parse every file and report problems with line, column and a code; non-zero exit on errors. `--format github` annotates a pull request, `--format sarif` feeds code scanning. |
 | `apic fmt` | Rewrite `.http` files in their canonical form: directive order, header case, JSON bodies. `--check` for CI, `-` for editors. |
 | `apic mcp` | Serve the project to AI agents over MCP (stdio). |
+| `apic lsp` | A language server for Neovim, Helix, JetBrains and any LSP editor: diagnostics as you type, completion, hover, run lenses, formatting. |
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 
 All commands take `--json` and `-C <dir>`, and none of them prompt. `apic ui`

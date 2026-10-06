@@ -223,3 +223,31 @@ func TestValidateReadsBodyPaths(t *testing.T) {
 		t.Errorf("filter: %+v", d)
 	}
 }
+
+func TestLoadOverlayParsesBuffersInPlaceOfFiles(t *testing.T) {
+	dir := t.TempDir()
+	saved := filepath.Join(dir, "api.http")
+	if err := os.WriteFile(saved, []byte("### a\n# @name on-disk\nGET http://x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "elsewhere.http")
+	p, err := LoadOverlay(dir, map[string]string{
+		saved:                           "### a\n# @name edited\n# @capture nope\nGET http://x\n",
+		filepath.Join(dir, "new.http"):  "### b\n# @name unsaved\nGET http://y\n",
+		filepath.Join(dir, "notes.txt"): "not a request file",
+		outside:                         "### c\n# @name outside\nGET http://z\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, r := range p.Requests() {
+		names = append(names, r.Name)
+	}
+	if strings.Join(names, ",") != "edited,unsaved" {
+		t.Errorf("requests = %v, want the buffer's and the unsaved file's only", names)
+	}
+	if len(p.Diagnostics) != 1 || p.Diagnostics[0].Path != "api.http" || p.Diagnostics[0].Code != "bad-capture" {
+		t.Errorf("diagnostics = %+v, want the buffer's bad capture", p.Diagnostics)
+	}
+}

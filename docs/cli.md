@@ -779,6 +779,34 @@ pass one. See [agents.md](agents.md).
 claude mcp add api -- apic mcp --dir ./api --env dev
 ```
 
+## apic lsp
+
+```
+apic lsp [--dir <path>] [--env <name>]
+```
+
+A Language Server Protocol server on stdin/stdout, for Neovim, Helix,
+JetBrains IDEs, Emacs or any editor with an LSP client; the set-up for
+each is in [editors.md](editors.md#any-editor-with-an-lsp-client). It
+publishes `apic validate`'s diagnostics for open buffers as they change
+(and for `apic.yaml` and the env files when they change on disk),
+completes directives, variables, selectors, operators, auth types and
+`# @ref` targets, shows a variable's value and source on hover with
+secrets masked, formats with `apic fmt`, and offers Run, Describe and
+curl code lenses that it executes itself (`apic.lsp.run`,
+`apic.lsp.describe`, `apic.lsp.curl` through `workspace/executeCommand`,
+answering with what `run --json`, `describe --json` and `curl` print).
+
+The project root is found per file: the nearest directory holding
+`apic.yaml` or an env file, inside the client's workspace folder;
+`--dir` is used when the client names no workspace. `--env`, or
+`initializationOptions.env` from the client, picks the environment for
+hover, completion and runs; `workspace/didChangeConfiguration` with
+`{"apic": {"env": "staging"}}` changes it. A run through a code lens
+writes the session and the [response history](#apic-history) as
+`apic run` does. The server exits 0 after a `shutdown` request and an
+`exit` notification, and 2 if the client exits without one.
+
 ## apic demo
 
 ```
@@ -1135,6 +1163,16 @@ List every request in the project.
 
 ```
 apic list [pattern]
+```
+
+No flags of its own.
+
+### apic lsp
+
+Serve diagnostics, completion, hover, code lenses and formatting to an editor over LSP (stdio).
+
+```
+apic lsp
 ```
 
 No flags of its own.
