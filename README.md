@@ -194,7 +194,9 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic demo` | Scaffold and serve a fake API (`--out`, `--port`, `--force`). |
 
 All commands take `--json` and `-C <dir>`, and none of them prompt. `apic ui`
-is the one exception, and it refuses to start without a terminal. Colour is
+is the one exception, and it refuses to start without a terminal. `apic mcp`
+and `apic lsp` speak their own JSON protocol on stdout, so `--json` changes
+nothing for them. Colour is
 disabled when output is not a terminal or `NO_COLOR` is set.
 
 **Exit codes:** `0` ok · `1` assertion or capture failed · `2` usage, parse error or missing variable · `3` network error.

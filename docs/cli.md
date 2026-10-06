@@ -795,22 +795,40 @@ completes directives, variables, selectors, operators, auth types and
 secrets masked, formats with `apic fmt`, and offers Run, Describe and
 curl code lenses that it executes itself (`apic.lsp.run`,
 `apic.lsp.describe`, `apic.lsp.curl` through `workspace/executeCommand`,
-answering with what `run --json`, `describe --json` and `curl` print).
+answering with what `run --json`, `describe --json` and
+`curl --redact` print; the curl command lands in a notification and the
+editor's log, so its credentials are shell placeholders).
 
-The project root is found per file: the nearest directory holding
-`apic.yaml` or an env file, inside the client's workspace folder;
-`--dir` is used when the client names no workspace. `--env`, or
-`initializationOptions.env` from the client, picks the environment for
-hover, completion and runs; `workspace/didChangeConfiguration` with
-`{"apic": {"env": "staging"}}` changes it. `"codeLens": false` and
-`"formatting": false` in the initialisation options leave those features
-to a client that has its own, as the VS Code extension does. The
-workspace is checked when the client is ready, so problems in files that
-are not open show too, and `apic.lsp.validate` (no arguments) checks it
-again and answers once the diagnostics are out. A run through a code lens
-writes the session and the [response history](#apic-history) as
-`apic run` does. The server exits 0 after a `shutdown` request and an
-`exit` notification, and 2 if the client exits without one.
+The project root is found per file: inside a workspace folder, the
+nearest directory holding `apic.yaml` or an `http-client` env file,
+without leaving the folder, else the folder itself; outside every
+folder, the file's own directory. `--dir` stands in for a client that
+names no workspace. A project nested in another keeps its own
+diagnostics, so two projects that each have a `login` are no clash. An
+edit is checked once typing pauses (150 ms); a completion, hover or
+lens for the file checks it first.
+
+The initialisation options:
+
+| Option | Meaning |
+|---|---|
+| `env` | The environment for hover, completion and runs; else `--env`, else `apic.yaml`'s `env:`. |
+| `envs` | The environment per project root, `{"/path/to/api": "staging"}`, for a client that picks one per project. |
+| `projectRoots` | Fixes the project root of every file in a workspace folder, `{"/path/to/folder": "/path/to/folder/api"}`, as the VS Code extension's `apic.projectDir` does. |
+| `codeLens`, `formatting` | `false` leaves that feature to a client with its own, as the VS Code extension does. |
+
+`workspace/didChangeConfiguration` with `{"apic": {"env": "staging"}}`
+or `{"apic": {"envs": {"/path/to/api": "staging"}}}` changes them (an
+empty value goes back to the default). The workspace is checked when the
+client is ready, so problems in files that are not open show too, and
+`apic.lsp.validate` (no arguments) checks it again and answers once the
+diagnostics are out. A run through a code lens writes the session and
+the [response history](#apic-history) as `apic run` does.
+
+The server speaks JSON-RPC on stdout, so `--json` changes nothing for it.
+It exits 0 after a `shutdown` request and an `exit` notification, and 1
+when the client exits or closes the stream without one, as the protocol
+asks.
 
 ## apic demo
 

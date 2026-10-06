@@ -90,13 +90,16 @@ so any editor with an LSP client gets what the VS Code extension has:
 - **Hover** on a `{{placeholder}}`: its value and where it came from, or
   which request captures it.
 - **Code lenses** above every request: Run, Describe and curl, run by the
-  server, with a one-line result and the full report in the editor's log.
+  server, with a one-line result and the full report in the editor's log
+  (curl with its credentials as shell placeholders, as
+  `apic curl --redact` prints it).
 - **Formatting** through `apic fmt`.
 
-The project is found from each file, as apic finds it: the nearest
-directory holding `apic.yaml` or an env file. The environment is `env`
-in the client's initialisation options, else `--env` on the command,
-else `apic.yaml`'s `env:`.
+The project is found from each file: the nearest directory holding
+`apic.yaml` or an `http-client` env file, without leaving the workspace
+folder. The environment is `env` in the client's initialisation options,
+else `--env` on the command, else `apic.yaml`'s `env:`; the
+[CLI reference](cli.md#apic-lsp) lists the other options.
 
 **Neovim** (0.11 or later):
 

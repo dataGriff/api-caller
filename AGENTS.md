@@ -49,7 +49,7 @@ never parses `.http` files itself (it reads `--json`).
 
 - Keep the `.http` dialect compatible with VS Code REST Client and JetBrains: new features go in `# @directive` comments before the request line, never new syntax in the request itself. Document any addition in `docs/format.md`.
 - The `--json` output shape and exit codes are a public contract; change them only with a note in the README.
-- Every command must work non-interactively (no prompts) and respect `--json`. `apic ui` is the single, deliberate exception: it is interactive, has no `--json`, and exits 2 when stdout is not a terminal.
+- Every command must work non-interactively (no prompts) and respect `--json`. `apic ui` is the single, deliberate exception: it is interactive, has no `--json`, and exits 2 when stdout is not a terminal. `apic mcp` and `apic lsp` are servers that speak their own JSON protocol on stdout, so `--json` has nothing to change for them.
 - The UI is tested through `Update` and `View`, and driven headlessly by `Press`/`Resize` in `internal/ui/headless.go`; the screenshot generator uses the same entry points, so a screenshot cannot drift from what the UI draws.
 - The UI has its own terminal layer rather than a TUI framework. Bubble Tea was tried and removed: its package `init` queries the terminal for its background colour with a five-second timeout, which every apic command would pay on terminals that do not answer. Keep anything with an init-time terminal query out of the binary.
 - Keep the dependency list small: prefer a few hundred lines of code over a large SDK (the AWS signer and the OpenAPI reader are the precedents). Check the stripped binary size with `task build && ls -la bin/apic` when adding a dependency.

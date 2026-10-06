@@ -250,6 +250,7 @@ func (s *server) completion(p textDocumentPositionParams) (any, error) {
 		if it.snippet {
 			if s.snippets {
 				ci.InsertTextFormat = formatSnippet
+				ci.TextEdit.NewText = escapeDollars(it.insert)
 			} else {
 				ci.TextEdit.NewText = plainSnippet(it.insert)
 			}
@@ -259,9 +260,10 @@ func (s *server) completion(p textDocumentPositionParams) (any, error) {
 	return out, nil
 }
 
-// variableItems offers the environment's variables (the source as detail,
-// secrets masked), the session's captures, the built-ins and the response
-// references of the file's named requests. Callers hold s.mu.
+// variableItems offers the variables (the source as detail, secrets
+// masked: EnvVars includes the session's captures, masked as the secrets
+// they may be), the built-ins and the response references of the file's
+// named requests. Callers hold s.mu.
 func (s *server) variableItems(st *state, path string, closed bool) []item {
 	end := "}}"
 	if closed {
@@ -283,21 +285,6 @@ func (s *server) variableItems(st *state, path string, closed bool) []item {
 				doc = "= " + runner.Masked
 			}
 			items = append(items, item{label: v.Name, insert: v.Name + end, detail: v.Source, doc: doc, sort: "0" + v.Name, kind: kindVariable})
-		}
-		if r.Session != nil {
-			vars := r.Session.Vars(r.Opts.Env)
-			names := make([]string, 0, len(vars))
-			for n := range vars {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			for _, n := range names {
-				if seen[n] || strings.HasPrefix(n, "$") {
-					continue
-				}
-				seen[n] = true
-				items = append(items, item{label: n, insert: n + end, detail: "session", doc: "= " + vars[n], sort: "0" + n, kind: kindVariable})
-			}
 		}
 	}
 	for _, b := range builtins {
@@ -343,11 +330,18 @@ func (s *server) lastBody(st *state, path, text string, line int) (any, bool) {
 	if req == nil || req.Name == "" {
 		return nil, false
 	}
+	r, err := s.runnerFor(st)
+	if err != nil {
+		return nil, false
+	}
+	// The environment in effect, apic.yaml's when nobody picked one: the
+	// one runs record their history under.
+	env := r.Opts.Env
 	key := runner.HistoryKey(st.p, req)
-	if b, ok := s.bodies[st.root+"\x00"+key]; ok {
+	if b, ok := s.bodies[bodyKey(st.root, env, key)]; ok {
 		return b, true
 	}
-	e, err := history.New(st.root, st.p.Config.History).Get(s.env, key, 1)
+	e, err := history.New(st.root, st.p.Config.History).Get(env, key, 1)
 	if err != nil {
 		return nil, false
 	}
@@ -357,6 +351,9 @@ func (s *server) lastBody(st *state, path, text string, line int) (any, bool) {
 	}
 	return jsonBody(res.Response.Body)
 }
+
+// bodyKey is where a run's JSON body is kept for body.$ completion.
+func bodyKey(root, env, key string) string { return root + "\x00" + env + "\x00" + key }
 
 // jsonBody is a response body as a JSON object or array, whether it is
 // still the raw JSON of a fresh result or already decoded from a stored
@@ -486,6 +483,21 @@ var (
 	placeholderRe = regexp.MustCompile(`\$\{\d+:([^}]*)\}`)
 	tabstopRe     = regexp.MustCompile(`\$\d+`)
 )
+
+// escapeDollars makes every `$` that is apic's own (`$uuid`, `body.$.`)
+// literal in a snippet, where `$name` would be a snippet variable: only a
+// `$` before `{` or a digit is the snippet's.
+func escapeDollars(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '$' && (i+1 >= len(s) || (s[i+1] != '{' && (s[i+1] < '0' || s[i+1] > '9'))) {
+			b.WriteString(`\$`)
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
 
 // plainSnippet turns a snippet into the text a client without snippet
 // support should insert: each placeholder's default, a choice's first

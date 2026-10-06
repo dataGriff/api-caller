@@ -170,7 +170,10 @@ func LoadOverlay(root string, overlay map[string]string) (*Project, error) {
 }
 
 // withOverlay adds the overlay's request files under scan that Discover
-// did not find (new, unsaved files), keeping the list sorted.
+// did not find (new, unsaved files), keeping the list sorted. A file
+// Discover would skip (under a hidden directory, node_modules, vendor,
+// testdata or .apic) stays out, open or not, so a project is the same
+// set of files in an editor as on the command line.
 func withOverlay(scan string, paths []string, overlay map[string]string) []string {
 	have := make(map[string]bool, len(paths))
 	for _, p := range paths {
@@ -182,8 +185,8 @@ func withOverlay(scan string, paths []string, overlay map[string]string) []strin
 		if have[p] || (ext != ".http" && ext != ".rest") {
 			continue
 		}
-		rel, err := filepath.Rel(scan, p)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		rel, ok := Within(scan, p)
+		if !ok || skipped(rel) {
 			continue
 		}
 		paths = append(paths, p)
@@ -193,6 +196,18 @@ func withOverlay(scan string, paths []string, overlay map[string]string) []strin
 		sort.Strings(paths)
 	}
 	return paths
+}
+
+// skipped reports whether Discover leaves out a file at rel, a path
+// relative to the directory it walks: one under a directory it skips.
+func skipped(rel string) bool {
+	dirs := strings.Split(filepath.ToSlash(filepath.Dir(rel)), "/")
+	for _, d := range dirs {
+		if d != "." && (skipDirs[d] || strings.HasPrefix(d, ".")) {
+			return true
+		}
+	}
+	return false
 }
 
 // Requests returns every request in file order.

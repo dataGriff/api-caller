@@ -235,7 +235,10 @@ func TestLoadOverlayParsesBuffersInPlaceOfFiles(t *testing.T) {
 		saved:                           "### a\n# @name edited\n# @capture nope\nGET http://x\n",
 		filepath.Join(dir, "new.http"):  "### b\n# @name unsaved\nGET http://y\n",
 		filepath.Join(dir, "notes.txt"): "not a request file",
-		outside:                         "### c\n# @name outside\nGET http://z\n",
+		filepath.Join(dir, "testdata", "broken.http"):       "### x\n# @name edited\n# @capture nope\nGET http://x\n",
+		filepath.Join(dir, ".github", "smoke.http"):         "### y\n# @name hidden\nGET http://x\n",
+		filepath.Join(dir, "node_modules", "pkg", "x.http"): "### z\n# @name vendored\nGET http://x\n",
+		outside: "### c\n# @name outside\nGET http://z\n",
 	})
 	if err != nil {
 		t.Fatal(err)

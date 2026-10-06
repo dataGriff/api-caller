@@ -3,6 +3,9 @@
 package cli
 
 import (
+	"errors"
+	"time"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
@@ -25,7 +28,11 @@ Describe and curl lenses above each request.
 
 The project is found from each file: the nearest directory holding
 apic.yaml or an env file, as apic itself looks. --env picks the
-environment, as does initializationOptions.env from the editor.`,
+environment, as does initializationOptions.env from the editor.
+
+The server speaks JSON-RPC on stdout, so --json changes nothing here. It
+exits 0 after the client's shutdown request and exit notification, and 1
+when the client goes without one.`,
 		Example: `  apic lsp
   apic lsp --env staging`,
 		Args: cobra.NoArgs,
@@ -34,8 +41,13 @@ environment, as does initializationOptions.env from the editor.`,
 			// log carry no colour codes.
 			lipgloss.SetColorProfile(termenv.Ascii)
 			runner.Version = Version
-			err := lsp.Serve(cmd.Context(), a.Stdin, a.Stdout, lsp.Options{Root: a.g.dir, Env: a.g.env, Version: Version})
-			if err != nil {
+			err := lsp.Serve(cmd.Context(), a.Stdin, a.Stdout, lsp.Options{Root: a.g.dir, Env: a.g.env, Version: Version, Debounce: 150 * time.Millisecond})
+			switch {
+			case errors.Is(err, lsp.ErrNoShutdown):
+				// Not a usage error: the protocol asks for exit 1 when the
+				// client goes without a shutdown request.
+				return &exitError{code: 1, msg: err.Error()}
+			case err != nil:
 				return runner.Usage(runner.CodeServer, err.Error())
 			}
 			return nil

@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Apic, compareVersions, INSTALL_URL, MIN_VERSION, NotInstalledError } from "./apic";
+import type { LanguageClient } from "vscode-languageclient/node";
 import { languageServerEnabled, setEnvironment, startLanguageClient, validateWith } from "./client";
 import { ApicCodeActions } from "./codeActions";
 import { ApicCodeLens } from "./codeLens";
@@ -78,18 +79,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
   const completions = new ApicCompletions(apic, envs, lens, knownDirectives, () => panel.last());
 
   // With apic.languageServer.enable, diagnostics, completion and hover
-  // come from `apic lsp` and follow the buffer as you type; a binary
-  // without a language server leaves them to the extension, as before.
-  const firstRoot = projectRoot();
-  const lsp = languageServerEnabled() ? await startLanguageClient(apic, firstRoot ? envs.current(firstRoot) : undefined, output) : undefined;
-  if (lsp) {
-    context.subscriptions.push({ dispose: () => void lsp.stop() });
-  } else {
-    context.subscriptions.push(
-      vscode.languages.registerCompletionItemProvider(requestFiles, completions, ...ApicCompletions.triggers),
-      vscode.languages.registerHoverProvider(requestFiles, hover),
-    );
-  }
+  // come from `apic lsp` and follow the buffer as you type. It starts once
+  // everything else is registered (below), so a slow or failing start
+  // never costs the commands, lenses and views.
+  let lsp: LanguageClient | undefined;
 
   // Request and config files changing on disk, whether saved here or
   // written by git, apic import or anything else: the request list and
@@ -132,7 +125,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
       completions.invalidate(root);
       hover.invalidate(root);
       if (lsp) {
-        void setEnvironment(lsp, envs.current(root));
+        void setEnvironment(lsp, root, envs.current(root));
       } else if (diagnostics.auto()) {
         diagnostics.schedule(root);
       }
@@ -263,6 +256,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     }
   }
 
+  if (languageServerEnabled()) {
+    lsp = await startLanguageClient(apic, { envs: envs.picked(), projectRoots: projectRoots() }, output);
+  }
+  if (lsp) {
+    const client = lsp;
+    context.subscriptions.push({ dispose: () => void client.stop() });
+    // Anything validated while the server was starting is the server's
+    // to report now.
+    diagnostics.collection.clear();
+  } else {
+    // No server (switched off, an old or missing binary, a failed start):
+    // the extension's own completion and hover, and its diagnostics.
+    context.subscriptions.push(
+      vscode.languages.registerCompletionItemProvider(requestFiles, completions, ...ApicCompletions.triggers),
+      vscode.languages.registerHoverProvider(requestFiles, hover),
+    );
+  }
+
   envs.refreshStatus(activeRoot());
 
   // Check the binary once, quietly: a missing or old apic is reported with
@@ -284,6 +295,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<ApicAp
     sessionView,
     tests,
   };
+}
+
+/** apic.projectDir resolved for every workspace folder that sets it: folder → project root. */
+function projectRoots(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const configured = vscode.workspace.getConfiguration("apic", folder.uri).get<string>("projectDir", "").trim();
+    if (configured) {
+      out[folder.uri.fsPath] = path.isAbsolute(configured) ? configured : path.join(folder.uri.fsPath, configured);
+    }
+  }
+  return out;
 }
 
 export function deactivate(): void {

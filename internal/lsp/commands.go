@@ -88,9 +88,10 @@ func (s *server) execute(id *json.RawMessage, p executeCommandParams) (any, erro
 	default:
 		return nil, &rpcError{Code: codeInvalidParams, Message: "unknown command " + p.Command}
 	}
+	s.settle(uri)
 	s.mu.Lock()
 	st := s.projectFor(path)
-	env := s.env
+	env := s.envFor(st.root)
 	s.mu.Unlock()
 	if st.err != nil {
 		return nil, st.err
@@ -134,7 +135,11 @@ func (s *server) execute(id *json.RawMessage, p executeCommandParams) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		code, err := snippet.Render("curl", resolved, false)
+		// Redacted, as `apic curl --redact` prints it: credentials become
+		// shell placeholders and other values are masked, since the
+		// command lands in a notification and in the editor's log file.
+		// `apic curl <target>` in a terminal prints it with the values.
+		code, err := snippet.Render("curl", resolved, true)
 		if err != nil {
 			return nil, err
 		}
@@ -165,6 +170,14 @@ func (s *server) startRun(id *json.RawMessage, r *runner.Runner, req *httpfile.R
 			return
 		}
 		s.remember(r, root, res)
+		s.mu.Lock()
+		// The run changed the session: describe and complete afresh.
+		for k := range s.runners {
+			if strings.HasPrefix(k, root+"\x00") {
+				delete(s.runners, k)
+			}
+		}
+		s.mu.Unlock()
 		var b strings.Builder
 		output.Human(&b, res, false)
 		s.log(b.String())
@@ -186,7 +199,7 @@ func (s *server) remember(r *runner.Runner, root string, res *runner.Result) {
 	walk = func(res *runner.Result) {
 		if req := res.Req(); req != nil && req.Name != "" && res.Response != nil {
 			if body, ok := jsonBody(res.Response.Body); ok {
-				s.bodies[root+"\x00"+runner.HistoryKey(r.Project, req)] = body
+				s.bodies[bodyKey(root, r.Opts.Env, runner.HistoryKey(r.Project, req))] = body
 			}
 		}
 		for _, d := range res.Deps {

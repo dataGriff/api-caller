@@ -34,7 +34,7 @@ func TestLSPCommandFailsWithoutShutdown(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	app.Stdin = strings.NewReader(frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`))
 	app.Stdout, app.Stderr = &stdout, &stderr
-	if code := app.Execute(context.Background(), []string{"lsp"}); code != 2 || !strings.Contains(stderr.String(), "without a shutdown") {
+	if code := app.Execute(context.Background(), []string{"lsp"}); code != 1 || !strings.Contains(stderr.String(), "without a shutdown") {
 		t.Errorf("exit %d: %s", code, stderr.String())
 	}
 }

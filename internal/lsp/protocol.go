@@ -70,6 +70,13 @@ type initializeParams struct {
 	} `json:"workspaceFolders"`
 	InitializationOptions struct {
 		Env string `json:"env"`
+		// Envs is the environment per project root, for a client that
+		// picks one per project (the VS Code extension does).
+		Envs map[string]string `json:"envs"`
+		// ProjectRoots fixes the project root of every file in a
+		// workspace folder, folder → root, as the extension's
+		// apic.projectDir does.
+		ProjectRoots map[string]string `json:"projectRoots"`
 		// CodeLens and Formatting set false leave those features to a
 		// client that has its own (the VS Code extension keeps its
 		// lenses and formatter).

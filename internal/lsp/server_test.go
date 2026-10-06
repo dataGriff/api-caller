@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dataGriff/api-caller/internal/history"
 )
 
 // client drives a server over in-memory pipes, as an editor would.
@@ -562,4 +565,204 @@ func TestInitializationOptionsTurnFeaturesOff(t *testing.T) {
 	if caps["codeLensProvider"] != nil || caps["documentFormattingProvider"] != nil || caps["hoverProvider"] != true {
 		t.Errorf("capabilities = %v", caps)
 	}
+}
+
+func TestBuiltinSnippetsKeepTheirDollar(t *testing.T) {
+	for _, snippets := range []bool{true, false} {
+		c, _, file := fixture(t, snippets)
+		text := apiHTTP + "\n### More\nGET {{\n"
+		c.open(file, text)
+		last := len(lines(text)) - 2
+		items, _ := completionLabels(t, c.call("textDocument/completion", map[string]any{
+			"textDocument": map[string]any{"uri": pathToURI(file)}, "position": map[string]any{"line": last, "character": 6}}))
+		want := map[bool]map[string]string{
+			true:  {"$uuid": `\$uuid}}`, "$env": `\$env.${1:NAME}}}`, "login.response.body.$": `login.response.body.\$.${1:path}}}`},
+			false: {"$uuid": "$uuid}}", "$env": "$env.NAME}}", "login.response.body.$": "login.response.body.$.path}}"},
+		}[snippets]
+		for label, insert := range want {
+			it, ok := items[label]
+			if !ok {
+				t.Errorf("snippets=%v: no %s in %v", snippets, label, items)
+				continue
+			}
+			if got := it.TextEdit.NewText; got != insert {
+				t.Errorf("snippets=%v %s inserts %q, want %q", snippets, label, got, insert)
+			}
+		}
+	}
+	if got := escapeDollars("assert ${1:status} $0 body.$.x $uuid"); got != `assert ${1:status} $0 body.\$.x \$uuid` {
+		t.Errorf("escapeDollars = %q", got)
+	}
+}
+
+func TestBodyPathCompletionReadsHistoryInTheConfiguredEnvironment(t *testing.T) {
+	c, dir, file := fixture(t, true)
+	writeFile(t, filepath.Join(dir, "apic.yaml"), "env: dev\nhistory: 3\n")
+	// A run from the terminal recorded login under dev, apic.yaml's env;
+	// the editor named no environment.
+	stored := `{"ok":true,"request":{"name":"login"},"response":{"status":200,"headers":{},"body":{"token":"t","expires":3600},"duration_ms":1,"size":1}}`
+	if err := history.New(dir, 3).Record("dev", "login", time.Now(), []byte(stored)); err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Replace(apiHTTP, "# @capture token = body.$.token", "# @capture token = body.$.", 1)
+	c.open(file, text)
+	items, _ := completionLabels(t, c.call("textDocument/completion", map[string]any{
+		"textDocument": map[string]any{"uri": pathToURI(file)}, "position": map[string]any{"line": 3, "character": len(lines(text)[3])}}))
+	if items["body.$.expires"].Label == "" || items["body.$.token"].Label == "" {
+		t.Errorf("history keys = %v", items)
+	}
+}
+
+// twoProjects is a workspace folder with no marker of its own holding
+// projects a and b, each with a request named login and environments
+// dev and staging that point at different hosts.
+func twoProjects(t *testing.T) string {
+	t.Helper()
+	ws := t.TempDir()
+	for _, p := range []string{"a", "b"} {
+		writeFile(t, filepath.Join(ws, p, "apic.yaml"), "env: dev\n")
+		writeFile(t, filepath.Join(ws, p, "http-client.env.json"), `{"dev": {"host": "`+p+`-dev"}, "staging": {"host": "`+p+`-staging"}}`)
+		writeFile(t, filepath.Join(ws, p, "api.http"), "### Log in\n# @name login\nGET https://{{host}}/login\n")
+	}
+	return ws
+}
+
+func hoverValue(t *testing.T, c *client, file string) string {
+	t.Helper()
+	m := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": pathToURI(file)}, "position": map[string]any{"line": 2, "character": 13}})
+	return result[hover](t, m).Contents.Value
+}
+
+func TestEnvironmentsArePerProject(t *testing.T) {
+	ws := twoProjects(t)
+	a, b := filepath.Join(ws, "a", "api.http"), filepath.Join(ws, "b", "api.http")
+	c := start(t, Options{})
+	c.call("initialize", map[string]any{"rootUri": pathToURI(ws), "initializationOptions": map[string]any{"envs": map[string]string{filepath.Join(ws, "a"): "staging"}}})
+	c.notify("initialized", map[string]any{})
+	c.open(a, mustRead(t, a))
+	c.open(b, mustRead(t, b))
+	if v := hoverValue(t, c, a); !strings.Contains(v, "a-staging") {
+		t.Errorf("a's host = %q, want staging", v)
+	}
+	if v := hoverValue(t, c, b); !strings.Contains(v, "b-dev") {
+		t.Errorf("b's host = %q, want apic.yaml's dev", v)
+	}
+	c.notify("workspace/didChangeConfiguration", map[string]any{"settings": map[string]any{"apic": map[string]any{"envs": map[string]string{filepath.Join(ws, "b"): "staging"}}}})
+	if v := hoverValue(t, c, b); !strings.Contains(v, "b-staging") {
+		t.Errorf("b's host after the change = %q", v)
+	}
+	if v := hoverValue(t, c, a); !strings.Contains(v, "a-staging") {
+		t.Errorf("changing b moved a: %q", v)
+	}
+}
+
+func TestNestedProjectsKeepTheirOwnDiagnostics(t *testing.T) {
+	ws := twoProjects(t)
+	a := filepath.Join(ws, "a", "api.http")
+	c := start(t, Options{})
+	c.call("initialize", map[string]any{"rootUri": pathToURI(ws)})
+	c.notify("initialized", map[string]any{})
+	// Both projects name a request login; that is no clash, so the
+	// workspace check must not publish duplicate-name warnings.
+	c.call("workspace/executeCommand", map[string]any{"command": CommandValidate})
+	c.mu.Lock()
+	for _, n := range c.notes {
+		if n.Method == "textDocument/publishDiagnostics" && strings.Contains(string(n.Params), "duplicate-name") {
+			t.Errorf("a cross-project duplicate was published: %s", n.Params)
+		}
+	}
+	c.mu.Unlock()
+	n := c.noteCount()
+	c.open(a, "### Log in\n# @name login\n# @frobnicate\nGET https://{{host}}/login\n")
+	if d := c.diagnostics(a, n); len(d) != 1 || d[0].Code != "unknown-directive" {
+		t.Errorf("a's own problem = %+v", d)
+	}
+}
+
+func TestProjectRootsFixTheRoot(t *testing.T) {
+	ws := t.TempDir()
+	writeFile(t, filepath.Join(ws, "api", "http-client.env.json"), `{"dev": {"host": "right"}}`)
+	writeFile(t, filepath.Join(ws, "api", "requests", "sub", "http-client.env.json"), `{"dev": {"host": "stray"}}`)
+	file := filepath.Join(ws, "api", "requests", "sub", "x.http")
+	writeFile(t, file, "### X\n# @name x\nGET https://{{host}}/x\n")
+	c := start(t, Options{Env: "dev"})
+	c.call("initialize", map[string]any{"rootUri": pathToURI(ws), "initializationOptions": map[string]any{"projectRoots": map[string]string{ws: filepath.Join(ws, "api")}}})
+	c.open(file, mustRead(t, file))
+	if v := hoverValue(t, c, file); !strings.Contains(v, "`right`") {
+		t.Errorf("host = %q, want the fixed root's", v)
+	}
+}
+
+func TestFilesOutsideTheWorkspaceStayInTheirDirectory(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "http-client.env.json"), `{}`)
+	s := &server{roots: []string{filepath.Join(home, "work")}, projectDirs: map[string]string{}}
+	scratch := filepath.Join(home, "scratch", "t.http")
+	if got := s.rootFor(scratch); got != filepath.Dir(scratch) {
+		t.Errorf("root of a file outside the workspace = %s, want its directory", got)
+	}
+	inside := filepath.Join(home, "work", "..build", "x.http")
+	if got := s.rootFor(inside); got != filepath.Join(home, "work") {
+		t.Errorf("root of %s = %s, want the workspace folder", inside, got)
+	}
+}
+
+func TestDebouncedEditsAreSettledBeforeARequest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "apic.yaml"), "")
+	file := filepath.Join(dir, "api.http")
+	writeFile(t, file, "### A\n# @name a\nGET https://example.com\n")
+	c := start(t, Options{Debounce: time.Hour})
+	c.call("initialize", map[string]any{"rootUri": pathToURI(dir)})
+	c.open(file, mustRead(t, file))
+	text := "### A\n# @name a\nGET https://example.com\n\n### B\n# @name fresh\nGET https://example.com\n\n### C\n# @ref \nGET https://example.com\n"
+	c.change(file, text, 2)
+	// The check is an hour away, but the completion settles it first.
+	items, _ := completionLabels(t, c.call("textDocument/completion", map[string]any{
+		"textDocument": map[string]any{"uri": pathToURI(file)}, "position": map[string]any{"line": 9, "character": 7}}))
+	if items["fresh"].Label == "" {
+		t.Errorf("ref targets = %v, want the request just typed", items)
+	}
+	// Edits pile up behind the debounce; the server still stops at once.
+	c.change(file, text+"\n", 3)
+	c.change(file, text+"\n\n", 4)
+	c.call("shutdown", nil)
+	c.notify("exit", nil)
+	select {
+	case err := <-c.done:
+		if err != nil {
+			t.Errorf("exit = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server did not stop with checks pending")
+	}
+}
+
+func TestCurlLensIsRedacted(t *testing.T) {
+	c, _, file := fixture(t, true)
+	c.open(file, apiHTTP)
+	curl := result[string](t, c.call("workspace/executeCommand", map[string]any{"command": CommandCurl, "arguments": []any{pathToURI(file), "api.http#login"}}))
+	if strings.Contains(curl, "s3cret") || !strings.Contains(curl, "/login") {
+		t.Errorf("curl = %q", curl)
+	}
+}
+
+func TestAParseErrorIsAnsweredWithANullID(t *testing.T) {
+	var out strings.Builder
+	in := "Content-Length: 7\r\n\r\n{nope!}"
+	if err := Serve(context.Background(), strings.NewReader(in), &out, Options{}); !errors.Is(err, ErrNoShutdown) {
+		t.Errorf("err = %v", err)
+	}
+	if !strings.Contains(out.String(), `"id":null`) || !strings.Contains(out.String(), `"code":-32700`) {
+		t.Errorf("reply = %s", out.String())
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

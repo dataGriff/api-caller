@@ -77,6 +77,18 @@ export class Environments {
     return `apic.env:${root}`;
   }
 
+  /** Every project with a picked environment, root → environment. */
+  picked(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const key of this.context.workspaceState.keys()) {
+      const env = this.context.workspaceState.get<string>(key);
+      if (key.startsWith("apic.env:") && env) {
+        out[key.slice("apic.env:".length)] = env;
+      }
+    }
+    return out;
+  }
+
   /** The environment picked for a project, or undefined for apic's default. */
   current(root: string): string | undefined {
     return this.context.workspaceState.get<string>(this.key(root));

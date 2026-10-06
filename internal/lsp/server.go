@@ -8,9 +8,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dataGriff/api-caller/internal/env"
 	"github.com/dataGriff/api-caller/internal/httpfile"
@@ -28,7 +30,17 @@ type Options struct {
 	Env string
 	// Version is reported to the client in serverInfo.
 	Version string
+	// Debounce is how long the server waits after an edit before it checks
+	// the project again, so a burst of keystrokes costs one check. Zero
+	// checks after every edit. A request (completion, hover, a lens) for a
+	// project with a check pending runs the check first.
+	Debounce time.Duration
 }
+
+// ErrNoShutdown is what Serve returns when the client exits, or closes
+// the stream, without a shutdown request first; the protocol asks the
+// server to exit 1 then.
+var ErrNoShutdown = errors.New("the client exited without a shutdown request")
 
 // Command names the server executes through workspace/executeCommand,
 // offered by its code lenses. The arguments are the document URI and the
@@ -42,7 +54,8 @@ const (
 	CommandValidate = "apic.lsp.validate"
 )
 
-// markers are the files whose directory is a project root.
+// markers are the files whose directory is a project root, as the VS
+// Code extension looks for them.
 var markers = []string{project.ConfigFile, env.PublicFile, env.PrivateFile}
 
 // server is one client's session.
@@ -50,23 +63,28 @@ type server struct {
 	conn *conn
 	opts Options
 
-	// mu guards everything below; a run started from a code lens finishes
-	// on its own goroutine.
+	// mu guards everything below; a run started from a code lens and a
+	// debounced check finish on their own goroutines.
 	mu          sync.Mutex
 	initialized bool
 	shutdown    bool
-	roots       []string           // workspace folders, absolute
-	env         string             // the environment in effect
-	snippets    bool               // the client takes snippet completions
-	watchable   bool               // the client lets the server register file watchers
-	units       units              // how the client counts columns
-	docs        map[string]string  // open documents by absolute path
-	projects    map[string]*state  // by project root
-	bodies      map[string]any     // last JSON body run here, by root + "\x00" + history key
-	published   map[string]bool    // paths that have diagnostics showing
-	wg          sync.WaitGroup     // runs in flight
-	runCtx      context.Context    // cancelled on exit
-	cancelRuns  context.CancelFunc //
+	roots       []string                  // workspace folders, absolute
+	projectDirs map[string]string         // workspace folder → the project root the client fixes for it
+	env         string                    // the environment in effect where no project has its own
+	envs        map[string]string         // the environment per project root, when the client picked one
+	snippets    bool                      // the client takes snippet completions
+	watchable   bool                      // the client lets the server register file watchers
+	units       units                     // how the client counts columns
+	docs        map[string]string         // open documents by absolute path
+	projects    map[string]*state         // by project root
+	runners     map[string]*runner.Runner // for describing and completing, by root + "\x00" + env
+	pending     map[string]*time.Timer    // checks waiting out the debounce, by root
+	bodies      map[string]any            // last JSON body run here, by root, env and history key
+	published   map[string]string         // path → the root whose check published diagnostics for it
+	sent        map[string][]diagnostic   // path → what was last published, so an unchanged set is not sent again
+	wg          sync.WaitGroup            // runs and checks in flight
+	runCtx      context.Context           // cancelled on exit
+	cancelRuns  context.CancelFunc        //
 }
 
 // state is a loaded project and what the server derived from it.
@@ -78,12 +96,22 @@ type state struct {
 
 // Serve runs a language server on r and w until the client sends exit or
 // closes the stream. It returns nil after a shutdown request and an exit
-// notification, as the protocol asks.
+// notification, and ErrNoShutdown when the client goes without one.
 func Serve(ctx context.Context, r io.Reader, w io.Writer, opts Options) error {
 	s := &server{conn: newConn(r, w), opts: opts, env: opts.Env, docs: map[string]string{},
-		projects: map[string]*state{}, bodies: map[string]any{}, published: map[string]bool{}}
+		projectDirs: map[string]string{}, envs: map[string]string{}, projects: map[string]*state{},
+		runners: map[string]*runner.Runner{}, pending: map[string]*time.Timer{}, bodies: map[string]any{},
+		published: map[string]string{}, sent: map[string][]diagnostic{}}
 	s.runCtx, s.cancelRuns = context.WithCancel(ctx)
 	defer func() {
+		s.mu.Lock()
+		for root, t := range s.pending {
+			if t.Stop() {
+				s.wg.Done() // the check will not run, and owed this
+			}
+			delete(s.pending, root)
+		}
+		s.mu.Unlock()
 		s.cancelRuns()
 		s.wg.Wait()
 	}()
@@ -124,7 +152,7 @@ func (s *server) exitErr() error {
 	if s.shutdown {
 		return nil
 	}
-	return errors.New("the client exited without a shutdown request")
+	return ErrNoShutdown
 }
 
 // handle dispatches one request or notification.
@@ -187,31 +215,35 @@ func (s *server) handle(m *message) (any, error) {
 		var p struct {
 			Settings struct {
 				Apic struct {
-					Env *string `json:"env"`
+					Env  *string           `json:"env"`
+					Envs map[string]string `json:"envs"`
 				} `json:"apic"`
 			} `json:"settings"`
 		}
 		if err := decode(m.Params, &p); err != nil {
 			return nil, err
 		}
+		s.mu.Lock()
 		if e := p.Settings.Apic.Env; e != nil {
-			s.mu.Lock()
 			s.env = *e
-			s.mu.Unlock()
-			s.refreshAll()
 		}
+		s.setEnvs(p.Settings.Apic.Envs)
+		s.runners = map[string]*runner.Runner{}
+		s.mu.Unlock()
 		return nil, nil
 	case "textDocument/completion":
 		var p textDocumentPositionParams
 		if err := decode(m.Params, &p); err != nil {
 			return nil, err
 		}
+		s.settle(p.TextDocument.URI)
 		return s.completion(p)
 	case "textDocument/hover":
 		var p textDocumentPositionParams
 		if err := decode(m.Params, &p); err != nil {
 			return nil, err
 		}
+		s.settle(p.TextDocument.URI)
 		return s.hover(p)
 	case "textDocument/codeLens":
 		var p struct {
@@ -220,6 +252,7 @@ func (s *server) handle(m *message) (any, error) {
 		if err := decode(m.Params, &p); err != nil {
 			return nil, err
 		}
+		s.settle(p.TextDocument.URI)
 		return s.codeLenses(p.TextDocument.URI), nil
 	case "textDocument/formatting":
 		var p struct {
@@ -249,6 +282,29 @@ func decode(raw json.RawMessage, v any) error {
 	return nil
 }
 
+// setEnvs records the environments the client picked per project root; an
+// empty value goes back to the default. Callers hold s.mu.
+func (s *server) setEnvs(envs map[string]string) {
+	for root, e := range envs {
+		root = filepath.Clean(root)
+		if e == "" {
+			delete(s.envs, root)
+		} else {
+			s.envs[root] = e
+		}
+	}
+}
+
+// envFor is the environment a project runs in: the one the client picked
+// for it, else the server's, else (when that is empty too) apic.yaml's,
+// which runner.New applies. Callers hold s.mu.
+func (s *server) envFor(root string) string {
+	if e, ok := s.envs[root]; ok {
+		return e
+	}
+	return s.env
+}
+
 func (s *server) initialize(raw json.RawMessage) (any, error) {
 	var p initializeParams
 	if err := decode(raw, &p); err != nil {
@@ -272,8 +328,13 @@ func (s *server) initialize(raw json.RawMessage) (any, error) {
 			}
 		}
 	}
-	if e := p.InitializationOptions.Env; e != "" {
-		s.env = e
+	o := p.InitializationOptions
+	if o.Env != "" {
+		s.env = o.Env
+	}
+	s.setEnvs(o.Envs)
+	for folder, root := range o.ProjectRoots {
+		s.projectDirs[filepath.Clean(folder)] = filepath.Clean(root)
 	}
 	s.snippets = p.Capabilities.TextDocument.Completion.CompletionItem.SnippetSupport
 	encoding := "utf-16"
@@ -294,44 +355,16 @@ func (s *server) initialize(raw json.RawMessage) (any, error) {
 		"hoverProvider":          true,
 		"executeCommandProvider": map[string]any{"commands": []string{CommandRun, CommandDescribe, CommandCurl, CommandValidate}},
 	}
-	if o := p.InitializationOptions.CodeLens; o == nil || *o {
+	if o.CodeLens == nil || *o.CodeLens {
 		caps["codeLensProvider"] = map[string]any{"resolveProvider": false}
 	}
-	if o := p.InitializationOptions.Formatting; o == nil || *o {
+	if o.Formatting == nil || *o.Formatting {
 		caps["documentFormattingProvider"] = true
 	}
 	return map[string]any{
 		"capabilities": caps,
 		"serverInfo":   map[string]any{"name": "apic", "version": s.opts.Version},
 	}, nil
-}
-
-// validateWorkspace checks the project of every workspace folder, and
-// every project a document has opened since, publishing diagnostics for
-// files that are not open too, as `apic validate` would report them.
-func (s *server) validateWorkspace() {
-	s.mu.Lock()
-	seen := map[string]bool{}
-	var roots []string
-	for _, folder := range s.roots {
-		// rootFor walks up from a file; a name inside the folder starts
-		// the walk at the folder itself.
-		if r := s.rootFor(filepath.Join(folder, "_")); !seen[r] {
-			seen[r] = true
-			roots = append(roots, r)
-		}
-	}
-	for r := range s.projects {
-		if !seen[r] {
-			seen[r] = true
-			roots = append(roots, r)
-		}
-	}
-	s.mu.Unlock()
-	sort.Strings(roots)
-	for _, r := range roots {
-		s.refresh(r)
-	}
 }
 
 // registerWatchers asks a client that can to tell the server about
@@ -355,36 +388,48 @@ func (s *server) registerWatchers() {
 	_ = s.conn.write(&message{ID: &id, Method: "client/registerCapability", Params: params})
 }
 
-// rootFor is the project a file belongs to: the nearest directory above it
-// holding apic.yaml or an env file, without leaving its workspace folder;
-// else that folder; else the file's own directory.
+// rootFor is the project a file belongs to: inside a workspace folder,
+// the root the client fixed for that folder, else the nearest directory
+// above the file holding apic.yaml or an http-client env file without
+// leaving the folder, else the folder; outside every folder, the file's
+// own directory. Callers hold s.mu.
 func (s *server) rootFor(path string) string {
 	folder := ""
 	for _, r := range s.roots {
-		if rel, err := filepath.Rel(r, path); err == nil && !strings.HasPrefix(rel, "..") && len(r) > len(folder) {
+		if _, in := project.Within(r, path); in && len(r) > len(folder) {
 			folder = r
 		}
 	}
-	dir := filepath.Dir(path)
-	for {
+	if folder == "" {
+		return filepath.Dir(path)
+	}
+	if fixed, ok := s.projectDirs[folder]; ok {
+		return fixed
+	}
+	for dir := filepath.Dir(path); ; dir = filepath.Dir(dir) {
 		for _, m := range markers {
 			if _, err := os.Stat(filepath.Join(dir, m)); err == nil {
 				return dir
 			}
 		}
-		if dir == folder {
+		if dir == folder || filepath.Dir(dir) == dir {
 			return folder
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
+	}
+}
+
+// rootMemo is rootFor with its answers kept, for a check that asks about
+// many files. Callers hold s.mu.
+func (s *server) rootMemo() func(string) string {
+	seen := map[string]string{}
+	return func(path string) string {
+		if r, ok := seen[path]; ok {
+			return r
 		}
-		dir = parent
+		r := s.rootFor(path)
+		seen[path] = r
+		return r
 	}
-	if folder != "" {
-		return folder
-	}
-	return filepath.Dir(path)
 }
 
 func (s *server) open(uri, text string) {
@@ -394,9 +439,10 @@ func (s *server) open(uri, text string) {
 	}
 	s.mu.Lock()
 	s.docs[path] = text
+	delete(s.sent, path) // a client may have dropped them when the file closed
 	root := s.rootFor(path)
 	s.mu.Unlock()
-	s.refresh(root)
+	s.refresh(root) // a newly opened file gets its diagnostics at once
 }
 
 func (s *server) change(p didChangeParams) {
@@ -409,7 +455,7 @@ func (s *server) change(p didChangeParams) {
 	s.docs[path] = p.ContentChanges[len(p.ContentChanges)-1].Text
 	root := s.rootFor(path)
 	s.mu.Unlock()
-	s.refresh(root)
+	s.schedule(root)
 }
 
 func (s *server) close(uri string) {
@@ -421,7 +467,7 @@ func (s *server) close(uri string) {
 	delete(s.docs, path)
 	root := s.rootFor(path)
 	s.mu.Unlock()
-	s.refresh(root) // the file on disk is what counts now
+	s.schedule(root) // the file on disk is what counts now
 }
 
 // watched re-checks the projects a change outside the editor touched.
@@ -435,27 +481,94 @@ func (s *server) watched(p didChangeWatchedFilesParams) {
 	}
 	s.mu.Unlock()
 	for r := range roots {
-		s.refresh(r)
+		s.schedule(r)
 	}
 }
 
-// refreshAll re-checks every project seen so far, after the environment
-// changed.
-func (s *server) refreshAll() {
+// schedule checks a project once the edits stop for Options.Debounce,
+// or at once without a debounce.
+func (s *server) schedule(root string) {
+	if s.opts.Debounce <= 0 {
+		s.refresh(root)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t, ok := s.pending[root]; ok && t.Stop() {
+		s.wg.Done() // replaced before it ran
+	}
+	s.wg.Add(1)
+	var t *time.Timer
+	t = time.AfterFunc(s.opts.Debounce, func() {
+		defer s.wg.Done()
+		s.mu.Lock()
+		current := s.pending[root] == t
+		if current {
+			delete(s.pending, root)
+		}
+		s.mu.Unlock()
+		if current {
+			s.refresh(root)
+		}
+	})
+	s.pending[root] = t
+}
+
+// settle runs a pending check of a document's project now, so a request
+// about the document sees its latest text.
+func (s *server) settle(uri string) {
+	path, ok := uriToPath(uri)
+	if !ok {
+		return
+	}
+	s.mu.Lock()
+	root := s.rootFor(path)
+	t, pending := s.pending[root]
+	if pending {
+		delete(s.pending, root)
+	}
+	s.mu.Unlock()
+	if pending {
+		if t.Stop() {
+			s.wg.Done() // the timer will not run its function, which owed this
+		}
+		s.refresh(root)
+	}
+}
+
+// validateWorkspace checks the project of every workspace folder, every
+// project nested inside one, and every project a document has opened
+// since, publishing diagnostics for files that are not open too, as
+// `apic validate` in each project would report them.
+func (s *server) validateWorkspace() {
 	s.mu.Lock()
 	var roots []string
+	for _, folder := range s.roots {
+		// rootFor walks up from a file; a name inside the folder starts
+		// the walk at the folder itself.
+		roots = append(roots, s.rootFor(filepath.Join(folder, "_")))
+	}
 	for r := range s.projects {
 		roots = append(roots, r)
 	}
 	s.mu.Unlock()
-	for _, r := range roots {
-		s.refresh(r)
+	done := map[string]bool{}
+	for len(roots) > 0 {
+		r := roots[0]
+		roots = roots[1:]
+		if done[r] {
+			continue
+		}
+		done[r] = true
+		roots = append(roots, s.refresh(r)...)
 	}
 }
 
 // refresh reloads a project with the open buffers in place of their files
-// and publishes its diagnostics, clearing those that went away.
-func (s *server) refresh(root string) {
+// and publishes the diagnostics of the files it owns, clearing those that
+// went away. A file under the root that belongs to a project nested
+// inside it is that project's business: refresh returns those roots.
+func (s *server) refresh(root string) []string {
 	s.mu.Lock()
 	overlay := map[string]string{}
 	for path, text := range s.docs {
@@ -464,49 +577,75 @@ func (s *server) refresh(root string) {
 	st := &state{root: root}
 	st.p, st.err = project.LoadOverlay(root, overlay)
 	s.projects[root] = st
+	for k := range s.runners {
+		if strings.HasPrefix(k, root+"\x00") {
+			delete(s.runners, k)
+		}
+	}
+	owner := s.rootMemo()
+	nested := map[string]bool{}
 	diags := map[string][]diagnostic{}
 	if st.err != nil {
 		path := filepath.Join(root, project.ConfigFile)
 		diags[path] = []diagnostic{{Range: lspRange{}, Severity: severityError, Source: "apic", Message: st.err.Error()}}
 	} else {
+		for _, f := range st.p.Files {
+			path := filepath.Join(root, filepath.FromSlash(f.Path))
+			if o := owner(path); o != root {
+				nested[o] = true
+			}
+		}
+		texts := map[string][]string{}
 		for _, d := range st.p.Validate() {
 			path := filepath.Join(root, filepath.FromSlash(d.Path))
-			diags[path] = append(diags[path], s.toDiagnostic(path, d))
+			if owner(path) != root && filepath.Dir(path) != root {
+				continue // a nested project's file: its own check publishes it
+			}
+			ls, ok := texts[path]
+			if !ok {
+				ls = lines(s.text(path))
+				texts[path] = ls
+			}
+			diags[path] = append(diags[path], s.toDiagnostic(ls, d))
 		}
 	}
 	// Every open file of the project gets an answer, an empty one when it
 	// is clean, so an editor never keeps markers from before it opened.
 	for path := range s.docs {
-		if _, has := diags[path]; !has && s.rootFor(path) == root {
+		if _, has := diags[path]; !has && owner(path) == root {
 			diags[path] = []diagnostic{}
 		}
 	}
-	var clear []string
-	for path := range s.published {
-		if _, still := diags[path]; !still && s.rootFor(path) == root {
-			clear = append(clear, path)
-			delete(s.published, path)
+	for path, by := range s.published {
+		if _, still := diags[path]; !still && by == root {
+			diags[path] = []diagnostic{}
 		}
 	}
+	var send []string
 	for path, ds := range diags {
 		if len(ds) > 0 {
-			s.published[path] = true
+			s.published[path] = root
+		} else {
+			delete(s.published, path)
 		}
+		if prev, ok := s.sent[path]; ok && reflect.DeepEqual(prev, ds) {
+			continue
+		}
+		s.sent[path] = ds
+		send = append(send, path)
 	}
 	s.mu.Unlock()
 
-	paths := make([]string, 0, len(diags))
-	for path := range diags {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	for _, path := range paths {
+	sort.Strings(send)
+	for _, path := range send {
 		_ = s.conn.notify("textDocument/publishDiagnostics", publishDiagnosticsParams{URI: pathToURI(path), Diagnostics: diags[path]})
 	}
-	sort.Strings(clear)
-	for _, path := range clear {
-		_ = s.conn.notify("textDocument/publishDiagnostics", publishDiagnosticsParams{URI: pathToURI(path), Diagnostics: []diagnostic{}})
+	var more []string
+	for r := range nested {
+		more = append(more, r)
 	}
+	sort.Strings(more)
+	return more
 }
 
 // text is a file's content: the open buffer, else what is on disk.
@@ -523,10 +662,10 @@ func (s *server) text(path string) string {
 }
 
 // toDiagnostic converts apic's 1-based byte columns to the client's
-// 0-based line and character. A diagnostic without a column covers its
-// whole line; one without a line, the start of the file.
-func (s *server) toDiagnostic(path string, d httpfile.Diagnostic) diagnostic {
-	ls := lines(s.text(path))
+// 0-based line and character, given the file's lines. A diagnostic
+// without a column covers its whole line; one without a line, the start
+// of the file.
+func (s *server) toDiagnostic(ls []string, d httpfile.Diagnostic) diagnostic {
 	lineText := func(n int) string {
 		if n >= 0 && n < len(ls) {
 			return ls[n]
@@ -563,7 +702,7 @@ func (s *server) toDiagnostic(path string, d httpfile.Diagnostic) diagnostic {
 	return out
 }
 
-// project returns the loaded project a document belongs to, loading it
+// projectFor returns the loaded project a document belongs to, loading it
 // the first time. Callers hold s.mu.
 func (s *server) projectFor(path string) *state {
 	root := s.rootFor(path)
@@ -580,17 +719,28 @@ func (s *server) projectFor(path string) *state {
 	return st
 }
 
-// runnerFor builds a runner over a loaded project for describing and
+// runnerFor is a runner over a loaded project for describing and
 // completing, even when a file has errors: those are the diagnostics'
 // business, and the rest of the project is still worth describing.
-// Nothing it builds writes to disk. Callers hold s.mu.
+// Nothing it does writes to disk. It is kept until the project is checked
+// again or the environment changes. Callers hold s.mu.
 func (s *server) runnerFor(st *state) (*runner.Runner, error) {
 	if st.err != nil {
 		return nil, st.err
 	}
+	env := s.envFor(st.root)
+	key := st.root + "\x00" + env
+	if r, ok := s.runners[key]; ok {
+		return r, nil
+	}
 	p := *st.p
 	p.Diagnostics = nil
-	return runner.New(&p, runner.Options{Env: s.env, NoHistory: true})
+	r, err := runner.New(&p, runner.Options{Env: env, NoHistory: true})
+	if err != nil {
+		return nil, err
+	}
+	s.runners[key] = r
+	return r, nil
 }
 
 // requestAt is the request whose block holds 0-based line n of a file:
@@ -626,8 +776,8 @@ func fileOf(st *state, path string) *httpfile.File {
 	if st == nil || st.p == nil {
 		return nil
 	}
-	rel, err := filepath.Rel(st.root, path)
-	if err != nil {
+	rel, ok := project.Within(st.root, path)
+	if !ok {
 		return nil
 	}
 	return st.p.File(filepath.ToSlash(rel))

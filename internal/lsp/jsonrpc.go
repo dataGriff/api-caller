@@ -110,6 +110,11 @@ func (c *conn) write(m *message) error {
 // reply answers a request. A nil result is sent as JSON null, which the
 // protocol requires for "no result" (no hover, no edits).
 func (c *conn) reply(id *json.RawMessage, result any, err error) error {
+	if id == nil {
+		// A message too broken to have an id is answered with "id": null.
+		null := json.RawMessage("null")
+		id = &null
+	}
 	m := &message{ID: id}
 	switch {
 	case err != nil:
