@@ -592,3 +592,46 @@ func TestDisabledStaysOutOfFlows(t *testing.T) {
 		t.Fatalf("enter on off should send it: %v %+v", f.m.Selected().Name, res)
 	}
 }
+
+func TestHistoryTabListsRunsAndWhatChanged(t *testing.T) {
+	f := newFixture(t, runner.Options{})
+	f.press("5")
+	if v := f.view(); !strings.Contains(v, "5 history") || !strings.Contains(v, "history is off") {
+		t.Fatalf("history tab before history is on:\n%s", v)
+	}
+	cfg := filepath.Join(f.dir, "apic.yaml")
+	data, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, append(data, []byte("\nhistory: 3\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.press("r")
+	if v := f.view(); !strings.Contains(v, "keeps the last 3") || !strings.Contains(v, "nothing recorded yet") {
+		t.Fatalf("history tab after a reload:\n%s", v)
+	}
+	f.drain(f.press("enter"))
+	f.press("5")
+	if v := f.view(); !strings.Contains(v, "#1") || !strings.Contains(v, "200 OK") || !strings.Contains(v, "run it again") {
+		t.Fatalf("history tab after one run:\n%s", v)
+	}
+	f.drain(f.press("enter"))
+	f.press("5")
+	v := f.view()
+	for _, want := range []string{"#2", "what changed · #2 → #1"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q after two runs:\n%s", want, v)
+		}
+	}
+	// The demo API hands out the same token every time, so two logins
+	// return the same body.
+	if !strings.Contains(v, "no changes in status or body") {
+		t.Errorf("two identical logins should not differ:\n%s", v)
+	}
+	f.press("e") // the other environment has no history of its own
+	f.press("5")
+	if v := f.view(); !strings.Contains(v, "history · other") || !strings.Contains(v, "nothing recorded yet") {
+		t.Errorf("history is per environment:\n%s", v)
+	}
+}

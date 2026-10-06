@@ -41,6 +41,7 @@ Content-Type: application/json
 | `apic describe <id>` | Variables, sources, captures, asserts, readiness |
 | `apic env` | Environments and the variables in effect |
 | `apic session [clear]` | Captured values; `clear --all` for every environment |
+| `apic history <id>` | Past responses (needs `history: 20` in `apic.yaml`); `--show 2`, `diff`, `clear <id>` or `clear --all` |
 | `apic curl <id>` | The equivalent curl command |
 | `apic snippet <id> --lang python` | The request as httpie, powershell, python, js or go code |
 | `apic init [dir]` | Scaffold a project |

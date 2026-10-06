@@ -86,6 +86,13 @@ ones `apic session` prints and the same ones later runs will use, and the
 cookies in the jar when `cookies: true` is set. <kbd>x</kbd> clears them
 after a confirmation.
 
+**History** lists the selected request's earlier responses in the current
+environment, newest first, and under them what changed between the last
+two: the status, then the body, compared as
+[`apic history diff`](cli.md#apic-history) compares them. It needs
+`history: N` in `apic.yaml`; until then the tab says so. Every run from the
+UI adds an entry, including the requests a `# @ref` ran first.
+
 The status bar carries the project root, the environment, a spinner with
 progress and a running clock while a request is out, and the result of the
 last run. `demo` and `redact` badges show when `--demo` or `--redact` is in
@@ -103,7 +110,7 @@ force, so a screenshot never hides that values were masked.
 | <kbd>a</kbd> | Run every request in the project |
 | <kbd>esc</kbd> | Cancel a run, clear the filter, or close an overlay |
 | <kbd>tab</kbd>/<kbd>l</kbd>, <kbd>shift+tab</kbd>/<kbd>h</kbd> | Next and previous tab |
-| <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Jump to preview, response, checks, session |
+| <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>5</kbd> | Jump to preview, response, checks, session, history |
 | <kbd>H</kbd> | Toggle request and response headers |
 | <kbd>c</kbd> | Show the selected request as curl; again for HTTPie, PowerShell, Python, JavaScript, Go, then back to the response |
 | <kbd>J</kbd>, <kbd>K</kbd> | Scroll the right pane a line down or up |

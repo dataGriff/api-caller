@@ -22,7 +22,7 @@ type keyMap struct {
 	Filter                binding
 	NextTab, PrevTab      binding
 	Tab1, Tab2, Tab3      binding
-	Tab4                  binding
+	Tab4, Tab5            binding
 	Headers, Curl         binding
 	Open, Env, Reload     binding
 	Clear                 binding
@@ -47,6 +47,7 @@ func newKeyMap() keyMap {
 		Tab2:     bind("2", "response tab", "2"),
 		Tab3:     bind("3", "checks tab", "3"),
 		Tab4:     bind("4", "session tab", "4"),
+		Tab5:     bind("5", "history tab", "5"),
 		Headers:  bind("H", "toggle headers", "H"),
 		Curl:     bind("c", "show as code: curl, httpie … go, then hide", "c"),
 		Open:     bind("o", "open in $EDITOR", "o"),
@@ -68,7 +69,7 @@ func (k keyMap) columns() [][]binding {
 	return [][]binding{
 		{k.Up, k.Down, k.Top, k.Bottom, k.Filter},
 		{k.Run, k.RunFile, k.RunAll, k.Esc, k.Env, k.Reload, k.Open},
-		{k.NextTab, k.PrevTab, k.Tab1, k.Tab2, k.Tab3, k.Tab4},
+		{k.NextTab, k.PrevTab, k.Tab1, k.Tab2, k.Tab3, k.Tab4, k.Tab5},
 		{k.LineUp, k.LineDown, k.PageUp, k.PageDown},
 		{k.Headers, k.Curl, k.Clear, k.Help, k.Quit},
 	}

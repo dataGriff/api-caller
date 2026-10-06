@@ -40,6 +40,14 @@
         "staging"
       ]
     },
+    "history": {
+      "type": "integer",
+      "description": "Keep the last N responses of each named request, per environment, in .apic/history, for `apic history` and the UI's history tab. Off (0) by default, since responses may hold data you do not want on disk; a `--redact` run stores the redacted form. `--no-session` and `apic run --data` record nothing.",
+      "examples": [
+        20
+      ],
+      "minimum": 0
+    },
     "maxBodyBytes": {
       "type": "integer",
       "description": "Largest response body apic reads into memory, in bytes. Default 67108864 (64 MiB); a larger response fails the request.",

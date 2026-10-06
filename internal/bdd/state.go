@@ -256,7 +256,7 @@ func (c *Config) scenarioWith(env string, store *session.Store, jar *session.Jar
 		vars[k] = v
 	}
 	opts := runner.Options{Env: env, Vars: vars, Timeout: c.Timeout, Insecure: c.Insecure, Redact: c.Redact, Cookies: c.Cookies,
-		CACert: c.CACert, Cert: c.Cert, Key: c.Key, Proxy: c.Proxy, NoProxy: c.NoProxy}
+		CACert: c.CACert, Cert: c.Cert, Key: c.Key, Proxy: c.Proxy, NoProxy: c.NoProxy, NoHistory: true}
 	if store != nil {
 		opts.Session = store
 	} else if !c.UseSession {

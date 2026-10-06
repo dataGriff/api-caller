@@ -45,10 +45,11 @@ const (
 	tabResponse
 	tabChecks
 	tabSession
+	tabHistory
 	tabCount
 )
 
-var tabNames = [tabCount]string{"preview", "response", "checks", "session"}
+var tabNames = [tabCount]string{"preview", "response", "checks", "session", "history"}
 
 // runState is the run in flight, if any.
 type runState struct {
@@ -79,6 +80,10 @@ type Model struct {
 	errs    map[*httpfile.Request]error
 	session map[string]string
 	cookies []session.Cookie
+	// hist is the history tab's view; histSeq moves on after every run
+	// and reload, so the next draw reads the history again.
+	hist    *histView
+	histSeq int
 
 	inflight *runState
 	runSeq   int
@@ -130,6 +135,7 @@ func (m *Model) rebuild(selectID string) {
 	m.selected = nil
 	m.refreshDescs()
 	m.refreshSession()
+	m.histSeq++
 	m.cursor = 0
 	m.clampCursor()
 	if selectID != "" {
@@ -275,7 +281,7 @@ func (m *Model) paneID() string {
 		res = m.results[m.selected]
 		desc = m.descs[m.selected]
 	}
-	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.codeLang, m.showHelp, m.confirmClear, res, desc, len(m.session), len(m.cookies), m.vp.width, m.vp.height)
+	return fmt.Sprintf("%s|%d|%v|%v|%v|%v|%p|%p|%d|%d|%d|%d|%d", m.paneReqID(), m.tab, m.showHeaders, m.codeLang, m.showHelp, m.confirmClear, res, desc, len(m.session), len(m.cookies), m.histSeq, m.vp.width, m.vp.height)
 }
 
 // renderStatus draws the bottom bar.

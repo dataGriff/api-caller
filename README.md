@@ -180,6 +180,7 @@ Set `env: dev` in `api/apic.yaml` to drop the `--env` flag.
 | `apic describe <id>` | Variables the request needs and where each comes from, captures, asserts, and whether it is ready. |
 | `apic env` | Environments found and the variables in effect (secrets masked). |
 | `apic session [clear]` | Captured values stored in `.apic/session.json`. |
+| `apic history <request>` | The responses a request returned before, and `apic history diff` for what changed. Off until `history: N` is set in `apic.yaml`. |
 | `apic curl <id>` | Equivalent curl command with variables resolved. |
 | `apic snippet <id> --lang python` | The same request as HTTPie, PowerShell, Python, JavaScript or Go code. |
 | `apic init [dir]` | Scaffold a project: config, env files, a first request and a feature. |
@@ -232,7 +233,9 @@ that is not text now comes as base64 with `body_encoding` beside it,
 `saved_to` names the file a `>> file` line wrote, a `# @disabled`
 request a flow skipped prints `"skipped": "disabled"` with no response,
 `response.proto` says whether it came over HTTP/1.1 or HTTP/2, under
-`run --data` each object carries its `iteration`, and an error comes with
+`run --data` each object carries its `iteration`, `warnings` lists what
+went wrong without failing the request (a history that could not be
+written), and an error comes with
 its catalogue code: as `error` beside `errors` on a result, and as one
 `{"error": {"code", "title", "message", "hint", "exit", "url"}}` object on
 stderr (stdout is unchanged).

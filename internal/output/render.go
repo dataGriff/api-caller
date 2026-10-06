@@ -154,6 +154,9 @@ func Checks(t Theme, res *runner.Result, width int, expected bool) string {
 			fmt.Fprintf(&b, "%s %s\n", t.Fail.Render("✗"), e)
 		}
 	}
+	for _, w := range res.Warnings {
+		fmt.Fprintf(&b, "%s %s\n", t.Warn.Render("!"), w)
+	}
 	return b.String()
 }
 

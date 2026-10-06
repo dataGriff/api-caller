@@ -45,7 +45,13 @@ seconds apart; each failed attempt prints a line as it happens.`,
   apic run daily-report --output reports/daily.csv`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			r, err := a.newRunner()
+			p, err := a.loadProject()
+			if err != nil {
+				return err
+			}
+			// A data run records no history: a response per row would push
+			// out what the history is for.
+			r, err := a.runnerFor(p, func(o *runner.Options) { o.NoHistory = dataPath != "" })
 			if err != nil {
 				return err
 			}
@@ -269,6 +275,7 @@ func (a *App) runRows(cmd *cobra.Command, r *runner.Runner, rows []datafile.Row,
 			var err error
 			ir, err = a.runnerFor(r.Project, func(o *runner.Options) {
 				o.Vars = vars
+				o.NoHistory = true
 				if session != nil {
 					o.Session = session.Snapshot()
 				}
