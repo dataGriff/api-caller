@@ -1,3 +1,7 @@
+> **Moved.** apic now lives at [hungovercoders/apic](https://github.com/hungovercoders/apic):
+> code, issues, releases and the docs site. This repository holds the
+> history up to v0.1.2 and takes no new changes.
+
 <h1 align="center">
   <img src="docs/assets/logo.svg" width="72" alt=""><br>
   apic
